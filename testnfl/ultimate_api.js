@@ -154,13 +154,13 @@ const ACTIONS = {
     profiles.award(p, 'ut_pack', out.unlocked);
     out.cards = cards;
   },
-  // 🏆 a collection's team pack: 3 of its 8 cards
+  // 🏆 a collection's team pack: 1 of its 8 cards + 4 at Standard pack odds
   teampack(p, b, out) {
     const col = collections().find(c => c.id === b.id); if (!col) throw new Error('No such collection.');
     const price = UT.TEAM_PACK.price;
     if (price > p.balance) throw new Error(`Not enough points: you have ${p.balance}.`);
     p.ledger.push({ at: new Date().toISOString(), pts: -price, reason: `Ultimate Team: ${col.name} pack` }); p.balance -= price;
-    const cards = UT.openTeamPack(col).map(c => ({ u: uid(), ...c }));
+    const cards = UT.openTeamPack(col, pools()).map(c => ({ u: uid(), ...c }));
     addCards(p, cards, `${col.name} pack`, out.unlocked);
     profiles.award(p, 'ut_pack', out.unlocked);
     out.cards = cards;

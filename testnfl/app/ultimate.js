@@ -45,7 +45,7 @@
   };
   // 🏆 collections: a legendary team's 8 cards, from its team pack (or any pack). Turn them in once (the cards are used
   // up) for points and a Mythic 99 edition of the team's star that you can't get anywhere else.
-  const TEAM_PACK = { price: 150, cards: 3, icon: '🏆' };
+  const TEAM_PACK = { price: 500, cards: 5, icon: '🏆' }; // 1 card from the team + 4 at Standard pack odds
   const COLLECTION_PTS = 2000;
 
   // the 17-0 pool by group and rarity (kickers aren't in the lineup), plus the staff cards (coaches and stadiums) and the
@@ -96,8 +96,10 @@
     const g = SLOTS[Math.floor(rand() * SLOTS.length)][1], list = pools[g][nearestRar(pools, g, to)].filter(c => c.gr < 99);
     return { ...list[Math.floor(rand() * list.length)] };
   }
-  // a team pack: 3 cards from that collection (repeats happen)
-  const openTeamPack = (col, rand = Math.random) => Array.from({ length: TEAM_PACK.cards }, () => ({ ...col.cards[Math.floor(rand() * col.cards.length)] }));
+  // a team pack: one guaranteed card from that collection (any of its 8, repeats happen), revealed last, after the rest
+  // of a Standard pack
+  const openTeamPack = (col, pools, rand = Math.random) =>
+    [...openPack('standard', pools, rand).slice(0, TEAM_PACK.cards - 1), { ...col.cards[Math.floor(rand() * col.cards.length)] }];
   // the nearest rarity that has a card (going up first): a group with no Mythic gives a Legendary, not a Common
   const nearestRar = (pools, g, rar) => {
     const i = RARITY.findIndex(r => r.key === rar), order = RARITY.map((r, j) => [r.key, Math.abs(j - i) + (j < i ? 0.5 : 0)]).sort((a, b) => a[1] - b[1]).map(x => x[0]);

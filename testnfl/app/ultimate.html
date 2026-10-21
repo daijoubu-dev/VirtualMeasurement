@@ -456,7 +456,7 @@ function drawCols() {
   const n = col => col.cards.filter(got).length;
   const shownCols = cols.filter(c => COLF === 'all' || (COLF === 'done' ? done[c.id] : COLF === 'progress' ? !done[c.id] && n(c) > 0 : !done[c.id] && n(c) === 0));
   $('cols').innerHTML = `<h2>🏆 Legendary teams · ${Object.keys(done).length} of ${cols.length} turned in</h2>
-    <p class="muted" style="text-align:center;margin:0 0 14px;font-size:13px">Collect a team's 8 cards from its team pack (${UT.TEAM_PACK.cards} cards for ${UT.TEAM_PACK.price} points, repeats happen) or any other pack.
+    <p class="muted" style="text-align:center;margin:0 0 14px;font-size:13px">Collect a team's 8 cards from its team pack (${UT.TEAM_PACK.price} points: one card from that team, repeats happen, plus ${UT.TEAM_PACK.cards - 1} random cards at Standard pack odds) or any other pack.
       Turn the set in once for <b style="color:var(--gold)">${UT.COLLECTION_PTS.toLocaleString()} points</b> and a <b style="color:${UT.RARITY[4].color}">Mythic 99</b> edition of the team's star you can't get anywhere else. Turning in uses up one copy of each card. Sets never ask for a Mythic: a 99 in a set (Mahomes, Warner…) is needed as its Legendary set card (${UT.SET_CAP}), which comes in the team pack; the real 99 counts too.</p>
     <div class="filters"><div class="seg" id="colseg">${[['all', 'All'], ['progress', 'In progress'], ['new', 'Not started'], ['done', 'Turned in']].map(([k, t]) => `<button class="${k === COLF ? 'on' : ''}" data-cf="${k}">${t}</button>`).join('')}</div></div>
     <div class="colgrid">${shownCols.map(col => { const k = n(col), full = k === col.cards.length, fin = done[col.id];
