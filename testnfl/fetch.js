@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
 
-// The office network re-signs HTTPS traffic with a corporate root cert that lives in the Windows
-// certificate store, so trust the system store too (same as NODE_USE_SYSTEM_CA=1, but works however we're launched).
+// Some networks inspect HTTPS traffic and re-sign it with their own root certificate, installed in the operating
+// system's certificate store, so trust the system store too (same as NODE_USE_SYSTEM_CA=1, but works however we're launched).
 if (tls.setDefaultCACertificates && tls.getCACertificates) {
   tls.setDefaultCACertificates([...new Set([...tls.getCACertificates('default'), ...tls.getCACertificates('system')])]);
 }

@@ -160,7 +160,7 @@ The downloaded data (`data/`) and the page data built from it (`app/data.js`, `p
 node fetch.js && node build.js && node build_app.js && node build_perfect.js && node build_charts.js && node build_box.js
 ```
 
-`fetch.js` downloads every season from 1999 to the current one into `data/raw/` (plus the injury report and Next Gen Stats); pass `node fetch.js 2026 2026` to fetch just one season. It trusts the Windows certificate store, which is needed on the office network. Player stats (`stats_player_reg_*.csv` and the gzipped weekly `stats_player_week_*.csv.gz`, about 50 MB for all seasons) always cover 1999 to now for the career pages, but past seasons are only downloaded if they're missing, so **↻ Refresh data** re-fetches just the current season (and fills in any missing past season once).
+`fetch.js` downloads every season from 1999 to the current one into `data/raw/` (plus the injury report and Next Gen Stats); pass `node fetch.js 2026 2026` to fetch just one season. It also trusts the operating system's certificate store, which is needed on networks that inspect HTTPS traffic. Player stats (`stats_player_reg_*.csv` and the gzipped weekly `stats_player_week_*.csv.gz`, about 50 MB for all seasons) always cover 1999 to now for the career pages, but past seasons are only downloaded if they're missing, so **↻ Refresh data** re-fetches just the current season (and fills in any missing past season once).
 
 ## Hosting it online
 
