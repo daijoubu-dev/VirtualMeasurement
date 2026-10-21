@@ -111,14 +111,18 @@
   @media (max-width: 900px) { .bx-grid { grid-template-columns: minmax(0, 1fr); } }
   .bx-side h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 15px; }
   .bx-side h3 img { width: 26px; height: 26px; object-fit: contain; }
-  .bx-scroll { overflow-x: auto; }
-  table.bx { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
-  table.bx th { text-align: right; font-size: 10.5px; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 3px 5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  table.bx td { text-align: right; padding: 3px 5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  table.bx th:first-child, table.bx td:first-child { text-align: left; }
-  table.bx td:first-child { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-  table.bx td .ps { color: var(--faint); font-size: 10.5px; margin-left: 4px; }
-  .bx-more { border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0 0 8px; }
+  /* player tables use the site's standard stat table (like the career pop-up) */
+  .bx-h { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 2px; }
+  .bx-side .bx-h:first-of-type { margin-top: 4px; }
+  table.bx { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-bottom: 4px; font-size: 13.5px; }
+  table.bx th, table.bx td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  table.bx th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  table.bx td.l, table.bx th.l { text-align: left; }
+  table.bx tr:hover td { background: var(--soft); }
+  table.bx td.l { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+  table.bx td .ps { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  table.bx a.bx-pl { font-weight: 700; color: inherit; text-decoration: none; } table.bx a.bx-pl:hover { color: var(--accent); text-decoration: underline; }
+  .bx-more { border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 2px 8px 6px; }
   .sbt { border-radius: 12px; padding: 8px 12px; }
   .sbt a { color: inherit; text-decoration: none; } .sbt a.lg { line-height: 0; }
   .sbt .who2 { min-width: 0; } .sbt .who2 .full { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -423,6 +427,7 @@
 
 <script src="data.js"></script>
 <script src="core.js"></script>
+<script src="career.js"></script>
 <script>
 const D = window.NFL_DATA;
 const { S, TIERS, TIER_KEY, tierIndex, current, lineText } = GLT;
@@ -1334,23 +1339,26 @@ function renderBox(P) {
   const table = (team, key, head, cells, max) => {
     const rows = g.players[team][key] || []; if (!rows.length) return '';
     const all = boxOpen.has(team + '|' + key), shown = all ? rows : rows.slice(0, max);
-    return `<div class="bx-scroll"><table class="bx"><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${shown.map(r => `<tr>${cells(obj(C[key], r)).map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</table></div>
+    return `<h4 class="bx-h">${head[0]}</h4><div class="scroll"><table class="stat bx"><tr><th class="l">Player</th>${head.slice(1).map(h => `<th>${h}</th>`).join('')}</tr>${shown.map(r => `<tr>${cells(obj(C[key], r)).map((c, i) => `<td${i ? '' : ' class="l"'}>${c}</td>`).join('')}</tr>`).join('')}</table></div>
       ${rows.length > max ? `<button class="bx-more" data-bxmore="${team}|${key}">${all ? 'Show fewer' : `Show all ${rows.length}`}</button>` : ''}`;
   };
-  const nm = (r, pos = true) => `${r.name}${pos && r.pos ? `<span class="ps">${r.pos}</span>` : ''}`;
+  // each name opens that player's career stats in a pop-up (on the tab for this table; ctrl-click opens the Players page)
+  const nm = (r, pos = true, cat = '') => `${r.id ? `<a class="bx-pl" href="players.html?player=${encodeURIComponent(r.id)}" data-pid="${r.id}" data-cat="${cat}" data-tip="Career stats">${r.name}</a>` : r.name}${pos && r.pos ? `<span class="ps">${r.pos}</span>` : ''}`;
   const avg = (y, n) => (n ? (y / n).toFixed(1) : '–');
   const side = (team, cls) => `<div class="bx-side"><h3>${logo(team, '')}<span class="${cls}">${D.teamInfo?.[team]?.name || team}</span></h3>
-    ${table(team, 'pass', ['Passing', 'C/ATT', 'YDS', 'AVG', 'TD', 'INT', 'SCK', 'EPA'], r => [nm(r, false), `${r.cmp}/${r.att}`, r.yds, avg(r.yds, r.att), r.td, r.int, r.sk, r.epa.toFixed(1)], 3)}
-    ${table(team, 'rush', ['Rushing', 'CAR', 'YDS', 'AVG', 'TD'], r => [nm(r), r.car, r.yds, avg(r.yds, r.car), r.td], 4)}
-    ${table(team, 'rec', ['Receiving', 'REC', 'TGT', 'YDS', 'AVG', 'TD'], r => [nm(r), r.rec, r.tgt, r.yds, avg(r.yds, r.rec), r.td], 5)}
-    ${table(team, 'def', ['Defense', 'TKL', 'SCK', 'TFL', 'QBH', 'INT', 'PD', 'FF'], r => [nm(r), r.tkl, r.sk || 0, r.tfl, r.qbh, r.int, r.pd, r.ff], 6)}
-    ${table(team, 'kick', ['Kicking', 'FG', 'LNG', 'XP'], r => [nm(r, false), `${r.fgm}/${r.fga}`, r.lng || '–', `${r.xpm}/${r.xpa}`], 2)}
-    ${table(team, 'punt', ['Punting', 'NO', 'YDS', 'AVG', 'LNG', 'IN 20'], r => [nm(r, false), r.n, r.yds, avg(r.yds, r.n), r.lng, r.in20], 2)}
-    ${table(team, 'ret', ['Returns', 'KR', 'YDS', 'PR', 'YDS', 'TD'], r => [nm(r, false), r.kr, r.kryds, r.pr, r.pryds, r.td], 3)}</div>`;
+    ${table(team, 'pass', ['Passing', 'C/ATT', 'YDS', 'AVG', 'TD', 'INT', 'SCK', 'EPA'], r => [nm(r, false, 'passing'), `${r.cmp}/${r.att}`, r.yds, avg(r.yds, r.att), r.td, r.int, r.sk, r.epa.toFixed(1)], 3)}
+    ${table(team, 'rush', ['Rushing', 'CAR', 'YDS', 'AVG', 'TD'], r => [nm(r, true, 'rushing'), r.car, r.yds, avg(r.yds, r.car), r.td], 4)}
+    ${table(team, 'rec', ['Receiving', 'REC', 'TGT', 'YDS', 'AVG', 'TD'], r => [nm(r, true, 'receiving'), r.rec, r.tgt, r.yds, avg(r.yds, r.rec), r.td], 5)}
+    ${table(team, 'def', ['Defense', 'TKL', 'SCK', 'TFL', 'QBH', 'INT', 'PD', 'FF'], r => [nm(r, true, 'defense'), r.tkl, r.sk || 0, r.tfl, r.qbh, r.int, r.pd, r.ff], 6)}
+    ${table(team, 'kick', ['Kicking', 'FG', 'LNG', 'XP'], r => [nm(r, false, 'kicking'), `${r.fgm}/${r.fga}`, r.lng || '–', `${r.xpm}/${r.xpa}`], 2)}
+    ${table(team, 'punt', ['Punting', 'NO', 'YDS', 'AVG', 'LNG', 'IN 20'], r => [nm(r, false, 'punting'), r.n, r.yds, avg(r.yds, r.n), r.lng, r.in20], 2)}
+    ${table(team, 'ret', ['Returns', 'KR', 'YDS', 'PR', 'YDS', 'TD'], r => [nm(r, false, 'returns'), r.kr, r.kryds, r.pr, r.pryds, r.td], 3)}</div>`;
   el.innerHTML = `<h2>📋 Box score</h2>${teamTable}<div class="bx-grid">${side(P.away, 'ta')}${side(P.home, 'tb')}</div>
     <p class="muted" style="font-size:12px;text-align:center;margin:4px 0 0">Real game stats from nflverse. Passing yards in the team table are net of sacks.</p>`;
 }
 $('boxPanel').addEventListener('click', e => {
+  const pl = e.target.closest('a[data-pid]');
+  if (pl && !(e.ctrlKey || e.metaKey || e.shiftKey || e.button)) { e.preventDefault(); window.VMCareer?.open(pl.dataset.pid, { cat: pl.dataset.cat, name: pl.textContent }); return; }
   const b = e.target.closest('[data-bxmore]'); if (!b) return;
   boxOpen.has(b.dataset.bxmore) ? boxOpen.delete(b.dataset.bxmore) : boxOpen.add(b.dataset.bxmore); renderBox(pastGame);
 });

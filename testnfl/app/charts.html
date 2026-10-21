@@ -70,12 +70,13 @@
 
 <script src="data.js"></script>
 <script src="players.js"></script>
+<script src="career.js"></script>
 <script>
 const D = window.NFL_DATA, P = window.NFL_PLAYERS;
 const $ = id => document.getElementById(id);
 const info = t => D.teamInfo?.[t] || {};
 $('meta').textContent = `${P.season} season`;
-// players on the Players page (clicking a dot opens their career stats there)
+// players on the Players page (clicking a dot opens their career stats in the pop-up, career.js)
 const players = P.rows.map(r => Object.fromEntries(P.cols.map((c, i) => [c, r[i]]))).filter(p => p.id && p.name);
 
 // ---------- 📈 Charts (chartdata.js: nflverse stats + Next Gen Stats + PFR advanced stats + snap counts, built by build_charts.js) ----------
@@ -317,7 +318,7 @@ function drawChart() {
   svg += dots.filter(d => !(team && d.p.team === team)).map(d => d.html).join('') + dots.filter(d => team && d.p.team === team).map(d => d.html).join('');
   $('chart').innerHTML = svg + '</svg>';
 }
-$('chart').addEventListener('click', e => { const g = e.target.closest('[data-pid]'); if (g && players.some(p => p.id === g.dataset.pid)) location.href = 'players.html?player=' + encodeURIComponent(g.dataset.pid); });
+$('chart').addEventListener('click', e => { const g = e.target.closest('[data-pid]'); if (g && players.some(p => p.id === g.dataset.pid)) window.VMCareer.open(g.dataset.pid); });
 
 $('chart').innerHTML = '<p class="empty">Loading chart data…</p>';
 loadData().then(setupCharts).catch(() => { $('chart').innerHTML = '<p class="empty">Chart data is not built yet: click ↻ Refresh data on the Matchups page (or run node fetch.js, then node build_charts.js).</p>'; });
