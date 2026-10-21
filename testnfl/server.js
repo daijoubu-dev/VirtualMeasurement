@@ -2,7 +2,7 @@
 // Usage: node server.js [--no-open]   (or double-click start.bat)
 // Reachable from other machines on the local network (e.g. http://192.168.1.20:8765); anything from outside
 // the local network is refused. Set HOST=127.0.0.1 for this machine only, and PORT to change the port (default 8765).
-// PUBLIC=1 answers everyone (for a VPS, behind a reverse proxy that adds HTTPS; see README "Hosting it online"). Then
+// PUBLIC=1 answers everyone (for a VPS, behind a reverse proxy that adds HTTPS; see README.md at the repo root, "Hosting it online"). Then
 // the real visitor address comes from X-Forwarded-For (only trusted from a proxy on this machine), and ↻ Refresh
 // needs a signed-in profile and runs at most once every REFRESH_MINUTES (default 10) for visitors from outside.
 const http = require('http');
