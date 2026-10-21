@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Super Bowl · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="profile.js"></script>
+<style>
+  .favs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .fav { background: var(--soft); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+  .fav img { height: 44px; width: 44px; object-fit: contain; }
+  .fav .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .fav .v { font-size: 20px; font-weight: 750; }
+  .fav .s { font-size: 12px; color: var(--muted); }
+
+  .simbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .go { font-size: 16px; font-weight: 700; padding: 10px 22px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+  .go:disabled { opacity: .6; cursor: default; }
+  .tally { font-size: 13px; color: var(--muted); }
+
+  /* Bracket: AFC rounds left to right, Super Bowl in the middle, NFC rounds right to left */
+  /* Seven columns that always share the page width (no sideways scroll); details drop out as space gets tight */
+  .bracket { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+  .round { display: flex; flex-direction: column; }
+  .round h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); text-align: center; }
+  .round .games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
+  .game { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); overflow: hidden; }
+  .game.empty { min-height: 58px; border-style: dashed; }
+  .slot { display: grid; grid-template-columns: 14px 18px minmax(0, 1fr) auto; gap: 4px; align-items: center; padding: 4px 6px; font-size: 13px; }
+  .slot > span:nth-child(3) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot + .slot { border-top: 1px solid var(--border); }
+  .slot .seed { font-size: 11px; color: var(--faint); text-align: right; }
+  .slot img { height: 18px; width: 18px; object-fit: contain; }
+  .slot .rec { font-size: 11px; color: var(--faint); margin-left: 4px; font-weight: 400; }
+  .slot .sc { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .slot.win { font-weight: 700; } .slot.lose { opacity: .45; }
+  .bye { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 6px; }
+  .sbcol .games { justify-content: center; }
+  .sbcol .game { border: 2px solid #eab308; }
+  .round h4 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 1100px) { .slot .rec { display: none; } .round h4 { font-size: 10px; letter-spacing: .02em; } }
+  /* Phones: one round per row, in order, instead of seven squeezed columns */
+  @media (max-width: 720px) { .bracket { grid-template-columns: minmax(0, 1fr); } .slot .rec { display: inline; } }
+  .champ { text-align: center; margin-top: 10px; min-height: 120px; }
+  .champ img { height: 72px; width: 72px; object-fit: contain; }
+  .champ .t { font-size: 22px; font-weight: 800; }
+  .champ .s { font-size: 13px; color: var(--muted); }
+
+  .summary { max-width: 720px; margin: 14px auto 0; text-align: left; }
+  .summary h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 6px; text-align: center; }
+  .play { display: grid; grid-template-columns: 64px 22px 1fr auto; gap: 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .play img { height: 20px; width: 20px; object-fit: contain; }
+  .play .q { color: var(--faint); font-size: 12px; }
+  .play .note { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--accent, #c9a227); }
+  .play .run { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  .mvp { text-align: center; margin-top: 10px; font-size: 14px; }
+  .tops { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .tops { grid-template-columns: 1fr; } }
+  .trow { display: grid; grid-template-columns: 18px 22px 1fr auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .trow:first-of-type { border-top: 0; }
+  .trow img { height: 20px; width: 20px; object-fit: contain; }
+  .trow .pc { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .note { font-size: 12px; color: var(--muted); }
+  .trow .cols { display: flex; gap: 14px; font-variant-numeric: tabular-nums; }
+  .trow .cols span { min-width: 46px; text-align: right; }
+  .trow .cols .muted { font-weight: 400; }
+  .method { font-size: 14px; line-height: 1.55; max-width: 900px; }
+  .method h3 { font-size: 15px; margin: 18px 0 6px; }
+  .method h3:first-child { margin-top: 0; }
+  .method ol, .method ul { margin: 6px 0; padding-left: 22px; }
+  .method li { margin: 3px 0; }
+  .method .formula { background: var(--soft); border-radius: 8px; padding: 8px 12px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; margin: 8px 0; }
+  .method table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  .method th, .method td { padding: 4px 12px 4px 0; text-align: left; border-bottom: 1px solid var(--border); }
+  .trow { grid-template-columns: 18px 22px 1fr auto !important; }
+  .wx { font-size: 10.5px; color: var(--muted); text-align: center; padding: 1px 4px 2px; border-top: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot.pickable { cursor: pointer; } .slot.pickable:hover { background: var(--soft); }
+  .slot.picked { background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 700; }
+  .pickbar { background: var(--soft); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pickbar .boxbtn { margin: 0 0 0 auto; }
+  .pickbar .boxbtn:disabled { opacity: .5; cursor: default; }
+  .series { max-width: 520px; margin: 10px auto 0; font-size: 13px; }
+  .series .rm { padding: 3px 0; border-top: 1px solid var(--border); cursor: pointer; }
+  .series .rm.muted { cursor: default; }
+  .awards { max-width: 900px; margin: 16px auto 0; }
+  .awards h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+  .aw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; text-align: left; }
+  .aw { background: var(--soft); border-radius: 10px; padding: 8px 10px; }
+  .aw .k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .aw .v { font-weight: 700; font-size: 14px; margin-top: 2px; }
+  .aw .s { font-size: 12px; color: var(--muted); }
+  .go.alt { background: var(--soft); color: var(--text); border: 1px solid var(--border); font-size: 14px; }
+  .opt { font-size: 13px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+  .game[data-g] { cursor: pointer; } .game[data-g]:hover { border-color: var(--accent); }
+  .callouts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
+  .callout { font-size: 12px; font-style: italic; color: #a855f7; border: 1px dashed color-mix(in srgb, #a855f7 60%, transparent); background: color-mix(in srgb, #a855f7 7%, transparent); border-radius: 999px; padding: 3px 10px; }
+  .boxbtn { margin-top: 12px; font-size: 13px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--soft); color: var(--text); cursor: pointer; }
+  .injuries { max-width: 720px; margin: 12px auto 0; font-size: 13px; text-align: left; }
+  .injuries summary { cursor: pointer; color: var(--muted); text-align: center; margin-bottom: 4px; }
+  .injuries div { padding: 3px 0; border-top: 1px solid var(--border); }
+  .live-h { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .scoreboard { display: flex; align-items: center; justify-content: center; gap: 22px; margin: 8px 0 2px; }
+  .scoreboard .tm { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; }
+  .scoreboard .tm img { height: 44px; width: 44px; object-fit: contain; }
+  .scoreboard .pts { font-size: 40px; font-weight: 850; font-variant-numeric: tabular-nums; min-width: 54px; text-align: center; }
+  .scoreboard .pts.flash { animation: flash 1.2s ease; }
+  @keyframes flash { 0% { color: #eab308; transform: scale(1.25); } 100% { color: inherit; transform: none; } }
+  .scoreboard .clk { font-size: 13px; color: var(--muted); min-width: 80px; text-align: center; }
+  .play.new { animation: fadein .5s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .fact { background: var(--soft); border-radius: 10px; padding: 9px 12px; }
+  .fact .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .fact .v { font-size: 14px; font-weight: 650; margin-top: 2px; }
+  .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 25; overflow-y: auto; }
+  .modal[hidden] { display: none; }
+  .mbox { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; max-width: 960px; width: 100%; padding: 18px 20px; position: relative; }
+  .mbox .x { position: absolute; top: 10px; right: 12px; border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .boxgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 760px) { .boxgrid { grid-template-columns: 1fr; } }
+  .bteam h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 16px; }
+  .bteam h3 img { height: 28px; width: 28px; object-fit: contain; }
+  .bteam h3 .pts { margin-left: auto; font-size: 22px; }
+  table.bs { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+  table.bs th { text-align: right; font-size: 10.5px; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 3px 5px; border-bottom: 1px solid var(--border); }
+  table.bs td { text-align: right; padding: 3px 5px; border-bottom: 1px solid var(--border); }
+  table.bs th:first-child, table.bs td:first-child { text-align: left; }
+  .bdef { font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html" class="on">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <span class="muted" id="meta" style="font-size:13px"></span>
+  </header>
+
+  <div class="favs" id="favs"></div>
+
+  <div class="panel">
+    <div class="simbar">
+      <button class="go" id="go">🏈 Simulate the season</button>
+      <button class="go alt" id="many" data-tip="<b>📊 1,000 seasons</b>Runs the whole simulator 1,000 times in a second or two: how often each team makes the playoffs, reaches and wins the Super Bowl, plus fun facts. Doesn't count toward your champions tally.">📊 Simulate 1,000 seasons</button>
+      <label class="opt" data-tip="<b>🚑 Injuries</b>After every game, each team's starting QB (1.2%) and its top playmaker (1.5%) have a chance of being lost for the season. A backup QB costs the offense 5 points a game, a missing playmaker 1.5, and they stop showing up in the scoring. Applies to both buttons."><input type="checkbox" id="inj"> 🚑 Injuries</label>
+      <label class="opt" data-tip="<b>🎯 Pick your bracket</b>Pick the winner of every playoff game, round by round. Each round plays out when you lock in, and you get scored at the end (tracked for this session)."><input type="checkbox" id="pick"> 🎯 Pick your bracket</label>
+      <label class="opt" data-tip="<b>🍿 Suspense mode</b>The Super Bowl's scoring plays come in one at a time with a live scoreboard, so you don't know who won until the end. Skip anytime."><input type="checkbox" id="sus"> 🍿 Suspense mode</label>
+      <span class="tally" id="tally"></span>
+    </div>
+    <p class="note" style="margin:0 0 12px" data-tip="<b>How a sim works</b>Each game's score comes from each offense against the other defense (points scored and allowed per game, pulled toward average), plus a small home-field edge and plenty of randomness. Touchdowns and field goals are credited to real players by their season stats. The final standings set seeds 1–7 per conference (division winners first), then the playoffs run the same way. Every press is a fresh season.">
+      <span class="tipped">How does it work?</span> Every press plays out the rest of the regular season and the playoffs, with real randomness. Hover a game for its scoring, click it for the box score.</p>
+    <div class="pickbar" id="pickbar" hidden></div>
+    <div class="bracket" id="bracket"></div>
+    <div class="champ" id="champ"></div>
+  </div>
+
+  <div class="panel" id="manyPanel" hidden></div>
+  <div class="modal" id="modal" hidden><div class="mbox"><button class="x" aria-label="Close">✕</button><div id="mbody"></div></div></div>
+
+  <div class="panel">
+    <h2 data-tip="<b>Title odds</b>Chance to make the playoffs, reach the Super Bowl and win it. Hover a team for how its number is built; the full method is below.">
+      <span class="tipped">Title odds · top 5 by conference</span></h2>
+    <div class="tops" id="tops"></div>
+  </div>
+
+  <div class="panel method">
+    <h2>How these numbers work</h2>
+
+    <h3>1. Title odds (the favorites and top-5 lists)</h3>
+    <p>For every team, the question is: <i>how did past teams in a similar spot finish?</i> Three views are blended to estimate
+      each team's chance to <b>make the playoffs</b> and to <b>reach the Super Bowl</b>:</p>
+    <table>
+      <tr><th>Piece</th><th>Weight</th><th>What it looks at</th></tr>
+      <tr><td>Record</td><td>50%</td><td>Every past team (since 1999) with the same record after the same number of games, e.g. all 5-0 teams, and how far they went.</td></tr>
+      <tr><td>Stat look-alikes</td><td>30%</td><td>The 40 past teams whose stats looked most like this team's at the same point in the season. Closer matches count more.</td></tr>
+      <tr><td>Archetypes</td><td>20%</td><td>How past teams wearing the same ◆ archetypes (Contender, Ball hawks, Air raid…) finished.</td></tr>
+      <tr><td>⚔ Counters</td><td>±15% max</td><td>A nudge for the unit-vs-unit edges a team holds (or gives up) against the rest of the league.</td></tr>
+    </table>
+    <p>Small samples are pulled toward the league average (a past 10-0 team that won it all doesn't make every 10-0 team a lock).
+      Then the odds are scaled so the league adds up: <b>14 playoff teams, 2 Super Bowl teams</b>.</p>
+    <p><b>Winning it all</b> is then figured from reaching it, so the two always agree:</p>
+    <div class="formula">Win Super Bowl = Reach Super Bowl × chance to win that one game</div>
+    <p>That one game is close to a coin flip, tilted by <b>point margin</b> (points scored vs allowed, compared with the league):
+      a team with a much better margin than the other conference's likely representative wins it more often. Finally the title odds
+      are scaled so all 32 teams add up to <b>100%</b>.</p>
+    <p><b>Does it work?</b> Tested on every season from 2008 to 2025, each using only seasons before it. After 10 games, the eventual
+      champion was ranked <b>about 5th</b> on average and was in the top 5 in 10 of 18 seasons, getting about <b>8%</b> odds on average,
+      2½ times a blind guess (3.1%). Record turned out to be the strongest single clue, which is why it carries half the weight.
+      It's a fun estimate, not a forecast to bet on: champions like the 2011 Giants (6-4) or 2019 Chiefs (6-4) came from well down the list.</p>
+
+    <h3>2. The simulator (the bracket)</h3>
+    <ol>
+      <li><b>Finish the regular season.</b> Every remaining game is played out, and each team's score is drawn separately: its
+        <i>offense</i> (points scored per game) against the other team's <i>defense</i> (points allowed per game), both pulled 30% toward
+        the league average because five games of results run hot. Expected points = the average of those two, so a great offense
+        against a bad defense expects a lot. The home team gets +1.5 points, and each team's score swings about ±9.5 points from
+        expectations, so upsets happen. A tie goes to overtime, where the team expected to score more is likelier to kick the winning field goal.</li>
+      <li><b>Who scores.</b> Each score is broken into touchdowns, field goals, extra points (and the rare safety), in a mix that looks
+        like real games. Touchdowns are credited to real players from this season's stats: the run/pass split follows the team's own
+        rushing vs passing TDs, rushing TDs go to ball carriers weighted by their rushing TDs and share of carries, passing TDs are thrown by
+        the team's main QB to receivers weighted by their receiving TDs and share of targets, and field goals go to the team's kicker.
+        So a team's lead back really does score most often. About 1 touchdown in 15 belongs to the defense or a return man: pick-sixes
+        go to defenders weighted by interceptions and passes defensed, fumble returns by forced fumbles, and return TDs to the team's
+        return men. Some touchdowns come with a failed extra point or a 2-point try.</li>
+      <li><b>How the game unfolds.</b> The scoring plays are put in an order that reads like real football. A team doesn't kick a
+        late field goal while it still needs a touchdown, nobody goes for 2 without a reason, and a game that went to overtime is tied after
+        regulation and ends on a walk-off field goal. Plays get quarters and a game clock. The score that put the winner ahead for good in
+        the 4th quarter of a one-score game is marked as a 🏁 game-winning drive, and comebacks from 10+ down are called out. Teams only go for 2 where the chart says to (down 2, 5 or 10, or up 1 or 5 right after the TD), and kickoff returns only happen right after the other team scores or on the opening or second-half kickoff. Who plays comes from the real NFL injury report: Out players miss a recovery time drawn from typical timelines for their injury (minus games already missed), Questionable and Doubtful players get a chance to play, and an injured starting QB takes his job back when healthy. Only the starting QB runs the ball. The Super Bowl MVP
+        is voted from the winner's box score: QBs get yards, touchdowns and a head start, backs and receivers need a big yardage and TD day, and a defender needs two takeaways or a pile of sacks.
+        Hover any bracket game for its scoring summary.</li>
+      <li><b>Extras.</b> Click any bracket game for a <b>📦 box score</b>: passing, rushing, receiving, kicking and defense lines built
+        around the scoring plays (a receiver who caught 2 TDs has at least 2 catches, receiving yards add up to the QB's passing yards)
+        using each player's season rates; more points means more yards. With <b>🚑 Injuries</b> on, after every game each team's starting QB
+        (1.2%) and top playmaker (1.5%) can be lost for the season: a backup QB costs 5 points a game, a missing playmaker 1.5, and they stop
+        scoring. <b>🗯 Callouts</b> under the champion fire when a sim lands on a meme (the Bills lose in January, the Chargers blow a lead,
+        a wild card wins it all). <b>🍿 Suspense mode</b> reveals the Super Bowl one score at a time. <b>🌦️ Weather &amp; venue:</b> playoff games are played at the higher seed's stadium in January. Domes and fixed roofs are 72° indoors; outdoor games draw a temperature from that city's typical January (Green Bay ~18°, Miami ~70°) plus snow, rain or wind. Bad weather takes 1–3 points off both offenses and leans the scoring toward the run, and dome or warm-weather teams lose 1.5 more points visiting a cold (under 35°) stadium. The Super Bowl is at SoFi Stadium (indoors). <b>🎯 Pick your bracket</b> lets you pick every playoff winner round by round, scored at the end. <b>🔁 Run it back</b> replays the Super Bowl with the same teams as a series. <b>🏅 Season awards</b> project each player's stats so far plus the rest of the season at a cooled-off pace (hot starts regress, TDs and takeaways most) with some luck: MVP goes to a QB on a 10+ win team when there is one, Coach of the Year to the biggest improvement, Flop of the Year to the biggest drop from a 10+ win season. <b>📊 Simulate 1,000 seasons</b> runs
+        everything 1,000 times and shows how often each team makes the playoffs, reaches and wins the Super Bowl, next to the title-odds estimate.</li>
+      <li><b>Seed the playoffs.</b> In each conference, the four division winners are seeds 1–4 by record, and the next three best records
+        are wild cards (5–7). Ties go to point differential, then a coin flip (simpler than the NFL's real tiebreakers).</li>
+      <li><b>Play the bracket.</b> Wild Card: 2 v 7, 3 v 6, 4 v 5 (the 1 seed rests). Divisional: the 1 seed hosts the lowest seed left.
+        Then the conference championships and the Super Bowl (neutral field). Same game model as above.</li>
+    </ol>
+    <p>The simulator and the title odds are two different methods, so they won't match exactly. The sim tends to favor current leaders
+      more, because a hot start also earns a bye and home games when the playoffs are actually played out.</p>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="players.js"></script>
+<script>
+const D = window.NFL_DATA;
+const $ = id => document.getElementById(id);
+const info = t => D.teamInfo?.[t] || {};
+const logo = (t, cls = '') => (info(t).logo ? `<img class="${cls}" src="${info(t).logo}" alt="" loading="lazy" onerror="this.remove()">` : '');
+const pc = (x, d = 1) => (100 * x).toFixed(d) + '%';
+$('meta').textContent = `${D.currentSeason} through week ${D.lastWeek}`;
+
+// ---------- favorites + top 5 per conference (title-odds estimate) ----------
+const idx = GLT.S.map((s, j) => (s.group !== 'more' ? j : -1)).filter(j => j >= 0);
+const odds = GLT.titleOdds(D.teams.map(t => ({ team: t, p: GLT.current[t] })), { idx });
+const confTop = (c, k) => odds.filter(r => info(r.team).conf === c).sort((a, b) => b[k] - a[k]);
+const favCard = (label, r, val, sub) => `<div class="fav">${logo(r.team)}<div><div class="k">${label}</div>
+  <div class="v">${info(r.team).nick || r.team} ${val}</div><div class="s">${sub}</div></div></div>`;
+$('favs').innerHTML = favCard('Super Bowl favorite', odds[0], pc(odds[0].sb), `${odds[0].p.rec} · title odds`) +
+  ['AFC', 'NFC'].map(c => { const r = confTop(c, 'app')[0]; return favCard(`${c} favorite`, r, pc(r.app, 0), `to reach the Super Bowl · ${r.p.rec}`); }).join('');
+const breakdown = r => `<b>${info(r.team).name || r.team}: how ${pc(r.sb)} is built</b>` +
+  `Reaching the Super Bowl (${pc(r.app)}) blends:<br>• Record ${r.p.rec}: ${pc(r.record.app)} of ${r.record.n} past teams with this record got there (50%)<br>` +
+  `• Stat look-alikes: ${pc(r.looks.app)} of the 40 closest past teams got there (30%)<br>` +
+  `• Archetypes: ${GLT.archetypesOf(r.p).length ? pc(r.arch.app) + ' across ' + GLT.archetypesOf(r.p).length + ' archetypes' : 'none, so the league average'} (20%)<br>` +
+  `• Counters: ${r.mult >= 1 ? '+' : ''}${((r.mult - 1) * 100).toFixed(0)}%<br><br>` +
+  `Winning the game once there: ${pc(r.sbGame, 0)} (point margin ${r.strength >= 0 ? '+' : ''}${r.strength.toFixed(2)} vs the likely opponent's ${r.sbOpp >= 0 ? '+' : ''}${r.sbOpp.toFixed(2)})<br>` +
+  `${pc(r.app)} × ${pc(r.sbGame, 0)}, then scaled so all 32 teams add up to 100%.`;
+$('tops').innerHTML = ['AFC', 'NFC'].map(c => `<div><h2>${c}</h2>
+  <div class="trow" style="border-top:0"><span></span><span></span><span></span><span class="cols muted" style="font-size:11px"><span>Playoffs</span><span>Reach SB</span><span>Win SB</span></span></div>` +
+  confTop(c, 'sb').slice(0, 5).map((r, i) =>
+  `<div class="trow" data-tip="${breakdown(r).replace(/"/g, '&quot;')}"><span class="muted">${i + 1}</span>${logo(r.team)}<span><b>${info(r.team).name || r.team}</b> <span class="muted">${r.p.rec}</span></span>
+   <span class="cols"><span class="muted">${pc(r.po, 0)}</span><span class="muted">${pc(r.app, 0)}</span><span class="pc">${pc(r.sb)}</span></span></div>`).join('') + '</div>').join('');
+
+// ---------- current standings (regular season so far) ----------
+const base = Object.fromEntries(D.teams.map(t => [t, { w: 0, l: 0, t: 0, pf: 0, pa: 0, gp: 0 }]));
+for (const [season, week, , home, away, hs, as] of D.results) {
+  if (season !== D.currentSeason || typeof week !== 'number') continue;
+  for (const [team, pf, pa] of [[home, hs, as], [away, as, hs]]) {
+    const x = base[team]; if (!x) continue;
+    x.gp++; x.pf += pf; x.pa += pa; pf > pa ? x.w++ : pf < pa ? x.l++ : x.t++;
+  }
+}
+// ---------- scoring model: each team's offense against the other team's defense ----------
+// Offense = points scored per game, defense = points allowed per game, both pulled 30% toward the league
+// average (five games run hot). Expected points = average of my offense and your defense, plus/minus home field.
+const lg = D.teams.reduce((a, t) => a + base[t].pf, 0) / Math.max(1, D.teams.reduce((a, t) => a + base[t].gp, 0));
+const REGRESS = 0.7, HFA = 1.5, TEAM_SD = 9.5; // TEAM_SD: one team's points swing about ±9.5 from expectations
+const off = Object.fromEntries(D.teams.map(t => [t, base[t].gp ? lg + REGRESS * (base[t].pf / base[t].gp - lg) : lg]));
+const def = Object.fromEntries(D.teams.map(t => [t, base[t].gp ? lg + REGRESS * (base[t].pa / base[t].gp - lg) : lg]));
+// 🚑 Losing the starting QB costs an offense 5 points a game, each missing top-2 playmaker 1.5. Injuries in the sim
+// (optional checkbox) are season-ending; the chance is per game. Real current injuries come from the injury report.
+const QB_OUT = 5, STAR_OUT = 1.5, QB_HURT = 0.012, STAR_HURT = 0.015;
+const missingPen = (t, R) => (R.qb !== ROSTER[t].qbs[0] ? QB_OUT : 0) + STAR_OUT * ROSTER[t].stars.filter(p => !R.on.has(p)).length;
+const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const poisson = l => { let k = 0, p = 1; const L = Math.exp(-l); do { k++; p *= Math.random(); } while (p > L); return k - 1; };
+const realScore = x => { x = Math.max(0, Math.round(x)); return x === 1 ? (Math.random() < 0.5 ? 0 : 3) : x; }; // 1 point isn't possible
+// week = the NFL week being played (19+ for the playoffs), so players coming back from injury return on time
+function playGame(home, away, neutral = false, ctx = null, label = '', wx = null, week = 99) { // {home, away, hs, as, ot, winner, loser, ws, ls, label, rost}
+  const rost = { [home]: rosterFor(home, ctx, week), [away]: rosterFor(away, ctx, week) }; // who actually plays
+  const pen = wx?.pen || 0; // bad weather takes points off both offenses
+  const eh = (off[home] - missingPen(home, rost[home]) + def[away]) / 2 + (neutral ? 0 : HFA / 2) - pen - coldPen(home, home, wx);
+  const ea = (off[away] - missingPen(away, rost[away]) + def[home]) / 2 - (neutral ? 0 : HFA / 2) - pen - coldPen(away, home, wx);
+  let hs = realScore(eh + randn() * TEAM_SD), as = realScore(ea + randn() * TEAM_SD);
+  const ot = hs === as;
+  if (ot) Math.random() < 1 / (1 + Math.exp(-(eh - ea) / 7)) ? (hs += 3) : (as += 3); // overtime field goal
+  const homeWon = hs > as;
+  const g = { home, away, hs, as, ot, label, neutral, wx, week, winner: homeWon ? home : away, loser: homeWon ? away : home, ws: Math.max(hs, as), ls: Math.min(hs, as) };
+  g.rost = rost;
+  if (ctx?.injuries) injuryRoll(g, ctx);
+  return g;
+}
+
+// ---------- 🌦️ weather & venue: the playoffs are in January ----------
+// Typical January game-time temperature (°F) at each outdoor home stadium. Domes and fixed roofs play at 72° with no weather.
+const DOME = new Set(['ARI', 'ATL', 'DAL', 'DET', 'HOU', 'IND', 'LV', 'LA', 'LAC', 'MIN', 'NO']);
+const JAN_TEMP = { BUF: 26, GB: 18, CHI: 26, CLE: 30, PIT: 30, NE: 30, NYG: 33, NYJ: 33, KC: 30, DEN: 32, CIN: 32, BAL: 36, PHI: 35, WAS: 38, SEA: 44, TEN: 40, CAR: 44, SF: 52, JAX: 58, TB: 63, MIA: 70 };
+const SB_SITE = { 2026: 'SoFi Stadium, Inglewood' }[D.currentSeason] || 'a neutral dome'; // Super Bowl LXI (Feb 2027)
+const softie = t => DOME.has(t) || (JAN_TEMP[t] ?? 72) >= 55; // dome and warm-weather teams
+const cityOf = t => (info(t).name || t).replace(' ' + (info(t).nick || ''), '');
+function weatherFor(home, neutral) {
+  if (neutral) return { indoor: true, temp: 72, cond: 'indoors', icon: '🏟️', where: SB_SITE, pen: 0, run: 0 };
+  if (DOME.has(home)) return { indoor: true, temp: 72, cond: 'indoors', icon: '🏟️', where: `${cityOf(home)} (roof closed)`, pen: 0, run: 0 };
+  const temp = Math.round((JAN_TEMP[home] ?? 45) + randn() * 8), wind = Math.max(0, Math.round(9 + randn() * 7)), r = Math.random();
+  const cond = temp <= 33 && r < 0.18 ? 'snow' : temp > 33 && r < (home === 'SEA' ? 0.4 : 0.2) ? 'rain' : wind >= 18 ? 'wind' : temp <= 15 ? 'frigid' : 'clear';
+  const pen = { snow: 3, rain: 1.5, wind: 1.5, frigid: 1.5, clear: temp < 25 ? 1 : 0 }[cond]; // points off each offense
+  const icon = { snow: '❄️', rain: '🌧️', wind: '💨', frigid: '🥶', clear: temp < 40 ? '🧊' : '☀️' }[cond];
+  return { indoor: false, temp, wind, cond, icon, where: cityOf(home), pen, run: ['snow', 'rain', 'wind'].includes(cond) ? 0.15 : 0 };
+}
+const wxText = w => (w.indoor ? `🏟️ Indoors, ${w.where}` : `${w.icon} ${w.temp}°F${w.cond !== 'clear' ? ', ' + w.cond : ''}${w.wind >= 15 ? `, wind ${w.wind} mph` : ''} in ${w.where}`);
+// Dome and warm-weather teams lose 1.5 more points when they visit a cold (under 35°) outdoor stadium
+const coldPen = (t, home, wx) => (wx && !wx.indoor && wx.temp < 35 && t !== home && softie(t) ? 1.5 : 0);
+
+
+// ---------- who scores: real players, weighted by their season stats ----------
+const PL = window.NFL_PLAYERS ? NFL_PLAYERS.rows.map(r => Object.fromEntries(NFL_PLAYERS.cols.map((c, i) => [c, r[i]]))).filter(p => p.id && p.name) : [];
+const pick = list => { const tot = list.reduce((a, x) => a + x.w, 0); let r = Math.random() * tot; for (const x of list) if ((r -= x.w) <= 0) return x.p; return list[0]?.p; };
+const ROSTER = {};
+// Who's playing: the weekly injury report (Out / Doubtful / Questionable, and players practicing again after being
+// Out) decides each player's return week, drawn fresh every sim from typical recovery times for that injury minus the
+// games he has already missed. Players not on the report who have missed their team's last two games (injured reserve
+// drops off the report, as do benched or cut players) are out a few more weeks. One missing game isn't enough, since
+// the weekly stats only list players who recorded a stat.
+const teamWeeks = {};
+for (const [season, week, , home, away] of D.results) if (season === D.currentSeason && typeof week === 'number') for (const t of [home, away]) (teamWeeks[t] ||= []).push(week);
+const isActive = p => p.lw === '' || p.lw === undefined || (teamWeeks[p.team] || []).filter(w => w > p.lw).length < 2;
+const INJ = window.NFL_PLAYERS?.injuries || {}, INJ_WEEK = window.NFL_PLAYERS?.injWeek || D.lastWeek + 1;
+const RECOVERY = [ // [injury pattern, games out in total: [min, max]]; 99 = done for the season
+  [/acl|achilles|torn|tear|fractur|broken|season/i, [6, 99]], [/concussion/i, [1, 2]], [/illness|personal|rest/i, [1, 1]],
+  [/ankle/i, [1, 5]], [/knee/i, [1, 6]], [/shoulder|elbow|pectoral/i, [1, 5]], [/foot|toe/i, [1, 5]],
+  [/hand|thumb|finger|wrist/i, [1, 4]], [/hamstring|groin|quad|calf|hip|back|oblique|rib|chest|neck|abdomen/i, [1, 4]]];
+const PLAY_CHANCE = { Questionable: 0.75, Doubtful: 0.2, Returning: { 'Full Participation in Practice': 0.9, 'Limited Participation in Practice': 0.65, 'Did Not Participate In Practice': 0.3 } };
+let MAYBE_OUT = null; // players on the injury report or missing lately (worked out once)
+function rollAvailability() { // Map player → first NFL week he plays again (players not in it are healthy)
+  const back = new Map();
+  MAYBE_OUT ||= PL.filter(p => INJ[p.id] || !isActive(p));
+  for (const p of MAYBE_OUT) {
+    const inj = INJ[p.id];
+    if (inj) {
+      const [status, what, wk, missed, practice] = inj;
+      if (status === 'Out') {
+        const [lo, hi] = (RECOVERY.find(([re]) => re.test(what)) || [, [1, 4]])[1];
+        const total = hi >= 99 ? (Math.random() < 0.6 ? 99 : rnd(lo, 12)) : rnd(lo, hi);
+        back.set(p, total >= 99 ? 99 : wk + Math.max(1, total - missed));
+      } else {
+        const chance = status === 'Returning' ? (PLAY_CHANCE.Returning[practice] ?? 0.6) : PLAY_CHANCE[status] ?? 0.8;
+        if (Math.random() > chance) back.set(p, wk + 1); // sits this week, back the next
+      }
+    } else if (!isActive(p)) back.set(p, INJ_WEEK + rnd(0, 4));
+  }
+  return back;
+}
+for (const t of D.teams) {
+  const all = PL.filter(p => p.team === t), qbs = all.filter(p => p.att > 0 && p.pos === 'QB').sort((a, b) => b.att - a.att);
+  const starter = qbs.find(p => p.name === D.context?.[t]?.qb) || qbs[0];
+  // QB depth chart: the current starter first, unless the usual starter (most attempts) is only out hurt, in which
+  // case he gets the job back when he returns (Lamar over Huntley)
+  const usual = qbs[0], depth = usual && usual !== starter && INJ[usual.id] ? [usual, starter] : [starter];
+  for (const q of qbs) if (q && !depth.includes(q)) depth.push(q);
+  const skill = all.filter(p => p.pos !== 'QB' || depth.includes(p)), sum = k => skill.reduce((a, p) => a + p[k], 0);
+  const car = Math.max(1, sum('car')), tgt = Math.max(1, sum('tgt'));
+  const rushers = skill.filter(p => p.car > 0).map(p => ({ p, w: p.rtd + 2 * p.car / car })), receivers = skill.filter(p => p.tgt > 0 && p.pos !== 'QB').map(p => ({ p, w: p.rectd + 2 * p.tgt / tgt }));
+  ROSTER[t] = {
+    qbs: depth.filter(Boolean), rushers, receivers,
+    stars: [...rushers, ...receivers].filter(x => x.p.pos !== 'QB').sort((a, b) => b.w - a.w).map(x => x.p).filter((p, i, a) => a.indexOf(p) === i).slice(0, 2),
+    kickers: all.filter(p => p.fga + p.xpa > 0).sort((a, b) => (b.fga + b.xpa) - (a.fga + a.xpa)),
+    // defensive / return touchdowns: ball hawks catch pick-sixes, strip-sack guys scoop fumbles, return men take it back
+    hawks: all.filter(p => p.dint + p.pd > 0).map(p => ({ p, w: 3 * p.dint + 0.4 * p.pd + 0.1 })),
+    strippers: all.filter(p => p.ff + p.dsk + p.solo > 0).map(p => ({ p, w: 2 * p.ff + 0.3 * p.dsk + 0.02 * p.solo })),
+    returners: all.filter(p => p.kryd + p.pryd > 0).map(p => ({ p, w: p.kryd + p.pryd, punt: p.pryd > p.kryd })),
+    rushShare: (sum('rtd') + 2) / (sum('rtd') + sum('ptd') + 5), // share of TDs on the ground (lightly smoothed toward 40%)
+  };
+}
+// The roster a team has in a given week: injured players sit (real injuries until their return week, sim injuries for
+// good), the next healthy QB on the depth chart starts, and QBs who aren't starting don't take carries
+function rosterFor(t, ctx, week = 99) {
+  const R = ROSTER[t], gone = p => (ctx?.back?.get(p) || 0) > week || ctx?.hurt[t]?.out.has(p);
+  // most teams have nobody (or one or two players) who might be missing, so rosters are cached by who's out
+  const key = ctx ? [...(ctx.risky?.[t] || []), ...(ctx.hurt[t]?.out || [])].filter(gone).map(p => p.id).join(',') : '';
+  const cache = ctx ? (ctx.rc ||= {})[t] ||= {} : null;
+  if (cache && cache[key]) return cache[key];
+  const qb = R.qbs.find(p => !gone(p)) || { name: `${t} backup QB`, pos: 'QB', team: t };
+  const ok = x => !gone(x.p) && (x.p.pos !== 'QB' || x.p === qb);
+  const out = { ...R, qb, qb2: R.qbs.find(p => p !== qb && !gone(p)), rushers: R.rushers.filter(ok), receivers: R.receivers.filter(ok),
+    kicker: R.kickers.find(p => !gone(p)) || R.kickers[0], hawks: R.hawks.filter(ok), strippers: R.strippers.filter(ok), returners: R.returners.filter(ok) };
+  out.on = new Set([...out.rushers, ...out.receivers].map(x => x.p));
+  if (cache) cache[key] = out;
+  return out;
+}
+function injuryRoll(g, ctx) { // after each game: the starting QB or the top playmaker may be done for the season
+  for (const [t, opp] of [[g.home, g.away], [g.away, g.home]]) {
+    const R = g.rost[t], h = ctx.hurt[t] || { qb: false, stars: [], out: new Set() };
+    let hit = false;
+    if (!h.qb && R.qb?.id && Math.random() < QB_HURT) {
+      h.qb = hit = true; h.out.add(R.qb);
+      ctx.events.push({ team: t, p: R.qb, qb: true, when: g.label, opp, next: rosterFor(t, { ...ctx, hurt: { ...ctx.hurt, [t]: h } }, g.week + 1).qb.name });
+    }
+    if (h.stars.length < 2 && Math.random() < STAR_HURT) {
+      const star = [...R.rushers, ...R.receivers].filter(x => x.p !== R.qb && !h.out.has(x.p)).sort((a, b) => b.w - a.w)[0]?.p;
+      if (star) { h.stars.push(star); h.out.add(star); hit = true; ctx.events.push({ team: t, p: star, when: g.label, opp }); }
+    }
+    if (hit) ctx.hurt[t] = h;
+  }
+}
+const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+const shuffle = arr => { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+const fact = n => n < 2 ? 1 : n * fact(n - 1), pois = (k, l) => Math.exp(-l) * l ** k / fact(k);
+// Break a team's points into touchdowns (with extra point, failed try or 2-point conversion), field goals and the odd safety,
+// credited to real players. About 1 TD in 15 is scored by the defense or a return man, close to the NFL rate.
+function scoringPlays(team, opp, pts, R, O, wx = null) {
+  const ways = []; // every way to make this score, weighted like real games: ~2.6 TDs, ~1.7 FGs, few failed tries / 2-pointers / safeties
+  for (let t = 0; 6 * t <= pts; t++) for (let m = 0; m <= Math.min(t, 2); m++) for (let two = 0; two + m <= Math.min(t, 3); two++) for (let sf = 0; sf <= 2; sf++) {
+    const r = pts - (7 * t - m + two) - 2 * sf;
+    if (r >= 0 && r % 3 === 0) ways.push({ p: { t, m, two, sf, f: r / 3 }, w: pois(t, 2.6) * pois(r / 3, 1.7) * 0.025 ** m * 0.012 ** two * 0.008 ** sf });
+  }
+  const { t, m, two, sf, f } = pick(ways) || { t: 0, m: 0, two: 0, sf: 0, f: 0 };
+  const plays = [];
+  for (let i = 0; i < t; i++) {
+    const pts = i < m ? 6 : i < m + two ? 8 : 7, r = Math.random();
+    let p;
+    if (r < 0.035 && R.hawks.length && (p = pick(R.hawks))) plays.push({ team, pts, kind: 'def', pick6: true, text: `${O.qb ? O.qb.name + ' picked off by ' : ''}${p.name}, ${rnd(15, 75)}-yd pick-six 🦅`, who: [p] });
+    else if (r < 0.055 && R.strippers.length && (p = pick(R.strippers))) plays.push({ team, pts, kind: 'def', text: `${p.name} ${rnd(5, 60)}-yd fumble return TD`, who: [p] });
+    else if (r < 0.075 && R.returners.length) { const x = pick(R.returners.map(y => ({ p: y, w: y.w }))); plays.push({ team, pts, kind: 'ret', text: `${x.p.name} ${x.punt ? rnd(45, 85) + '-yd punt' : rnd(90, 105) + '-yd kickoff'} return TD ⚡`, who: [x.p], kick: !x.punt }); }
+    // TD yards are kept on the play: the box score is built on top of them, so a 60-yard TD run is in the runner's line
+    else if (Math.random() < R.rushShare + (wx?.run || 0) || !R.qb || !R.receivers.length) { p = pick(R.rushers); const yds = rnd(1, 15) + (Math.random() < 0.12 ? rnd(10, 60) : 0); plays.push({ team, pts, kind: 'run', yds, text: `${p?.name || team} ${yds}-yd TD run`, who: [p] }); }
+    else { p = pick(R.receivers); const yds = rnd(3, 30) + (Math.random() < 0.2 ? rnd(10, 45) : 0); plays.push({ team, pts, kind: 'pass', yds, text: `${R.qb.name} ${yds}-yd TD pass to ${p?.name || 'a receiver'}`, who: [R.qb, p], pass: true }); }
+  }
+  for (let i = 0; i < f; i++) plays.push({ team, pts: 3, kind: 'fg', yds: rnd(22, wx?.pen >= 1.5 ? 44 : 54), who: [R.kicker] });
+  for (let i = 0; i < sf; i++) plays.push({ team, pts: 2, kind: 'sf', text: `${info(team).nick || team} defense: safety`, who: [] });
+  return plays;
+}
+const TWO_PT = [-2, -5, -10, 1, 5]; // score margin right after a TD (before the try) where teams go for 2
+// How un-football-like an order of scoring plays is (0 = reads like a real game)
+function flowPenalty(g, order) {
+  let h = 0, a = 0, pen = 0;
+  const n = order.length, lastOf = {};
+  order.forEach((p, i) => (lastOf[p.team] = i));
+  order.forEach((p, i) => {
+    const q = 1 + Math.floor(4 * i / Math.max(1, n)), mine = () => (p.team === g.home ? h - a : a - h);
+    const before = mine(); p.team === g.home ? (h += p.pts) : (a += p.pts); const after = mine();
+    if (p.kind === 'fg' && q === 4 && after <= -4 && lastOf[p.team] === i) pen += 6;  // kicking a FG down 7+ with nothing left after it
+    if (p.kind === 'fg' && q === 4 && before <= -4 && before >= -8 && i >= n - 2) pen += 3; // late FG when only a TD helps
+    // 2-point tries only where the chart says so: right after the TD (before the try) you're down 2, 5 or 10, or up 1 or 5
+    if (p.pts === 8 && !TWO_PT.includes(before + 6)) pen += 8;
+    // a kickoff return TD needs a kickoff: right after the other team scored, the opening kickoff, or the second-half kickoff
+    if (p.kick && !(i === 0 || order[i - 1].team !== p.team || (q === 3 && 1 + Math.floor(4 * (i - 1) / n) <= 2))) pen += 8;
+    if (p.kind === 'sf' && q === 1 && i === 0) pen += 0.5;
+  });
+  if (g.ot && order.length && (h !== a)) pen += 100; // regulation has to end tied before an overtime winner
+  return pen;
+}
+const clock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+// Both teams' scoring as one game log: realistic order, quarters, game clock, running score and notes
+function gameLog(g) {
+  const otWinner = g.ot ? g.winner : null, R = g.rost;
+  // Break both scores into plays and find a realistic order. If no order works (say, a 2-point conversion that can
+  // only land at a silly moment), break the scores down differently and try again.
+  let best = [], bestPen = Infinity;
+  for (let tries = 0; tries < 30 && bestPen >= 8; tries++) {
+    const plays = [...scoringPlays(g.home, g.away, g.hs - (otWinner === g.home ? 3 : 0), R[g.home], R[g.away], g.wx), ...scoringPlays(g.away, g.home, g.as - (otWinner === g.away ? 3 : 0), R[g.away], R[g.home], g.wx)];
+    for (let k = 0; k < 300 && bestPen > 0; k++) { const o = shuffle(plays.slice()), pen = flowPenalty(g, o); if (pen < bestPen) { best = o; bestPen = pen; } }
+  }
+  const n = best.length, quarters = best.map((p, i) => 1 + Math.floor(4 * i / Math.max(1, n)));
+  // game clock: random times within each quarter, counting down
+  const times = []; for (let q = 1; q <= 4; q++) { const k = quarters.filter(x => x === q).length; times.push(...Array.from({ length: k }, () => rnd(5, 895)).sort((x, y) => y - x)); }
+  // a kickoff return comes seconds after the score before it (or on the opening / second-half kickoff), and the
+  // rest of that quarter's scores move later so the clock still counts down
+  best.forEach((p, i) => {
+    if (!p.kick) return;
+    const sameQ = i > 0 && quarters[i - 1] === quarters[i];
+    times[i] = sameQ ? Math.max(3, times[i - 1] - rnd(10, 16)) : 900 - rnd(10, 16);
+    for (let j = i + 1; j < n && quarters[j] === quarters[i]; j++) if (times[j] >= times[j - 1]) times[j] = Math.max(1, times[j - 1] - rnd(30, 120));
+  });
+  let h = 0, a = 0, maxDown = { [g.home]: 0, [g.away]: 0 }, decisive = -1;
+  const log = best.map((p, i) => {
+    const before = p.team === g.home ? h - a : a - h;
+    p.team === g.home ? (h += p.pts) : (a += p.pts);
+    maxDown[g.home] = Math.max(maxDown[g.home], a - h); maxDown[g.away] = Math.max(maxDown[g.away], h - a);
+    const after = p.team === g.home ? h - a : a - h;
+    let text = p.kind === 'fg' ? `${p.who[0]?.name || p.team + ' kicker'} ${p.yds}-yd field goal` : p.text;
+    if (p.pts === 6) text += TWO_PT.includes(after) ? ' (2-pt try failed)' : ' (XP missed)'; // a 6-point TD is a failed try only where going for 2 makes sense
+    if (p.pts === 8) text += ' (2-pt conversion good)';
+    return { ...p, text, q: quarters[i], t: times[i], h, a, before, after };
+  });
+  // the score that put the winner ahead for good
+  log.forEach((p, i) => { if (p.team === g.winner && p.before <= 0 && p.after > 0) decisive = i; });
+  if (otWinner) {
+    const K = R[otWinner].kicker, t = rnd(30, 590), yds = rnd(24, 52);
+    otWinner === g.home ? (h += 3) : (a += 3);
+    log.push({ team: otWinner, pts: 3, kind: 'fg', yds, who: [K], q: 'OT', t, h, a, text: `${K?.name || otWinner + ' kicker'} ${yds}-yd walk-off field goal 🦵`, note: 'Wins it in overtime' });
+  } else if (decisive >= 0 && log[decisive].q === 4 && g.ws - g.ls <= 8) {
+    const d = log[decisive];
+    if (decisive === log.length - 1 && !d.kick) d.t = Math.min(d.t, rnd(3, 119)); // the last score of a close game comes late (a kickoff return keeps its own clock)
+    d.note = d.t <= 120 ? (decisive === log.length - 1 && d.kind === 'fg' && d.t <= 10 ? 'Walk-off field goal' : 'Game-winning drive 🏁') : 'Go-ahead score';
+  }
+  log.forEach(p => (p.when = p.q === 'OT' ? `OT ${clock(p.t)}` : `Q${p.q} ${clock(p.t)}`));
+  g.blown = maxDown[g.winner]; // the loser's biggest lead
+  g.comeback = g.blown >= 10 ? g.blown : 0;
+  return log;
+}
+// MVP voting from the winner's box score, the way voters really do it: QBs get yards, TDs and a head start; backs and
+// receivers need a big yardage + TD day; a defender needs two takeaways or a pile of sacks to steal it
+function mvpOf(g, log) {
+  const x = makeBox(g)[g.winner], score = new Map(), add = (p, v) => p && score.set(p, (score.get(p) || 0) + v);
+  if (x.qb) add(x.qb, 2 + x.pyd / 50 + x.passTD * 4 - x.int * 3);
+  for (const r of x.rush) add(r.p, r.yds / 20 + r.td * 5);
+  for (const r of x.rec) add(r.p, r.yds / 20 + r.td * 5);
+  for (const [p, n] of x.ints) add(p, n * 3);
+  for (const [p, n] of x.sacks) add(p, n * 2.5);
+  for (const p of log.filter(y => y.team === g.winner)) {
+    if (p.kind === 'def' || p.kind === 'ret') add(p.who[0], 6); // defensive / return TDs (the INT itself is counted above)
+    if (p.kind === 'fg') add(p.who[0], 1);
+    if (p.note) p.who.forEach(w => add(w, 3)); // the game-winning drive or kick
+  }
+  return [...score.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+// ---------- 📦 box score: stat lines that agree with the scoring plays ----------
+const rate = (a, b, d) => (b > 0 ? a / b : d);
+function handOut(n, players, wOf) { // n carries / catches / sacks handed out one at a time, weighted by season numbers
+  const out = new Map(); if (!players.length) return out;
+  const list = players.map(p => ({ p, w: wOf(p) + 0.01 }));
+  for (let i = 0; i < n; i++) { const p = pick(list); out.set(p, (out.get(p) || 0) + 1); }
+  return out;
+}
+function makeBox(g) {
+  if (g.box) return g.box;
+  const box = {}, teams = [g.away, g.home], other = t => (t === g.home ? g.away : g.home);
+  for (const t of teams) {
+    const R = g.rost[t], pts = t === g.home ? g.hs : g.as, mine = g.log.filter(p => p.team === t);
+    const qb = R.qb || { name: `${t} QB`, pos: 'QB' }, boost = Math.max(0.6, 1 + (pts - 22) / 70); // more points, more yards
+    // each player's TD plays and their yards: a TD's yards are part of that player's line, never on top of a made-up total
+    const tdBy = (kind, i = 0) => { const m = new Map(); for (const p of mine) if (p.kind === kind && p.who[i]) m.set(p.who[i], [...(m.get(p.who[i]) || []), p.yds || 0]); return m; };
+    const sum = a => a.reduce((x, y) => x + y, 0);
+    // passing (season completion %, yards per completion and INT rate)
+    const recTD = tdBy('pass', 1), passTD = mine.filter(p => p.kind === 'pass').length, tdPassYds = sum(mine.filter(p => p.kind === 'pass').map(p => p.yds || 0));
+    const att = Math.max(16, Math.round(33 + randn() * 5));
+    const cmp = Math.max(passTD, Math.round(att * Math.min(0.82, Math.max(0.48, rate(qb.cmp, qb.att, 0.62) + randn() * 0.05))));
+    const target = Math.max(35, Math.round(cmp * rate(qb.pyd, qb.cmp, 10.6) * boost * (1 + randn() * 0.1)));
+    const sixes = g.log.filter(p => p.team === other(t) && p.pick6).length;
+    const int = Math.max(sixes, Math.min(4, poisson(att * Math.min(0.05, rate(qb.int, qb.att, 0.025)))));
+    // receiving: the TD catches with their yards, then the other completions by season catches, sharing whatever yards
+    // are left of the day's total (at least 3 a catch). Passing yards are the sum of the catches.
+    const other_ = new Map();
+    for (const [p, n] of handOut(cmp - passTD, R.receivers.map(x => x.p), p => p.rec)) other_.set(p, n);
+    const players = [...new Set([...recTD.keys(), ...other_.keys()])];
+    const raw = players.map(p => ({ p, k: other_.get(p) || 0, y: (other_.get(p) || 0) * rate(p.recyd, p.rec, 9.5) * Math.max(0.3, 1 + randn() * 0.35) }));
+    const left = Math.max(3 * (cmp - passTD), target - tdPassYds), tot = raw.reduce((a, x) => a + x.y, 0) || 1;
+    const rec = raw.map(x => { const tds = recTD.get(x.p) || [], rest = x.k ? Math.max(3 * x.k, Math.round(x.y * left / tot)) : 0;
+      return { p: x.p, n: tds.length + x.k, yds: sum(tds) + rest, td: tds.length, lng: Math.max(0, ...tds, x.k ? Math.min(rest, Math.round(rest / x.k * (1.4 + Math.random() * 1.2))) : 0) }; })
+      .sort((a, b) => b.yds - a.yds);
+    const pyd = sum(rec.map(r => r.yds));
+    // rushing: the TD runs with their yards, then the other carries by season carries at season yards per carry
+    const runTD = tdBy('run'), carries = Math.max(12, Math.round(26 + randn() * 4 + (pts - 22) / 4));
+    const car = new Map([...runTD].map(([p, ys]) => [p, 0]));
+    for (const [p, n] of handOut(Math.max(0, carries - sum([...runTD.values()].map(v => v.length))), R.rushers.map(x => x.p), p => p.car)) car.set(p, n);
+    const rush = [...car].map(([p, k]) => { const tds = runTD.get(p) || [], rest = k ? Math.max(0, Math.round(k * rate(p.ryd, p.car, 4.2) * (1 + randn() * 0.3))) : 0;
+      return { p, n: tds.length + k, yds: sum(tds) + rest, td: tds.length, lng: Math.max(0, ...tds, k ? Math.min(rest, Math.round(rest / k * (1.8 + Math.random() * 2))) : 0) }; })
+      .sort((a, b) => b.n - a.n);
+    // kicking
+    const fg = mine.filter(p => p.kind === 'fg'), xpm = mine.filter(p => p.pts === 7).length;
+    box[t] = { R, qb, pts, att, cmp, pyd, passTD, int, sacked: poisson(2.4), rec, rush,
+      fgm: fg.length, fga: fg.length + (Math.random() < 0.2 ? 1 : 0), lng: fg.length ? Math.max(...fg.map(p => p.yds || 0)) : 0,
+      xpm, xpa: xpm + mine.filter(p => /XP missed/.test(p.text)).length };
+  }
+  for (const t of teams) { // defense: credit the other offense's sacks and interceptions
+    const o = box[other(t)], R = g.rost[t], ints = new Map();
+    for (const p of g.log) if (p.team === t && p.pick6) ints.set(p.who[0], (ints.get(p.who[0]) || 0) + 1);
+    for (const [p, n] of handOut(o.int - [...ints.values()].reduce((a, b) => a + b, 0), R.hawks.map(x => x.p), p => 3 * p.dint + 0.3 * p.pd)) ints.set(p, (ints.get(p) || 0) + n);
+    box[t].ints = ints;
+    box[t].sacks = handOut(o.sacked, R.strippers.map(x => x.p).filter(p => p.dsk > 0), p => p.dsk);
+  }
+  return (g.box = box);
+}
+
+// ---------- 🏅 season awards: today's stats projected to 17 games (with some luck), plus the simulated records ----------
+const remWeeks = Object.fromEntries(D.teams.map(t => [t, (D.remaining || []).filter(([, h, a]) => h === t || a === t).map(([w]) => w)]));
+const lastWins = t => { const m = (D.context?.[t]?.prevFin || '').match(/^(\d+)-/); return m ? +m[1] : null; };
+function computeAwards(sim, mvpOnly = false) { // mvpOnly: the 1,000-season run only needs the MVP
+  const madeIt = t => sim.afc.seeds.includes(t) || sim.nfc.seeds.includes(t);
+  // games left that a player actually plays: from his return week (real injuries) up to any season-ending injury in the sim
+  const restOf = (p, t) => {
+    const from = sim.ctx.back.get(p) || 0, e = sim.ctx.events.find(x => x.p === p && /^week/.test(x.when)), until = e ? +e.when.split(' ')[1] : 99;
+    return remWeeks[t].filter(w => w >= from && w <= until).length;
+  };
+  // Hot starts cool off: the rest of the season runs at a fraction of the current pace (TDs and takeaways regress the most)
+  const PACE = { pyd: 0.75, ptd: 0.6, int: 0.8, ryd: 0.7, rtd: 0.5, recyd: 0.7, rectd: 0.5, dsk: 0.6, dint: 0.4, ff: 0.35, tfl: 0.7, pd: 0.6 };
+  const pool = mvpOnly ? D.teams.map(t => ROSTER[t].qbs[0]).filter(Boolean) : PL;
+  const proj = pool.filter(p => base[p.team]?.gp).map(p => {
+    const rest = restOf(p, p.team) / base[p.team].gp * (1 + randn() * 0.15), x = {};
+    for (const k of Object.keys(PACE)) x[k] = (p[k] || 0) * (1 + rest * PACE[k]);
+    return { p, t: p.team, w: sim.st[p.team].w, ...x };
+  });
+  const best = (list, score) => list.map(x => ({ x, s: score(x) })).sort((a, b) => b.s - a.s)[0]?.x;
+  const n = v => Math.round(v).toLocaleString(), rec = t => recOf(sim, t);
+  const qbs = proj.filter(x => ROSTER[x.t].qbs[0] === x.p && restOf(x.p, x.t) > 0); // each team's QB1 who plays the rest of the year
+  const mvp = best(qbs.filter(x => x.w >= 10).length ? qbs.filter(x => x.w >= 10) : qbs,
+    x => x.w * 1.6 + (x.ptd + x.rtd) * 0.9 + (x.pyd + x.ryd) / 350 - x.int * 0.5 + randn() * 2);
+  if (mvpOnly) return mvp ? [{ award: 'MVP', who: mvp.p.name, t: mvp.t }] : [];
+  const opoy = best(proj.filter(x => x.p.pos !== 'QB' && x.ryd + x.recyd > 0), x => (x.ryd + x.recyd) / 90 + (x.rtd + x.rectd) * 1.2 + x.w * 0.15 + randn() * 1.5);
+  const dpoy = best(proj, x => x.dsk * 1.6 + x.dint * 2.2 + x.ff * 1.2 + x.tfl * 0.35 + x.pd * 0.3 + randn() * 1.5);
+  const teams = D.teams.map(t => ({ t, w: sim.st[t].w, lw: lastWins(t) }));
+  const coy = best(teams, x => x.w - (x.lw ?? 8.5) + (madeIt(x.t) ? 2 : 0) + randn());
+  const flop = best(teams.filter(x => (x.lw ?? 0) >= 10), x => x.lw - x.w - (madeIt(x.t) ? 3 : 0));
+  const out = [];
+  if (mvp) out.push({ icon: '🏆', award: 'MVP', who: mvp.p.name, t: mvp.t, line: `${n(mvp.pyd)} pass yds · ${n(mvp.ptd + mvp.rtd)} TD · ${n(mvp.int)} INT · team ${rec(mvp.t)}` });
+  if (opoy) out.push({ icon: '⚡', award: 'Offensive Player', who: opoy.p.name, t: opoy.t, line: `${n(opoy.ryd + opoy.recyd)} scrimmage yds · ${n(opoy.rtd + opoy.rectd)} TD` });
+  if (dpoy) out.push({ icon: '🛡️', award: 'Defensive Player', who: dpoy.p.name, t: dpoy.t, line: `${dpoy.dsk.toFixed(1)} sacks · ${n(dpoy.dint)} INT · ${n(dpoy.ff)} FF` });
+  if (coy) out.push({ icon: '🧢', award: 'Coach of the Year', who: D.context?.[coy.t]?.coach || coy.t, t: coy.t, line: `${rec(coy.t)}${coy.lw !== null ? ` after ${coy.lw} wins last year` : ''}` });
+  if (flop && flop.lw - flop.w >= 3) out.push({ icon: '🗑️', award: 'Flop of the Year', who: info(flop.t).name || flop.t, t: flop.t, line: `${rec(flop.t)} after ${flop.lw} wins last year${madeIt(flop.t) ? '' : ', no playoffs'}` });
+  return out;
+}
+const awardsHtml = aw => (aw.length ? `<div class="awards"><h3>🏅 Season awards</h3><div class="aw-grid">${aw.map(a =>
+  `<div class="aw" data-tip="${attr(`<b>${a.icon} ${a.award}</b>Stats so far plus the rest of the season at a cooled-off pace (hot starts regress, TDs and takeaways most), with some luck mixed in, plus the simulated record. MVP voters love winners: QBs on 10+ win teams first.`)}"><div class="k">${a.icon} ${a.award}</div><div class="v">${logo(a.t, 'slogo')}${a.who}</div><div class="s">${a.line}</div></div>`).join('')}</div></div>` : '');
+
+
+// ---------- one full simulation ----------
+function simulate({ fast = false, injuries = false } = {}) { // fast: just results, no play-by-play (for 1,000-season runs)
+  const ctx = { injuries, hurt: {}, events: [], back: rollAvailability() }; // back: real injuries' return weeks, rolled per sim
+  ctx.risky = {}; for (const p of ctx.back.keys()) (ctx.risky[p.team] ||= []).push(p);
+  const st = Object.fromEntries(D.teams.map(t => [t, { ...base[t] }]));
+  for (const [week, home, away] of D.remaining || []) {
+    const g = playGame(home, away, false, ctx, `week ${week}`, null, week);
+    st[g.winner].w++; st[g.loser].l++; st[home].pf += g.hs; st[home].pa += g.as; st[away].pf += g.as; st[away].pa += g.hs;
+  }
+  const pct = x => (x.w + x.t / 2) / Math.max(1, x.w + x.l + x.t);
+  const order = (a, b) => pct(st[b]) - pct(st[a]) || (st[b].pf - st[b].pa) - (st[a].pf - st[a].pa) || Math.random() - 0.5;
+  const conf = c => {
+    const teams = D.teams.filter(t => info(t).conf === c);
+    const divs = [...new Set(teams.map(t => info(t).division))];
+    const leaders = divs.map(d => teams.filter(t => info(t).division === d).sort(order)[0]).sort(order);
+    const wild = teams.filter(t => !leaders.includes(t)).sort(order).slice(0, 3);
+    const seeds = [...leaders, ...wild]; // index 0 = seed 1
+    const seedOf = t => seeds.indexOf(t) + 1;
+    const ROUND_WEEK = { 'Wild Card': 19, Divisional: 20, Championship: 21 }; // the playoffs as NFL weeks (Super Bowl = 23)
+    const game = (a, b, round) => {
+      const [hi, lo] = seedOf(a) < seedOf(b) ? [a, b] : [b, a];
+      const g = { ...playGame(hi, lo, false, ctx, `${c} ${round}`, weatherFor(hi, false), ROUND_WEEK[round]), hi, lo };
+      if (!fast) g.log = gameLog(g);
+      return g;
+    };
+    const wc = [game(seeds[1], seeds[6], 'Wild Card'), game(seeds[2], seeds[5], 'Wild Card'), game(seeds[3], seeds[4], 'Wild Card')];
+    const alive = [seeds[0], ...wc.map(g => g.winner)].sort((a, b) => seedOf(a) - seedOf(b));
+    const dv = [game(alive[0], alive[3], 'Divisional'), game(alive[1], alive[2], 'Divisional')];
+    const cc = game(dv[0].winner, dv[1].winner, 'Championship');
+    return { seeds, seedOf, wc, dv, cc };
+  };
+  const afc = conf('AFC'), nfc = conf('NFC');
+  const sb = playGame(afc.cc.winner, nfc.cc.winner, true, ctx, 'Super Bowl', weatherFor(afc.cc.winner, true), 23);
+  if (!fast) { sb.log = gameLog(sb); sb.mvp = mvpOf(sb, sb.log); }
+  const out = { st, afc, nfc, sb, ctx, rematches: [] };
+  out.awards = computeAwards(out, fast);
+  return out;
+}
+
+// ---------- 🗯 hot-take callouts: when the sim lands on a meme, say so ----------
+function callouts(sim) {
+  const out = [], add = (icon, label, tip) => { if (!out.some(c => c.label === label)) out.push({ icon, label, tip }); };
+  const all = [...sim.afc.wc, ...sim.afc.dv, sim.afc.cc, ...sim.nfc.wc, ...sim.nfc.dv, sim.nfc.cc, sim.sb];
+  const qb = t => D.context?.[t]?.qb, coach = t => D.context?.[t]?.coach, nick = t => info(t).nick || t;
+  const lostIn = t => all.find(g => g.loser === t), made = t => sim.afc.seeds.includes(t) || sim.nfc.seeds.includes(t);
+  const sb = sim.sb, champ = sb.winner, cs = info(champ).conf === 'AFC' ? sim.afc : sim.nfc;
+  for (const g of all) { // blown leads
+    if (g.loser === 'LAC' && g.blown >= 7) add('⚡', 'Chargered', `The Chargers led ${g.winner} by ${g.blown} in the ${g.label} and lost ${g.ls}–${g.ws}.`);
+    else if (g.loser === 'ATL' && g.blown >= 10) add('🫠', '28–3 flashbacks', `Atlanta blew a ${g.blown}-point lead to ${g.winner} in the ${g.label}.`);
+    else if (coach(g.loser) === 'Kyle Shanahan' && g.blown >= 7) add('📉', 'Blown-lead connoisseur', `Shanahan's ${nick(g.loser)} led by ${g.blown} in the ${g.label} and lost.`);
+    else if (g.blown >= 17) add('🫠', `${nick(g.loser)} blew a ${g.blown}-point lead`, `In the ${g.label} against ${g.winner}. Twitter will not forget.`);
+  }
+  const buf = lostIn('BUF'); if (buf) add('⏱️', qb('BUF') === 'Josh Allen' ? 'Regular season merchant strikes again' : 'Bills in January', `Buffalo is out in the ${buf.label}, ${buf.ls}–${buf.ws} to ${buf.winner}.`);
+  const lac = lostIn('LAC'); if (lac && qb('LAC') === 'Justin Herbert' && !out.some(c => c.label === 'Chargered')) add('🦸', 'IF-Man', `IF only the Chargers had... something. Out in the ${lac.label}.`);
+  if (sb.loser === 'SF') add('💍', 'Always the bridesmaid', 'The 49ers lose another Super Bowl.');
+  if (champ === 'KC') add('🦓', 'Refs on payroll', 'Another Chiefs title. The replies are already blaming the zebras.');
+  else { const k = all.find(g => g.winner === 'KC' && g.ws - g.ls <= 3); if (k) add('🦓', 'Ref whisperer', `KC wins a ${k.ws}–${k.ls} nail-biter in the ${k.label}. Check the flags.`); }
+  if ([sim.nfc.cc.home, sim.nfc.cc.away].includes('DAL')) add('🤯', 'Cowboys in an NFC title game', 'First time since the 1995 season. Jerry is already planning the parade.');
+  else if (lostIn('DAL')) add('🤠', 'America\'s team (since 1995)', `Dallas is out in the ${lostIn('DAL').label}. Content > rings.`);
+  if (sb.loser === 'MIN') add('💜', '0–5 in Super Bowls', 'Purple pain continues.');
+  if (champ === 'MIN') add('💜', 'Purple pain cured', 'The Vikings finally win one.');
+  const bal = lostIn('BAL'); if (bal && qb('BAL') === 'Lamar Jackson') add('🥶', 'January allergy', `Ravens out in the ${bal.label}.`);
+  const det = all.find(g => g.loser === 'DET' && g.wx && !g.wx.indoor && g.wx.temp < 40); if (det && qb('DET') === 'Jared Goff') add('🏟️', 'Dome-dependent', `Goff loses outdoors at ${det.home} (${det.wx.temp}°). Should've brought the roof.`);
+  const mia = all.find(g => g.loser === 'MIA' && g.wx && !g.wx.indoor && g.wx.temp < 40); if (mia) add('❄️', 'Snow allergy', `The Dolphins melt in ${mia.wx.temp}° at ${mia.home}.`);
+  const froze = all.find(g => softie(g.loser) && g.loser !== g.home && g.wx && !g.wx.indoor && g.wx.temp < 30 && g.loser !== 'DET' && g.loser !== 'MIA');
+  if (froze) add('🥶', `${nick(froze.loser)} froze`, `A dome/warm-weather team, out in ${froze.wx.temp}° at ${froze.home}.`);
+  const globe = all.find(g => g.wx?.cond === 'snow'); if (globe) add('❄️', 'Snow globe game', `${globe.label}: ${globe.away} at ${globe.home} in the snow, ${globe.as}–${globe.hs}.`);
+  const nyj = lostIn('NYJ'); if (nyj?.label.endsWith('Wild Card')) add('✈️', 'Jets gonna Jet', 'Made the playoffs, then immediately Jetted.');
+  const tush = all.find(g => g.log?.some(p => p.team === 'PHI' && p.kind === 'run' && p.who[0]?.pos === 'QB')); if (tush) add('🫸', 'Tush Push merchant', `Philly's QB plunges in during the ${tush.label}. Elite QB play, apparently.`);
+  if (made('CLE')) add('🏭', 'Factory reopened?', 'The Browns made the playoffs. Enjoy it while it lasts.');
+  // anyone
+  if (cs.seedOf(champ) >= 5) add('🃏', 'Wild card champs', `The ${nick(champ)} won it all as the ${cs.seedOf(champ)} seed.`);
+  for (const c of [sim.afc, sim.nfc]) { const one = c.dv.find(g => g.loser === c.seeds[0]); if (one) add('👋', `One and done: ${nick(one.loser)}`, `The 1 seed had a bye week and lost its first game anyway.`); }
+  if (sim.ctx.hurt[champ]?.qb) add('🧯', 'Nick Foles energy', `The ${nick(champ)} won it all with ${sim.ctx.events.find(e => e.team === champ && e.qb)?.next || 'the backup'} at QB.`);
+  if (sb.log.some(p => p.pick6)) add('🦅', 'Pick-six on the biggest stage', 'A defensive touchdown in the Super Bowl.');
+  if (sb.ot) add('⏰', 'Overtime Super Bowl', 'Sixty minutes wasn\'t enough.');
+  if (sb.comeback >= 14) add('🔥', 'Comeback for the ages', `Down ${sb.comeback} in the Super Bowl and won.`);
+  if (sb.ws - sb.ls >= 21) add('🥱', 'The commercials were better', `${sb.ws}–${sb.ls}. Over by halftime.`);
+  if (sim.st[champ].w <= 9) add('📉', 'Mid champs', `${sim.st[champ].w}-${sim.st[champ].l} in the regular season. Doesn't matter, got a ring.`);
+  if (sb.mvp?.pos === 'K') add('🦵', 'Kicker MVP', 'The most valuable player wore a single-bar facemask.');
+  return out.slice(0, 8);
+}
+
+// ---------- bracket drawing ----------
+const attr = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+const recOf = (sim, t) => { const x = sim.st[t]; return `${x.w}-${x.l}${x.t ? '-' + x.t : ''}`; };
+function slot(sim, c, team, score, result, mark = '', pick = '') {
+  if (!team) return `<div class="slot"><span class="seed"></span><span></span><span class="muted">TBD</span><span></span></div>`;
+  const seed = c ? c.seedOf(team) : '';
+  return `<div class="slot ${result || ''}" ${pick ? `data-pick="${pick}"` : ''}><span class="seed">${seed}</span>${logo(team)}<span>${team}${mark}<span class="rec">${recOf(sim, team)}</span></span><span class="sc">${score ?? ''}</span></div>`;
+}
+const logTip = g => g.log ? `<b>${g.away} ${g.as} ${g.neutral ? 'vs' : '@'} ${g.home} ${g.hs}${g.ot ? ' (OT)' : ''}</b>${g.wx ? `<i>${wxText(g.wx)}</i><br>` : ''}` + g.log.map(p => `${p.when} ${p.team}: ${p.text}${p.note ? ' · <b>' + p.note + '</b>' : ''}`).join('<br>') + (g.comeback ? `<br><b>🔥 ${g.winner} came back from ${g.comeback} down</b>` : '') : '';
+const GAMES = {}; // bracket id → game, for box scores
+const ROUND_IDS = [['afc-wc-0', 'afc-wc-1', 'afc-wc-2', 'nfc-wc-0', 'nfc-wc-1', 'nfc-wc-2'], ['afc-dv-0', 'afc-dv-1', 'nfc-dv-0', 'nfc-dv-1'], ['afc-cc', 'nfc-cc'], ['sb']];
+const ROUND_NAMES = ['Wild Card', 'Divisional round', 'Conference championships', 'Super Bowl'];
+const roundOf = id => ROUND_IDS.findIndex(r => r.includes(id));
+let PICK = null; // 🎯 pick-your-bracket state: { sim, round, picks: { gameId: team } }
+function gameBox(sim, c, g, id, hide = false) {
+  GAMES[id] = g.src || g;
+  const r = roundOf(id), P = PICK && PICK.sim === sim ? PICK : null, pk = P?.picks[id];
+  if (P && r > P.round) return `<div class="game empty" id="${id}"></div>`; // not decided yet
+  const picking = P && r === P.round;
+  hide = hide || picking;
+  const sc = t => (hide ? '' : t === g.winner ? g.ws : g.ls);
+  const res = t => (hide ? '' : t === g.winner ? 'win' : 'lose') + (picking ? ' pickable' : '') + (pk === t ? ' picked' : '');
+  const mark = t => (pk === t && !hide ? (t === g.winner ? ' ✅' : ' ❌') : '');
+  const wx = g.wx ? `<div class="wx">${g.wx.indoor ? '🏟️ indoors' : `${g.wx.icon} ${g.wx.temp}°${g.wx.cond !== 'clear' ? ' ' + g.wx.cond : ''}`}</div>` : '';
+  const tip = picking ? `<b>Your pick</b>Click the team you think wins.${g.wx ? '<br>' + wxText(g.wx) : ''}` : hide ? '🍿 Being played right now. Scroll down!' : logTip(g) + '<br><br><i>Click for the box score</i>';
+  return `<div class="game" id="${id}" ${hide ? '' : `data-g="${id}"`} data-tip="${attr(tip)}">${slot(sim, c, g.hi, sc(g.hi), res(g.hi), mark(g.hi), picking ? `${id}|${g.hi}` : '')}${slot(sim, c, g.lo, sc(g.lo), res(g.lo), mark(g.lo), picking ? `${id}|${g.lo}` : '')}${wx}</div>`;
+}
+
+function drawBracket(sim, hideSb = false) {
+  const col = (title, games, extra = '', cls = '') => `<div class="round ${cls}"><h4>${title}</h4>${extra}<div class="games">${games}</div></div>`;
+  const bye = c => `<div class="bye">Bye: ${logo(c.seeds[0], 'slogo')} <b>${c.seeds[0]}</b> (1)</div>`;
+  const sbGame = { ...sim.sb, hi: sim.afc.cc.winner, lo: sim.nfc.cc.winner, src: sim.sb };
+  $('bracket').innerHTML =
+    col('AFC Wild Card', sim.afc.wc.map((g, i) => gameBox(sim, sim.afc, g, `afc-wc-${i}`)).join(''), bye(sim.afc)) +
+    col('AFC Divisional', sim.afc.dv.map((g, i) => gameBox(sim, sim.afc, g, `afc-dv-${i}`)).join('')) +
+    col('AFC Championship', gameBox(sim, sim.afc, sim.afc.cc, 'afc-cc')) +
+    col('Super Bowl', gameBox(sim, null, sbGame, 'sb', hideSb), '', 'sbcol') +
+    col('NFC Championship', gameBox(sim, sim.nfc, sim.nfc.cc, 'nfc-cc')) +
+    col('NFC Divisional', sim.nfc.dv.map((g, i) => gameBox(sim, sim.nfc, g, `nfc-dv-${i}`)).join('')) +
+    col('NFC Wild Card', sim.nfc.wc.map((g, i) => gameBox(sim, sim.nfc, g, `nfc-wc-${i}`)).join(''), bye(sim.nfc));
+}
+// Empty bracket before the first sim
+$('bracket').innerHTML = ['AFC Wild Card', 'AFC Divisional', 'AFC Championship', 'Super Bowl', 'NFC Championship', 'NFC Divisional', 'NFC Wild Card']
+  .map((t, i) => `<div class="round ${i === 3 ? 'sbcol' : ''}"><h4>${t}</h4><div class="games">${'<div class="game empty"></div>'.repeat([3, 2, 1, 1, 1, 2, 3][i])}</div></div>`).join('');
+
+// ---------- box score window ----------
+const nm = p => p?.name || '–';
+const playRow = (g, p, cls = '') => `<div class="play ${cls}"><span class="q">${p.when}</span>${logo(p.team)}<span>${p.text}${p.note ? `<span class="note">${p.note}</span>` : ''}</span>
+  <span class="run">${g.away} ${p.a} – ${p.h} ${g.home}</span></div>`;
+const who = m => (m.size ? [...m].sort((a, b) => b[1] - a[1]).map(([p, n]) => `${nm(p)}${n > 1 ? ' ' + n : ''}`).join(', ') : 'none');
+function boxSide(t, x) {
+  const row = cells => `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+  const top = (list, n) => list.filter((r, i) => i < n || r.td);
+  const table = (head, rows) => `<table class="bs"><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${rows.join('') || row(['–', '', '', ''])}</table>`;
+  return `<div class="bteam"><h3>${logo(t)}${info(t).name || t}<span class="pts">${x.pts}</span></h3>
+    ${table(['Passing', 'C/ATT', 'YDS', 'TD', 'INT'], [row([nm(x.qb), `${x.cmp}/${x.att}`, x.pyd, x.passTD, x.int])])}
+    ${table(['Rushing', 'CAR', 'YDS', 'TD', 'LNG'], top(x.rush, 3).map(r => row([nm(r.p), r.n, r.yds, r.td, r.lng])))}
+    ${table(['Receiving', 'REC', 'YDS', 'TD', 'LNG'], top(x.rec, 4).map(r => row([nm(r.p), r.n, r.yds, r.td, r.lng])))}
+    ${table(['Kicking', 'FG', 'LNG', 'XP'], [row([nm(x.R.kicker), `${x.fgm}/${x.fga}`, x.lng || '–', `${x.xpm}/${x.xpa}`])])}
+    <div class="bdef"><b>Defense</b> · Sacks: ${who(x.sacks)} · INT: ${who(x.ints)}</div></div>`;
+}
+function openBox(g) {
+  const b = makeBox(g);
+  $('mbody').innerHTML = `<h2 style="margin:0 0 4px">📦 ${g.label}</h2>
+    <div class="muted" style="margin-bottom:12px">${g.away} ${g.as} ${g.neutral ? 'vs' : '@'} ${g.home} ${g.hs}${g.ot ? ' (OT)' : ''}${g.mvp ? ` · ⭐ MVP ${g.mvp.name}` : ''}</div>
+    <div class="boxgrid">${boxSide(g.away, b[g.away])}${boxSide(g.home, b[g.home])}</div>
+    <div class="summary" style="max-width:none"><h3>Scoring summary</h3>${g.log.map(p => playRow(g, p)).join('')}</div>
+    <p class="note" style="margin-top:10px">Simulated stat lines, built around the scoring plays above from each player's season rates.</p>`;
+  $('modal').hidden = false;
+}
+const closeBox = () => ($('modal').hidden = true);
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-g]');
+  if (t && GAMES[t.dataset.g]?.log) return openBox(GAMES[t.dataset.g]);
+  if (e.target.id === 'modal' || e.target.closest('.mbox .x')) closeBox();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBox(); });
+
+// ---------- options (remembered in this browser) ----------
+const OPTS = (() => { try { return JSON.parse(localStorage.getItem('vm.sbOpts') || '{}'); } catch { return {}; } })();
+for (const id of ['inj', 'sus', 'pick']) {
+  $(id).checked = !!OPTS[id];
+  $(id).addEventListener('change', () => { OPTS[id] = $(id).checked; try { localStorage.setItem('vm.sbOpts', JSON.stringify(OPTS)); } catch {} });
+}
+
+// ---------- run ----------
+const tally = (() => { try { return JSON.parse(sessionStorage.getItem('glt.sbTally') || '{}'); } catch { return {}; } })();
+function showTally() {
+  const list = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  $('tally').innerHTML = list.length ? `Your champions so far: ${list.slice(0, 6).map(([t, n]) => `${logo(t, 'slogo')}${t} ×${n}`).join(' · ')}` : '';
+}
+showTally();
+function champHtml(sim) {
+  const sb = sim.sb, w = sb.winner, l = sb.loser, hurt = sim.ctx.events, co = callouts(sim);
+  return `<div>${logo(w)}<div class="t">🏆 ${info(w).name || w} win the Super Bowl! 🎉</div>
+    <div class="s">${sb.ws}–${sb.ls}${sb.ot ? ' in overtime' : ''} over the ${info(l).nick || l}${sb.comeback ? ` · came back from ${sb.comeback} down` : ''} · finished the regular season ${recOf(sim, w)}</div></div>
+    ${sb.mvp ? `<div class="mvp">⭐ Super Bowl MVP: <b>${sb.mvp.name}</b> (${sb.mvp.pos}, ${info(w).nick || w})</div>` : ''}
+    ${co.length ? `<div class="callouts">${co.map(c => `<span class="callout" data-tip="${attr(`<b>${c.icon} ${c.label}</b>${c.tip}<br><br><i>🗯 Hot take, not analysis.</i>`)}">${c.icon} ${c.label}</span>`).join('')}</div>` : ''}
+    <button class="boxbtn" data-g="sb">📦 Super Bowl box score</button>
+    <button class="boxbtn" id="rematch" data-tip="<b>🔁 Run it back</b>Replay just the Super Bowl, same two teams, same venue. The season's champion doesn't change; it's for settling arguments.">🔁 Run it back</button>
+    <div id="series"></div>
+    ${awardsHtml(sim.awards)}
+    <div class="summary"><h3>Scoring summary</h3>${sb.log.map(p => playRow(sb, p)).join('')}</div>
+    ${hurt.length ? `<details class="injuries"><summary>🚑 Injury report: ${hurt.length} key injur${hurt.length > 1 ? 'ies' : 'y'} this season</summary>
+      ${hurt.map(e => `<div>${logo(e.team, 'slogo')}<b>${e.p.name}</b> (${e.team} ${e.p.pos}) hurt in ${e.when} vs ${e.opp}, out for the year${e.qb ? ` · 🧯 ${e.next} takes over` : ''}</div>`).join('')}</details>` : ''}
+    ${startedHurtHtml(sim)}`;
+}
+// Key players (each team's QB1 and top two playmakers) who started this sim hurt, and when they came back this time
+function startedHurtHtml(sim) {
+  const list = D.teams.flatMap(t => [ROSTER[t].qbs[0], ...ROSTER[t].stars].filter(Boolean).map(p => ({ t, p, back: sim.ctx.back.get(p) })))
+    .filter(x => x.back > INJ_WEEK).sort((a, b) => b.back - a.back); // misses at least this week
+  if (!list.length) return '';
+  const when = b => (b >= 99 ? 'out for the season' : b >= 23 ? 'back for the Super Bowl' : b >= 19 ? 'back for the playoffs' : `back in week ${b}`);
+  return `<details class="injuries"><summary>🏥 Already hurt going in: ${list.length} key player${list.length > 1 ? 's' : ''} (return weeks are rolled every sim)</summary>
+    ${list.map(x => { const inj = INJ[x.p.id]; return `<div>${logo(x.t, 'slogo')}<b>${x.p.name}</b> (${x.t} ${x.p.pos}${inj?.[1] ? ', ' + inj[1].toLowerCase() : ''}${inj ? ', ' + inj[0].toLowerCase() : ', not playing lately'}): ${when(x.back)}</div>`; }).join('')}</details>`;
+}
+let CUR = null; // the sim on screen
+function finish(sim) {
+  CUR = sim;
+  if (window.VM) { // 🏆 achievements from this season
+    const sb = sim.sb, games = [...sim.afc.wc, ...sim.afc.dv, sim.afc.cc, ...sim.nfc.wc, ...sim.nfc.dv, sim.nfc.cc, sb];
+    VM.count('sb_sims');
+    if (sim.ctx.hurt[sb.winner]?.qb) VM.unlock('sb_backup');
+    if (sb.ot) VM.unlock('sb_ot');
+    if (sb.log?.some(p => p.pick6)) VM.unlock('sb_pick6');
+    if (games.some(g => g.wx?.cond === 'snow')) VM.unlock('snow_globe');
+  }
+  drawBracket(sim);
+  $('champ').innerHTML = champHtml(sim);
+  tally[sim.sb.winner] = (tally[sim.sb.winner] || 0) + 1;
+  try { sessionStorage.setItem('glt.sbTally', JSON.stringify(tally)); } catch {}
+  showTally();
+  drawPickbar();
+}
+// 🍿 Suspense mode: the Super Bowl's scoring plays come in one at a time, with a live scoreboard
+let reveal = null;
+function suspense(sim) {
+  const sb = sim.sb, L = sb.log;
+  drawBracket(sim, true);
+  const side = (t, id) => `<div class="tm">${logo(t)}<span>${t}</span><span class="pts" id="${id}">0</span></div>`;
+  $('champ').innerHTML = `<div class="live-h">🍿 Super Bowl · live</div>
+    <div class="scoreboard">${side(sb.away, 'sa')}<div class="clk" id="clk">Kickoff</div>${side(sb.home, 'sh')}</div>
+    <button class="boxbtn" id="skip">⏭ Skip to the end</button>
+    <div class="summary"><div id="live"></div></div>`;
+  let i = 0;
+  const step = () => {
+    if (i >= L.length) return done();
+    const p = L[i++];
+    $('live').insertAdjacentHTML('beforeend', playRow(sb, p, 'new'));
+    $('sa').textContent = p.a; $('sh').textContent = p.h; $('clk').textContent = p.when;
+    const hit = $(p.team === sb.home ? 'sh' : 'sa'); hit.classList.remove('flash'); void hit.offsetWidth; hit.classList.add('flash');
+    reveal = setTimeout(step, i === L.length ? 2400 : i >= L.length - 2 ? 2000 : 1400); // slow down at the end
+  };
+  const done = () => { clearTimeout(reveal); reveal = null; finish(sim); };
+  $('skip').onclick = done;
+  reveal = setTimeout(step, 900);
+}
+$('go').addEventListener('click', () => {
+  if (reveal) { clearTimeout(reveal); reveal = null; }
+  const sim = simulate({ injuries: $('inj').checked });
+  $('go').textContent = '🔁 Simulate again';
+  if ($('pick').checked) { // 🎯 pick round by round; each round plays out once you lock in
+    PICK = { sim, round: 0, picks: {} };
+    drawBracket(sim); drawPickbar();
+    $('champ').innerHTML = '<p class="muted">Make your picks in the bracket above, round by round. The champion shows up once the Super Bowl is played.</p>';
+    return;
+  }
+  PICK = null; drawPickbar();
+  if ($('sus').checked) suspense(sim); else finish(sim);
+});
+
+// ---------- 🎯 pick your bracket ----------
+const pickTotals = (() => { try { return JSON.parse(sessionStorage.getItem('vm.picks') || '{}'); } catch { return {}; } })();
+const gameById = (sim, id) => (id === 'sb' ? sim.sb : id.endsWith('-cc') ? sim[id.slice(0, 3)].cc : sim[id.slice(0, 3)][id.slice(4, 6)][+id.slice(7)]);
+function drawPickbar() {
+  const P = PICK; if (!P) { $('pickbar').hidden = true; return; }
+  const done = ROUND_IDS.slice(0, P.round).flat(), right = done.filter(id => P.picks[id] === gameById(P.sim, id).winner).length;
+  const so = done.length ? ` · so far <b>${right}/${done.length}</b> right` : '';
+  if (P.round < 4) {
+    const left = ROUND_IDS[P.round].filter(id => !P.picks[id]).length;
+    $('pickbar').innerHTML = `🎯 <b>${ROUND_NAMES[P.round]}</b>: ${left ? `pick ${left} more winner${left > 1 ? 's' : ''} (click a team in the bracket)` : 'all picked!'}${so}
+      <button class="boxbtn" id="lock" ${left ? 'disabled' : ''}>🔒 Lock in &amp; play</button>`;
+  } else {
+    const champ = P.picks.sb === P.sim.sb.winner, all = pickTotals.n ? ` · this session: ${pickTotals.right}/${pickTotals.n} (${Math.round(100 * pickTotals.right / pickTotals.n)}%), champion ${pickTotals.champ}/${pickTotals.brackets}` : '';
+    $('pickbar').innerHTML = `🎯 Your bracket: <b>${right} of ${done.length}</b> right · champion ${champ ? '✅ called it!' : '❌'}${all}`;
+  }
+  $('pickbar').hidden = false;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-pick]');
+  if (t && PICK) { const [id, team] = t.dataset.pick.split('|'); PICK.picks[id] = team; drawBracket(PICK.sim); drawPickbar(); return; }
+  if (e.target.id === 'lock' && PICK) {
+    PICK.round++;
+    if (PICK.round < 4) { drawBracket(PICK.sim); drawPickbar(); return; }
+    const ids = ROUND_IDS.flat(), right = ids.filter(id => PICK.picks[id] === gameById(PICK.sim, id).winner).length;
+    Object.assign(pickTotals, { n: (pickTotals.n || 0) + ids.length, right: (pickTotals.right || 0) + right, brackets: (pickTotals.brackets || 0) + 1, champ: (pickTotals.champ || 0) + (PICK.picks.sb === PICK.sim.sb.winner) });
+    try { sessionStorage.setItem('vm.picks', JSON.stringify(pickTotals)); } catch {}
+    const sim = PICK.sim;
+    if (window.VM) { if (PICK.picks.sb === sim.sb.winner) VM.unlock('bracket_champ'); if (right >= 10) VM.unlock('bracket_10'); if (right === ids.length) VM.unlock('bracket_perfect'); } // 🏆
+    if ($('sus').checked) { $('pickbar').innerHTML = '🎯 Picks locked. Enjoy the game…'; suspense(sim); } else finish(sim);
+  }
+});
+
+// ---------- 🔁 run it back: replay the Super Bowl with the same two teams ----------
+function runItBack(sim) {
+  const sb = sim.sb, g = playGame(sb.home, sb.away, true, { ...sim.ctx, injuries: false }, `Super Bowl rematch #${sim.rematches.length + 1}`, sb.wx, 23);
+  g.log = gameLog(g); g.mvp = mvpOf(g, g.log);
+  sim.rematches.push(g); GAMES['rm' + sim.rematches.length] = g;
+  drawSeries(sim);
+}
+function drawSeries(sim) {
+  if (sim.rematches.length + 1 >= 7) window.VM && VM.unlock('run_it_back'); // 🏆
+  const all = [sim.sb, ...sim.rematches], w = {}; all.forEach(g => (w[g.winner] = (w[g.winner] || 0) + 1));
+  const [a, b] = [sim.sb.away, sim.sb.home], lead = (w[a] || 0) === (w[b] || 0) ? 'tied' : (w[a] || 0) > (w[b] || 0) ? `${a} leads` : `${b} leads`;
+  $('series').innerHTML = sim.rematches.length ? `<div class="series"><b>Series: ${a} ${w[a] || 0} – ${w[b] || 0} ${b}</b> <span class="muted">(${lead})</span>
+    <div class="rm muted">Game 1: ${sim.sb.winner} ${sim.sb.ws}–${sim.sb.ls}${sim.sb.ot ? ' (OT)' : ''} (the real one)</div>` +
+    sim.rematches.map((g, i) => `<div class="rm" data-g="rm${i + 1}" data-tip="${attr(logTip(g) + '<br><br><i>Click for the box score</i>')}">Game ${i + 2}: <b>${g.winner} ${g.ws}–${g.ls}</b>${g.ot ? ' (OT)' : ''} · MVP ${g.mvp?.name || '–'}</div>`).join('') + '</div>' : '';
+}
+document.addEventListener('click', e => { if (e.target.id === 'rematch' && CUR) runItBack(CUR); });
+
+
+// ---------- 📊 1,000 seasons ----------
+function runMany(N = 1000) {
+  window.VM && VM.unlock('sb_thousand'); // 🏆
+  const inj = $('inj').checked, c = Object.fromEntries(D.teams.map(t => [t, { po: 0, app: 0, sb: 0, one: 0 }]));
+  const pairs = {}, mvps = {}, f = { wc: 0, one: 0, ot: 0, pts: 0, blow: null, backup: 0 };
+  for (let i = 0; i < N; i++) {
+    const s = simulate({ fast: true, injuries: inj });
+    for (const k of [s.afc, s.nfc]) {
+      k.seeds.forEach(t => c[t].po++);
+      k.wc.forEach(g => c[g.loser].one++); // lost the first playoff game
+      const top = k.dv.find(g => g.loser === k.seeds[0]); if (top) c[top.loser].one++;
+    }
+    const sb = s.sb, w = sb.winner, cs = info(w).conf === 'AFC' ? s.afc : s.nfc;
+    c[w].sb++; c[sb.home].app++; c[sb.away].app++;
+    pairs[`${sb.home}|${sb.away}`] = (pairs[`${sb.home}|${sb.away}`] || 0) + 1;
+    if (cs.seedOf(w) >= 5) f.wc++; if (cs.seedOf(w) === 1) f.one++; if (sb.ot) f.ot++; f.pts += sb.hs + sb.as;
+    if (!f.blow || sb.ws - sb.ls > f.blow.ws - f.blow.ls) f.blow = sb;
+    if (s.ctx.hurt[w]?.qb) f.backup++;
+    const mv = s.awards.find(x => x.award === 'MVP'); if (mv) mvps[mv.who] = (mvps[mv.who] || 0) + 1;
+  }
+  const pn = n => (100 * n / N).toFixed(1) + '%', est = Object.fromEntries(odds.map(r => [r.team, r]));
+  const [pair, pairN] = Object.entries(pairs).sort((a, b) => b[1] - a[1])[0], [pa, pb] = pair.split('|');
+  const [best, bx] = Object.entries(c).sort((a, b) => b[1].sb - a[1].sb)[0];
+  const heart = Object.entries(c).filter(([, x]) => x.po >= N * 0.25).map(([t, x]) => [t, x.one / x.po]).sort((a, b) => b[1] - a[1])[0];
+  const chip = (icon, k, v) => `<div class="fact"><div class="k">${icon} ${k}</div><div class="v">${v}</div></div>`;
+  const facts = [
+    chip('🏆', 'Most titles', `${logo(best, 'slogo')}${info(best).nick || best}: ${bx.sb} (${pn(bx.sb)})`),
+    chip('🏈', 'Most common Super Bowl', `${logo(pa, 'slogo')}${pa} vs ${logo(pb, 'slogo')}${pb}: ${pairN}×`),
+    chip('🃏', 'Wild-card champions', pn(f.wc)),
+    chip('🥇', '1 seeds won it', pn(f.one)),
+    chip('📊', 'Avg Super Bowl total', `${(f.pts / N).toFixed(1)} pts · ${f.ot} went to OT`),
+    chip('🥱', 'Biggest blowout', `${f.blow.winner} ${f.blow.ws}, ${f.blow.loser} ${f.blow.ls}`),
+    heart ? chip('💔', 'January heartbreak', `${logo(heart[0], 'slogo')}${info(heart[0]).nick || heart[0]}: one-and-done in ${pc(heart[1], 0)} of playoff trips`) : '',
+    inj ? chip('🧯', 'Won it with a backup QB', pn(f.backup)) : '',
+    (([who, k]) => chip('🏆', 'Most MVP awards', `${who}: ${pn(k)}`))(Object.entries(mvps).sort((x, y) => y[1] - x[1])[0] || ['–', 0]),
+  ].join('');
+  const tbl = conf => `<div><h2>${conf}</h2><table class="bs many"><tr><th>Team</th>
+      <th data-tip="Share of the ${N} seasons the team made the playoffs">Playoffs</th><th data-tip="Share of seasons it reached the Super Bowl">Reach SB</th>
+      <th data-tip="Share of seasons it won the Super Bowl">Win SB</th><th data-tip="The title-odds estimate above (a different method), for comparison">Odds est.</th>
+      <th data-tip="How often a playoff trip ended in the team's first game">1-and-done</th></tr>` +
+    D.teams.filter(t => info(t).conf === conf && c[t].po).sort((a, b) => c[b].sb - c[a].sb || c[b].app - c[a].app || c[b].po - c[a].po)
+      .map(t => `<tr><td>${logo(t, 'slogo')}<b>${t}</b> <span class="muted">${GLT.current[t]?.rec || ''}</span></td><td>${pn(c[t].po)}</td><td>${pn(c[t].app)}</td>
+        <td><b>${pn(c[t].sb)}</b></td><td class="muted">${pc(est[t]?.sb || 0)}</td><td class="muted">${pc(c[t].one / c[t].po, 0)}</td></tr>`).join('') + '</table></div>';
+  $('manyPanel').innerHTML = `<h2>📊 ${N.toLocaleString()} simulated seasons${inj ? ' · 🚑 injuries on' : ''}</h2>
+    <p class="note" style="margin:0 0 10px">The same simulator, run ${N.toLocaleString()} times. These don't count toward your champions tally.</p>
+    <div class="facts">${facts}</div><div class="tops">${tbl('AFC')}${tbl('NFC')}</div>`;
+  $('manyPanel').hidden = false;
+}
+$('many').addEventListener('click', () => {
+  $('many').disabled = true; $('many').textContent = '⏳ Simulating…';
+  setTimeout(() => { // let the button repaint first
+    try { runMany(1000); $('manyPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    finally { $('many').disabled = false; $('many').textContent = '📊 Simulate 1,000 seasons'; }
+  }, 30);
+});
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

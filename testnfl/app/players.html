@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Players · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="profile.js"></script>
+<style>
+  [hidden] { display: none !important; }
+  .cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .cats button { border: 1px solid var(--border); background: var(--panel); border-radius: 999px; padding: 6px 16px; cursor: pointer; font-weight: 600; }
+  .cats button:hover { border-color: var(--accent); }
+  .cats button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filters { display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
+  .filters label { display: inline-flex; align-items: center; gap: 6px; }
+  .filters input[type=search] { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); min-width: 180px; }
+  .count { margin-left: auto; }
+  .teamhead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .teamhead img { height: 36px; width: 36px; object-fit: contain; }
+  .teamhead b { font-size: 18px; }
+  /* Stat table */
+  .ptable th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  .ptable th.sort { user-select: none; }
+  .ptable th .arrow { font-size: 10px; margin-left: 2px; }
+  .ptable td.on { font-weight: 700; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .ptable .rk { color: var(--faint); width: 32px; }
+  .ptable .pname { display: flex; align-items: center; min-width: 190px; }
+  .ptable .pname .pos { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .ptable .head { height: 28px; width: 28px; }
+  .ptable .tm { white-space: nowrap; }
+  .tablewrap { max-height: calc(100vh - 250px); overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+  .plink { font-weight: 700; text-decoration: none; cursor: pointer; }
+  .plink:hover { text-decoration: underline; color: var(--accent); }
+  /* Career pop-up */
+  #career { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow: auto; }
+  #career .panel { width: 100%; max-width: 1100px; margin: 0; position: relative; }
+  #career .close { position: absolute; top: 10px; right: 12px; border: 0; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); }
+  #career .close:hover { color: var(--text); }
+  .chead { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-right: 30px; }
+  .chead .head { height: 64px; width: 64px; margin: 0; }
+  .chead b { font-size: 20px; display: block; }
+  .stints { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .stint { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px 3px 6px; font-size: 13px; }
+  .stint img { height: 18px; width: 18px; object-fit: contain; }
+  .stint .muted { font-size: 12px; }
+  .ctable td.tm { white-space: nowrap; }
+  .ctable td.tm .slogo:not(:first-child) { margin-left: 6px; }
+  .ctable tr.tot td { font-weight: 700; border-top: 2px solid var(--border); background: var(--soft); }
+  .ctable .yr { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html" class="on">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <span class="muted" id="meta" style="font-size:13px"></span>
+  </header>
+
+  <div class="panel">
+    <div class="cats" id="cats"></div>
+    <div id="tableView">
+    <div class="filters">
+      <label>Team <select id="team"><option value="">All teams</option></select></label>
+      <label>Position <select id="pos"><option value="">All</option></select></label>
+      <label><input type="search" id="q" placeholder="Search players…"></label>
+      <label id="qualWrap" data-tip=""><input type="checkbox" id="qual" checked> <span class="tipped">Qualified players only</span></label>
+      <span class="count" id="count"></span>
+    </div>
+    <div id="teamHead"></div>
+    <div class="tablewrap"><table class="stat ptable" id="table"></table></div>
+    </div>
+  </div>
+</main>
+
+<div id="career" hidden><div class="panel" role="dialog" aria-modal="true">
+  <button class="close" id="cclose" title="Close (Esc)">×</button>
+  <div class="chead" id="chead"></div>
+  <div class="stints" id="stints"></div>
+  <div class="cats" id="ccats"></div>
+  <div class="scroll"><table class="stat ctable" id="ctable"></table></div>
+</div></div>
+
+<script src="data.js"></script>
+<script src="players.js"></script>
+<script>
+const D = window.NFL_DATA, P = window.NFL_PLAYERS;
+const $ = id => document.getElementById(id);
+const info = t => D.teamInfo?.[t] || {};
+const logo = (t, cls = 'slogo') => (info(t).logo ? `<img class="${cls}" src="${info(t).logo}" alt="" loading="lazy" onerror="this.remove()">` : '');
+// NFL headshots are ~3400px originals; ask their image server for a small face-centered crop instead
+const thumb = u => u.replace('f_auto,q_auto', 'f_auto,q_auto,w_96,h_96,c_thumb,g_face');
+const head = p => (p.headshot ? `<img class="head" src="${thumb(p.headshot)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span class="head"></span>');
+$('meta').textContent = `${P.season} regular season through week ${D.lastWeek}`;
+
+// Team games played so far (qualifying minimums are per team game, like the NFL's own)
+const teamGames = t => D.snaps[`${D.currentSeason}|${t}`]?.s.length || 0;
+
+// ---------- players, with derived stats ----------
+// (The source has the odd unnamed placeholder row; skip anything without a player id.)
+const div = (a, b) => (b ? a / b : 0);
+const players = P.rows.map(r => Object.fromEntries(P.cols.map((c, i) => [c, r[i]]))).filter(p => p.id && p.name).map(derive);
+function derive(p) { // also used for the career pop-up's seasons and totals
+  return {
+  ...p,
+  tkl: p.solo + p.ast,
+  cmpPct: 100 * div(p.cmp, p.att), ypa: div(p.pyd, p.att), pydG: div(p.pyd, p.g), tdPct: 100 * div(p.ptd, p.att), intPct: 100 * div(p.int, p.att),
+  rating: passerRating(p),
+  ypc: div(p.ryd, p.car), rydG: div(p.ryd, p.g),
+  ypr: div(p.recyd, p.rec), recydG: div(p.recyd, p.g), catchPct: 100 * div(p.rec, p.tgt), tsharePct: 100 * p.tshare,
+  fgPct: 100 * div(p.fgm, p.fga), xpPct: 100 * div(p.xpm, p.xpa), kpts: 3 * p.fgm + p.xpm,
+  puntAvg: div(p.puntyd, p.punts),
+  retyd: p.kryd + p.pryd,
+  fptsG: div(p.fpts, p.g),
+  scrim: p.ryd + p.recyd,
+  };
+}
+function passerRating(p) { // NFL passer rating
+  if (!p.att) return 0;
+  const c = x => Math.max(0, Math.min(2.375, x));
+  const a = c((p.cmp / p.att - 0.3) * 5), b = c((p.pyd / p.att - 3) * 0.25), t = c((p.ptd / p.att) * 20), i = c(2.375 - (p.int / p.att) * 25);
+  return ((a + b + t + i) / 6) * 100;
+}
+
+// ---------- categories: which players belong, which columns, default sort ----------
+// col: [key, label, tooltip, decimals ('' = whole number)]
+const CATS = [
+  { id: 'passing', title: 'Passing', has: p => p.att > 0, sort: 'pyd',
+    qual: { test: p => p.att >= 14 * teamGames(p.team), text: '14 pass attempts per team game' },
+    cols: [['g', 'G', 'Games played'], ['cmp', 'CMP', 'Completions'], ['att', 'ATT', 'Pass attempts'], ['cmpPct', 'CMP%', 'Completion percentage', 1],
+      ['pyd', 'YDS', 'Passing yards'], ['ypa', 'Y/A', 'Yards per pass attempt', 1], ['pydG', 'Y/G', 'Passing yards per game', 1], ['ptd', 'TD', 'Passing touchdowns'],
+      ['tdPct', 'TD%', 'Touchdown passes per attempt', 1], ['int', 'INT', 'Interceptions thrown'], ['intPct', 'INT%', 'Interceptions per attempt', 1],
+      ['sk', 'SACK', 'Times sacked'], ['cpoe', 'CPOE', 'Completion % over expected: how much more often passes are caught than an average QB would manage on the same throws', 1],
+      ['rating', 'RTG', 'NFL passer rating (0–158.3)', 1]] },
+  { id: 'rushing', title: 'Rushing', has: p => p.car > 0, sort: 'ryd',
+    qual: { test: p => p.car >= 6.25 * teamGames(p.team), text: '6.25 carries per team game' },
+    cols: [['g', 'G', 'Games played'], ['car', 'CAR', 'Rushing attempts (carries)'], ['ryd', 'YDS', 'Rushing yards'], ['ypc', 'AVG', 'Yards per carry', 1],
+      ['rydG', 'Y/G', 'Rushing yards per game', 1], ['rtd', 'TD', 'Rushing touchdowns'], ['fum', 'FUM', 'Fumbles lost']] },
+  { id: 'receiving', title: 'Receiving', has: p => p.tgt > 0, sort: 'recyd',
+    qual: { test: p => p.rec >= 1.875 * teamGames(p.team), text: '1.875 receptions per team game' },
+    cols: [['g', 'G', 'Games played'], ['rec', 'REC', 'Receptions'], ['tgt', 'TGT', 'Times targeted'], ['catchPct', 'CTCH%', 'Catch rate: receptions per target', 1],
+      ['recyd', 'YDS', 'Receiving yards'], ['ypr', 'AVG', 'Yards per reception', 1], ['recydG', 'Y/G', 'Receiving yards per game', 1],
+      ['rectd', 'TD', 'Receiving touchdowns'], ['tsharePct', 'TGT%', "Target share: share of the team's targets", 1]] },
+  { id: 'defense', title: 'Defense', has: p => p.tkl + p.dsk + p.dint + p.pd + p.ff > 0, sort: 'tkl',
+    cols: [['g', 'G', 'Games played'], ['tkl', 'TOT', 'Total tackles (solo + assisted)'], ['solo', 'SOLO', 'Solo tackles'], ['ast', 'AST', 'Assisted tackles'],
+      ['tfl', 'TFL', 'Tackles for loss'], ['dsk', 'SACK', 'Sacks', 1], ['qbh', 'QBH', 'Quarterback hits'], ['dint', 'INT', 'Interceptions'],
+      ['pd', 'PD', 'Passes defended'], ['ff', 'FF', 'Forced fumbles'], ['dtd', 'TD', 'Defensive touchdowns']] },
+  { id: 'kicking', title: 'Kicking', has: p => p.fga + p.xpa > 0, sort: 'fgm',
+    qual: { test: p => p.fga >= teamGames(p.team), text: '1 field goal attempt per team game' },
+    cols: [['g', 'G', 'Games played'], ['fgm', 'FGM', 'Field goals made'], ['fga', 'FGA', 'Field goals attempted'], ['fgPct', 'FG%', 'Field goal percentage', 1],
+      ['fglong', 'LNG', 'Longest field goal made'], ['xpm', 'XPM', 'Extra points made'], ['xpa', 'XPA', 'Extra points attempted'],
+      ['xpPct', 'XP%', 'Extra point percentage', 1], ['kpts', 'PTS', 'Points scored kicking (3 × FG + XP)']] },
+  { id: 'punting', title: 'Punting', has: p => p.punts > 0, sort: 'puntyd',
+    qual: { test: p => p.punts >= 3.125 * teamGames(p.team), text: '3.125 punts per team game' },
+    cols: [['g', 'G', 'Games played'], ['punts', 'PUNTS', 'Punts'], ['puntyd', 'YDS', 'Punting yards'], ['puntAvg', 'AVG', 'Yards per punt', 1]] },
+  { id: 'returns', title: 'Returns', has: p => p.kryd + p.pryd > 0, sort: 'retyd',
+    cols: [['g', 'G', 'Games played'], ['kryd', 'KR YDS', 'Kickoff return yards'], ['pryd', 'PR YDS', 'Punt return yards'], ['retyd', 'TOTAL', 'Total return yards']] },
+  { id: 'fantasy', title: 'Fantasy (PPR)', has: p => p.fpts !== 0, sort: 'fpts',
+    cols: [['g', 'G', 'Games played'], ['fpts', 'PTS', 'Fantasy points, PPR scoring (1 point per reception)', 1], ['fptsG', 'PTS/G', 'Fantasy points per game', 1],
+      ['pyd', 'PASS YDS', 'Passing yards'], ['ptd', 'PASS TD', 'Passing touchdowns'], ['ryd', 'RUSH YDS', 'Rushing yards'], ['rtd', 'RUSH TD', 'Rushing touchdowns'],
+      ['rec', 'REC', 'Receptions'], ['recyd', 'REC YDS', 'Receiving yards'], ['rectd', 'REC TD', 'Receiving touchdowns']] },
+];
+
+// ---------- state + controls ----------
+let cat = CATS[0], sortKey = cat.sort, sortDir = -1; // -1 = high to low
+$('cats').innerHTML = CATS.map(c => `<button data-c="${c.id}">${c.title}</button>`).join('');
+$('team').innerHTML += D.teams.slice().sort((a, b) => (info(a).name || a).localeCompare(info(b).name || b)).map(t => `<option value="${t}">${info(t).name || t}</option>`).join('');
+$('pos').innerHTML += [...new Set(players.map(p => p.pos).filter(Boolean))].sort().map(p => `<option>${p}</option>`).join('');
+$('cats').addEventListener('click', e => {
+  const c = CATS.find(x => x.id === e.target.closest('button')?.dataset.c); if (!c) return;
+  cat = c; sortKey = c.sort; sortDir = -1; render();
+});
+for (const id of ['team', 'pos', 'qual']) $(id).addEventListener('change', render);
+$('q').addEventListener('input', render);
+$('table').addEventListener('click', e => {
+  const th = e.target.closest('th[data-k]');
+  if (th) { if (sortKey === th.dataset.k) sortDir = -sortDir; else { sortKey = th.dataset.k; sortDir = -1; } render(); return; }
+  const pl = e.target.closest('[data-pid]');
+  if (pl) { openCareer(pl.dataset.pid); return; }
+  const tm = e.target.closest('[data-team]');
+  if (tm) { $('team').value = tm.dataset.team; render(); }
+});
+
+function render() {
+  document.querySelectorAll('#cats button').forEach(b => b.classList.toggle('on', b.dataset.c === cat.id));
+  const team = $('team').value, pos = $('pos').value, q = $('q').value.trim().toLowerCase();
+  // Qualifying minimums only matter for rate stats, and not when looking at one team
+  const useQual = !!cat.qual && $('qual').checked && !team;
+  $('qualWrap').hidden = !cat.qual || !!team; // a single team shows its whole roster
+  $('qualWrap').dataset.tip = cat.qual ? `<b>Qualified players only</b>At least ${cat.qual.text}, like the NFL's own leaderboard minimums. Keeps someone with a handful of attempts from topping the percentages. Turned off automatically when you pick a team.` : '';
+  const list = players.filter(p => cat.has(p) && (!team || p.team === team) && (!pos || p.pos === pos) && (!q || p.name.toLowerCase().includes(q)) && (!useQual || cat.qual.test(p)))
+    .sort((a, b) => sortDir * (a[sortKey] - b[sortKey]) || b[cat.sort] - a[cat.sort]);
+  $('teamHead').innerHTML = team ? `<div class="teamhead">${logo(team, '')}<b>${info(team).name}</b> <span class="muted">${info(team).division || ''}</span></div>` : '';
+  $('count').textContent = `${list.length} player${list.length === 1 ? '' : 's'}`;
+  const fmt = (v, d) => (d ? v.toFixed(d) : Math.round(v).toLocaleString());
+  const th = ([k, label, tip]) => `<th class="sort ${k === sortKey ? 'on' : ''}" data-k="${k}" data-tip="<b>${label}</b>${tip}. Click to sort."><span class="tipped">${label}</span><span class="arrow">${k === sortKey ? (sortDir < 0 ? '▼' : '▲') : ''}</span></th>`;
+  $('table').innerHTML = `<tr><th class="l rk">#</th><th class="l">Player</th><th class="l">Team</th>${cat.cols.map(th).join('')}</tr>` +
+    (list.length ? list.map((p, i) => `<tr><td class="l rk">${i + 1}</td>
+      <td class="l"><span class="pname">${head(p)}<a class="plink" data-pid="${p.id}" title="Career stats">${p.name}</a><span class="pos">${p.pos}</span></span></td>
+      <td class="l tm"><a class="teamlink" data-team="${p.team}">${logo(p.team)}${p.team}</a></td>
+      ${cat.cols.map(([k, , , d]) => `<td class="${k === sortKey ? 'on' : ''}">${fmt(p[k], d)}</td>`).join('')}</tr>`).join('')
+    : `<tr><td class="empty" colspan="${cat.cols.length + 3}">No players match these filters${useQual ? ' (try turning off "Qualified players only")' : ''}.</td></tr>`);
+}
+
+// ---------- career pop-up: every regular season since 1999 (careers.js, loaded the first time it's needed) ----------
+let careersLoad, cPlayer, cCat;
+const loadCareers = () => careersLoad ||= new Promise((resolve, reject) => {
+  const s = Object.assign(document.createElement('script'), { src: 'careers.js' });
+  s.onload = () => resolve(window.NFL_CAREERS);
+  s.onerror = () => { careersLoad = null; reject(new Error('careers.js not found')); };
+  document.head.appendChild(s);
+});
+const POS_CAT = { QB: 'passing', RB: 'rushing', FB: 'rushing', WR: 'receiving', TE: 'receiving', K: 'kicking', P: 'punting' };
+// A season's teams: one code, or [[team, games], ...] when traded mid-season
+const seasonTeams = r => (Array.isArray(r.teams) ? r.teams : [[r.teams, r.g]]);
+
+async function openCareer(id) {
+  const p = players.find(x => x.id === id); if (!p) return;
+  window.VM && VM.add('careers', id); // 🏆
+  $('career').hidden = false; document.body.style.overflow = 'hidden';
+  $('chead').innerHTML = `${head(p)}<div><b>${p.name}</b><span class="muted">${p.pos} · ${info(p.team).name || p.team}</span></div>`;
+  $('stints').innerHTML = ''; $('ccats').innerHTML = '';
+  $('ctable').innerHTML = '<tr><td class="empty">Loading career stats…</td></tr>';
+  let C;
+  try { C = await loadCareers(); } catch { $('ctable').innerHTML = '<tr><td class="empty">Career stats aren\'t built yet: run node fetch.js, then node build_app.js.</td></tr>'; return; }
+  if ($('career').hidden) return; // closed while loading
+  const seasons = (C.players[id] || []).map(([season, teams, ...v]) => derive({ season, teams, ...Object.fromEntries(C.cols.map((c, i) => [c, v[i] || 0])) }));
+  // Career totals: counting stats add up; CPOE is weighted by attempts; longest FG is the max; target share has no career value
+  const sum = Object.fromEntries(C.cols.map(c => [c, seasons.reduce((n, s) => n + s[c], 0)]));
+  sum.cpoe = div(seasons.reduce((n, s) => n + s.cpoe * s.att, 0), sum.att);
+  sum.fglong = Math.max(0, ...seasons.map(s => s.fglong));
+  const total = { ...derive(sum), tsharePct: null };
+  // Stints with each team, in order (a trade year counts toward both teams)
+  const stints = [];
+  for (const s of seasons) for (const [t, g] of seasonTeams(s)) {
+    const last = stints[stints.length - 1];
+    if (last?.team === t) { last.to = s.season; last.g += g; } else stints.push({ team: t, from: s.season, to: s.season, g });
+  }
+  const cats = CATS.filter(c => seasons.some(c.has));
+  cPlayer = { p, seasons, total, stints, cats };
+  cCat = cats.find(c => c === cat) || cats.find(c => c.id === POS_CAT[p.pos]) || cats.find(c => c.id === 'defense') || cats[0];
+  renderCareer();
+}
+
+function renderCareer() {
+  const { seasons, total, stints, cats } = cPlayer;
+  const yrs = s => (s.from === s.to ? s.from : `${s.from}–${s.to}`);
+  $('stints').innerHTML = stints.length ? `<span class="muted" style="align-self:center;font-size:13px">Teams</span>` + stints.map(s =>
+    `<span class="stint" data-tip="<b>${info(s.team).name || s.team}</b>${yrs(s)}: ${s.g} game${s.g === 1 ? '' : 's'}">${logo(s.team, '')}<b>${s.team}</b><span class="muted">${yrs(s)}</span></span>`).join('') : '';
+  if (!seasons.length) { $('ctable').innerHTML = '<tr><td class="empty">No regular-season stats on record.</td></tr>'; return; }
+  $('ccats').innerHTML = cats.map(c => `<button data-c="${c.id}" class="${c === cCat ? 'on' : ''}">${c.title}</button>`).join('');
+  const fmt = (v, d) => (v === null || !isFinite(v) ? '–' : d ? v.toFixed(d) : Math.round(v).toLocaleString());
+  const cells = r => cCat.cols.map(([k, , , d]) => `<td>${fmt(r[k], d)}</td>`).join('');
+  const teamCell = s => seasonTeams(s).map(([t, g]) => `<span${Array.isArray(s.teams) ? ` data-tip="<b>${info(t).name || t}</b>${g} game${g === 1 ? '' : 's'}"` : ''}>${logo(t)}${t}</span>`).join(' ');
+  $('ctable').innerHTML = `<tr><th class="l">Season</th><th class="l">Team</th>${cCat.cols.map(([k, label, tip]) => `<th data-tip="<b>${label}</b>${tip}."><span class="tipped">${label}</span></th>`).join('')}</tr>` +
+    seasons.map(s => `<tr><td class="l yr">${s.season}</td><td class="l tm">${teamCell(s)}</td>${cells(s)}</tr>`).join('') +
+    `<tr class="tot"><td class="l">Career</td><td class="l">${seasons.length} season${seasons.length === 1 ? '' : 's'}</td>${cells(total)}</tr>`;
+}
+
+function closeCareer() { $('career').hidden = true; document.body.style.overflow = ''; }
+$('cclose').addEventListener('click', closeCareer);
+$('career').addEventListener('click', e => {
+  if (e.target === $('career')) return closeCareer();
+  const c = cPlayer?.cats.find(x => x.id === e.target.closest('#ccats button')?.dataset.c);
+  if (c) { cCat = c; renderCareer(); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('career').hidden) closeCareer(); });
+
+// players.html?team=KC opens that team (used by the Standings and Super Bowl pages)
+const qTeam = new URLSearchParams(location.search).get('team');
+if (qTeam && D.teams.includes(qTeam)) $('team').value = qTeam;
+render();
+// players.html?player=<id> opens that player's career stats (used by the Charts page)
+const qPlayer = new URLSearchParams(location.search).get('player');
+if (qPlayer && players.some(x => x.id === qPlayer)) openCareer(qPlayer);
+if (location.hash === '#charts') location.replace('charts.html'); // old link
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t || !t.dataset.tip) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+document.addEventListener('scroll', () => { tipEl.style.display = 'none'; }, true);
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

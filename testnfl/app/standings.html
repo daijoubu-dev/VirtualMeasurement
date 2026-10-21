@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Standings · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="profile.js"></script>
+<style>
+  /* minmax(0, 1fr) lets each conference column shrink to the box instead of stretching to its widest table;
+     a full table needs ~640px, so two conferences side by side only when there is room for both; otherwise they stack */
+  main { max-width: 1420px; }
+  .confs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  @media (max-width: 1440px) { .confs { grid-template-columns: minmax(0, 1fr); } }
+  .confs .stat th, .confs .stat td { padding: 5px 6px; }
+  .confs .stat td.l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
+  .conf h3 { margin: 0 0 10px; font-size: 16px; }
+  .div { margin-bottom: 14px; }
+  .div h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .seed { display: inline-block; min-width: 18px; font-size: 11px; font-weight: 700; color: var(--accent); }
+  .diff.pos { color: var(--win); } .diff.neg { color: var(--loss); }
+  .strk.W { color: var(--win); } .strk.L { color: var(--loss); }
+  .legend { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html" class="on">Standings</a><a href="players.html">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <span class="muted" id="meta" style="font-size:13px"></span>
+  </header>
+  <div class="panel">
+    <p class="legend" style="margin:0 0 12px">Regular season only. Seeds 1–4 go to division leaders and 5–7 are wild cards, ranked by win % with simplified
+      tiebreakers (division record, then conference record, then point differential), so early-season seeds can differ from the NFL's official order.
+      Click a team for its players.</p>
+    <div class="confs" id="confs"></div>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script>
+const D = window.NFL_DATA;
+const $ = id => document.getElementById(id);
+const info = t => D.teamInfo?.[t] || {};
+const logo = (t, cls = 'logo') => (info(t).logo ? `<img class="${cls}" src="${info(t).logo}" alt="" loading="lazy" onerror="this.remove()">` : '');
+$('meta').textContent = `${D.currentSeason} through week ${D.lastWeek}`;
+
+// ---------- records from every completed regular-season game ----------
+const rec = () => ({ w: 0, l: 0, t: 0 });
+const T = Object.fromEntries(D.teams.map(t => [t, { team: t, all: rec(), home: rec(), away: rec(), div: rec(), conf: rec(), pf: 0, pa: 0, results: [] }]));
+const add = (r, res) => { r[res]++; };
+const games = D.results.filter(g => g[0] === D.currentSeason && typeof g[1] === 'number').sort((a, b) => a[2].localeCompare(b[2]));
+for (const [, , , home, away, hs, as] of games) {
+  for (const [team, opp, pf, pa, where] of [[home, away, hs, as, 'home'], [away, home, as, hs, 'away']]) {
+    const x = T[team]; if (!x) continue;
+    const res = pf > pa ? 'w' : pf < pa ? 'l' : 't';
+    add(x.all, res); add(x[where], res); x.pf += pf; x.pa += pa; x.results.push(res);
+    if (info(team).division === info(opp).division) add(x.div, res);
+    if (info(team).conf === info(opp).conf) add(x.conf, res);
+  }
+}
+const pct = r => (r.w + r.l + r.t ? (r.w + r.t / 2) / (r.w + r.l + r.t) : 0);
+const fmtRec = r => `${r.w}-${r.l}${r.t ? '-' + r.t : ''}`;
+const fmtPct = r => pct(r).toFixed(3).replace(/^0/, '');
+const streak = x => { const r = x.results; if (!r.length) return ''; let n = 0; const last = r[r.length - 1]; for (let i = r.length - 1; i >= 0 && r[i] === last; i--) n++; return `${last.toUpperCase()}${n}`; };
+// Simplified ordering: win %, then division record, then conference record, then point differential
+const order = (a, b) => pct(b.all) - pct(a.all) || pct(b.div) - pct(a.div) || pct(b.conf) - pct(a.conf) || (b.pf - b.pa) - (a.pf - a.pa);
+
+// ---------- seeds: 4 division leaders, then 3 wild cards ----------
+const seeds = {};
+for (const conf of ['AFC', 'NFC']) {
+  const teams = Object.values(T).filter(x => info(x.team).conf === conf);
+  const divs = [...new Set(teams.map(x => info(x.team).division))];
+  const leaders = divs.map(d => teams.filter(x => info(x.team).division === d).sort(order)[0]).sort(order);
+  const wild = teams.filter(x => !leaders.includes(x)).sort(order).slice(0, 3);
+  [...leaders, ...wild].forEach((x, i) => { seeds[x.team] = i + 1; });
+}
+
+// ---------- render ----------
+$('confs').innerHTML = ['AFC', 'NFC'].map(conf => {
+  const divs = [...new Set(D.teams.filter(t => info(t).conf === conf).map(t => info(t).division))].sort();
+  return `<div class="conf"><h3>${conf}</h3>` + divs.map(d => {
+    const rows = Object.values(T).filter(x => info(x.team).division === d).sort(order);
+    return `<div class="div"><h4>${d}</h4><div class="scroll"><table class="stat">
+      <tr><th class="l">Team</th><th>W</th><th>L</th><th>T</th><th>Pct</th><th>PF</th><th>PA</th><th>Diff</th><th>Home</th><th>Away</th><th>Div</th><th>Conf</th><th>Strk</th></tr>
+      ${rows.map(x => {
+        const diff = x.pf - x.pa, s = streak(x);
+        return `<tr><td class="l"><span class="seed" data-tip="${seeds[x.team] ? `<b>Seed ${seeds[x.team]}</b>${seeds[x.team] <= 4 ? 'Division leader' : 'Wild card'} if the season ended today (simplified tiebreakers).` : ''}">${seeds[x.team] || ''}</span>
+            <a class="teamlink" href="players.html?team=${x.team}">${logo(x.team)}${info(x.team).name || x.team}</a></td>
+          <td>${x.all.w}</td><td>${x.all.l}</td><td>${x.all.t}</td><td>${fmtPct(x.all)}</td><td>${x.pf}</td><td>${x.pa}</td>
+          <td class="diff ${diff > 0 ? 'pos' : diff < 0 ? 'neg' : ''}">${diff > 0 ? '+' : ''}${diff}</td>
+          <td>${fmtRec(x.home)}</td><td>${fmtRec(x.away)}</td><td>${fmtRec(x.div)}</td><td>${fmtRec(x.conf)}</td>
+          <td class="strk ${s[0] || ''}">${s}</td></tr>`;
+      }).join('')}</table></div></div>`;
+  }).join('') + '</div>';
+}).join('');
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t || !t.dataset.tip) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

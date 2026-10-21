@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultimate Team · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="achievements.js"></script>
+<script src="profile.js"></script>
+<script src="ultimate.js"></script>
+<style>
+  [hidden] { display: none !important; }
+  .btn { border: 1px solid var(--border); background: var(--soft); color: var(--text); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: 650; font-size: 13px; }
+  .btn:hover:not(:disabled) { border-color: var(--accent); } .btn:disabled { opacity: .5; cursor: default; }
+  .btn.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.sm { padding: 3px 10px; font-size: 12px; }
+  .empty { padding: 22px; text-align: center; color: var(--muted); }
+  .err { color: var(--loss); font-size: 13px; min-height: 18px; text-align: center; }
+
+  /* top: your team */
+  .hero { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 800px) { .hero { grid-template-columns: 1fr 1fr; } }
+  .tile { background: var(--soft); border-radius: 10px; padding: 10px 14px; min-width: 0; }
+  .tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .tile .v { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .s { font-size: 12px; color: var(--muted); }
+  .tile .v.gold { color: var(--gold); }
+  .edit { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 4px; }
+  .teamform { display: flex; gap: 6px; margin-top: 4px; } .teamform input { min-width: 0; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); }
+  .teamform input[name=abbr] { width: 64px; text-transform: uppercase; }
+  .tabs { display: flex; justify-content: center; margin: 0 0 16px; }
+  .tabs .seg { flex-wrap: wrap; justify-content: center; }
+
+  /* season */
+  .sbanner { text-align: center; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 10px 0 12px; background: var(--soft); }
+  .sbanner.perfect { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); }
+  .sbanner .t { font-size: 20px; font-weight: 850; } .sbanner .s { font-size: 13px; color: var(--muted); }
+  .weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+  .wk { border: 1px solid var(--border); border-left: 4px solid var(--faint); border-radius: 8px; padding: 5px 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .wk.W { border-left-color: var(--win); } .wk.L { border-left-color: var(--loss); }
+  .wk .k { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wk .r { font-weight: 800; } .wk.W .r { color: var(--win); } .wk.L .r { color: var(--loss); }
+  .wk.new { animation: fadein .35s ease; }
+
+  /* leaders */
+  .board { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .board td, .board th { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: left; }
+  .board th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+  .board .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .board tr.me td { font-weight: 800; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+  /* cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .card { --rc: #9aa3b0; position: relative; border: 2px solid var(--rc); border-radius: 12px; padding: 9px 10px 8px; background: linear-gradient(160deg, color-mix(in srgb, var(--rc) 16%, var(--panel)), var(--panel) 60%); min-height: 200px; display: flex; flex-direction: column; gap: 2px; }
+  .card.r-legendary { box-shadow: 0 0 14px color-mix(in srgb, var(--rc) 45%, transparent); }
+  .card .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .card .pos { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--rc); }
+  .card .gr { font-size: 24px; font-weight: 850; font-variant-numeric: tabular-nums; line-height: 1; }
+  .card .nm { font-weight: 800; font-size: 14px; line-height: 1.2; }
+  .card .yr { font-size: 12px; color: var(--muted); }
+  .card .ln { font-size: 11px; color: var(--muted); flex: 1; }
+  .card .ft { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--rc); font-weight: 700; }
+  .card .cnt { position: absolute; top: -8px; right: -8px; background: var(--text); color: var(--bg); border-radius: 999px; font-size: 11px; font-weight: 800; padding: 1px 7px; }
+  .card.in { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card.pickable { cursor: pointer; } .card.pickable:hover { transform: translateY(-2px); }
+
+  /* Mythic (99) cards and collection editions */
+  .card.r-mythic { border-color: transparent; background: linear-gradient(var(--panel), var(--panel)) padding-box, linear-gradient(120deg, #f43f5e, #f59e0b, #22d3ee, #a855f7, #f43f5e) border-box; background-size: 100% 100%, 300% 300%; animation: mythic 6s linear infinite; box-shadow: 0 0 18px rgba(244, 63, 94, .35); }
+  .card.r-mythic .gr { background: linear-gradient(90deg, #f43f5e, #f59e0b, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  @keyframes mythic { to { background-position: 0 0, 300% 0; } }
+  .card .ed { font-size: 10px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: .05em; }
+  /* 📸 the card's picture: a headshot cropped to the face, or the team logo */
+  .card .ph { display: flex; justify-content: center; margin: 2px 0 4px; flex-shrink: 0; }
+  .card > :not(.ln) { flex-shrink: 0; } /* a long stat line must not squeeze the picture onto the name */
+  .card .ph img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: color-mix(in srgb, var(--rc) 14%, var(--soft)); }
+  .card .ph.tlogo img { object-fit: contain; padding: 8px; box-sizing: border-box; }
+  .field .card .ph img { width: 56px; height: 56px; }
+  @media (max-width: 700px) { .field .card .ph img { width: 40px; height: 40px; border-radius: 8px; } .field .card .ph.tlogo img { padding: 4px; } }
+  .col .card .ph img { width: 56px; height: 56px; }
+  /* ♻️ trade-ups */
+  .trade { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 0 0 12px; }
+
+  /* lineup: the formation on a field (defense on top, facing the offense across the line of scrimmage) */
+  .field { position: relative; border-radius: 14px; padding: 12px 12px 14px; color: #fff;
+    background: repeating-linear-gradient(180deg, transparent 0 46px, rgba(255,255,255,.07) 46px 48px), linear-gradient(180deg, #2f6b3a, #1f5a2c); }
+  .half { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px 10px; }
+  .half h3 { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.75); }
+  .half h3 b { font-size: 20px; color: #fff; letter-spacing: 0; }
+  .los { margin: 12px -12px; border-top: 2px dashed rgba(255,255,255,.7); position: relative; }
+  .los span { position: absolute; left: 50%; top: -9px; transform: translateX(-50%); background: #24602f; padding: 0 8px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.8); }
+  .sideline { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); justify-content: center; gap: 10px; margin-top: 14px; }
+  .sideline .lbl2 { grid-column: 1 / -1; text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .slot { cursor: pointer; min-width: 0; } .slot .lbl { font-size: 10.5px; color: rgba(255,255,255,.8); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sideline .slot .lbl { color: var(--muted); }
+  .field .card { color: var(--text); min-height: 112px; }
+  .slot .card:hover { border-color: var(--accent); }
+  .hole { border: 2px dashed var(--border); border-radius: 12px; min-height: 112px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; }
+  .field .hole { border-color: rgba(255,255,255,.5); color: rgba(255,255,255,.85); background: rgba(0,0,0,.12); }
+  @media (max-width: 700px) {
+    .half { gap: 6px; } .field { padding: 10px 6px; }
+    .field .card { min-height: 84px; padding: 6px; } .field .card .ln, .field .card .ft { display: none; }
+    .field .card .nm { font-size: 11.5px; } .field .card .gr { font-size: 18px; } .field .card .yr { font-size: 10.5px; }
+    .field .hole { min-height: 84px; font-size: 11px; }
+  }
+
+  /* 📋 game plan picker and the plans in a game */
+  .plan h4 { margin: 12px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); text-align: left; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 8px; text-align: left; }
+  .opt { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; cursor: pointer; background: var(--panel); color: var(--text); text-align: left; font: inherit; }
+  .opt:hover { border-color: var(--accent); } .opt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+  .opt b { display: block; font-size: 13.5px; } .opt span { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .plans { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; max-width: 760px; margin: 10px auto 0; font-size: 12.5px; }
+  .plans .pl { color: var(--muted); } .plans .pl b { color: var(--text); } .plans .pl.away { text-align: right; }
+  .plans .wx { text-align: center; color: var(--muted); font-size: 12px; }
+  .edges { max-width: 760px; margin: 10px auto 0; font-size: 12.5px; text-align: left; }
+  .edges div { padding: 3px 0; border-top: 1px solid var(--border); }
+  .edges .pts { float: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* 🏆 collections */
+  .colgrid { display: grid; gap: 14px; }
+  .col { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .col.done { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 6%, transparent); }
+  .col .hd { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .col .hd .t { font-size: 16px; font-weight: 800; } .col .hd .s { font-size: 12.5px; color: var(--muted); }
+  .col .prog { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin: 8px 0; } .col .prog > div { height: 100%; background: var(--gold); }
+  .col .cards { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; margin-top: 8px; }
+  .col .card { min-height: 108px; } .col .card .ln { display: none; }
+  .card.missing { opacity: .35; filter: grayscale(1); }
+  .col .acts2 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bar2 { display: flex; justify-content: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+  /* packs */
+  .packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 800px) { .packs { grid-template-columns: 1fr; } }
+  .pack { border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .pack .ic { font-size: 38px; line-height: 1; } .pack .nm { font-weight: 800; font-size: 16px; }
+  .pack .pr { font-size: 20px; font-weight: 850; color: var(--gold); } .pack .d { font-size: 12px; color: var(--muted); }
+  .odds { width: 100%; font-size: 11.5px; display: grid; grid-template-columns: auto 1fr auto; gap: 3px 8px; align-items: center; margin: 4px 0 6px; }
+  .odds .b { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; } .odds .b > div { height: 100%; }
+  .starter { border: 2px solid var(--gold); border-radius: 12px; padding: 14px; text-align: center; margin-bottom: 14px; background: color-mix(in srgb, var(--gold) 7%, transparent); }
+
+  /* pack opening */
+  .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 25; overflow-y: auto; }
+  .mbox { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; max-width: 980px; width: 100%; padding: 18px 20px; position: relative; text-align: center; }
+  .mbox .x { position: absolute; top: 10px; right: 12px; border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .reveal { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 14px 0; perspective: 900px; }
+  .flip { width: 160px; height: 250px; position: relative; transform-style: preserve-3d; transition: transform .6s ease; cursor: pointer; }
+  .flip.open { transform: rotateY(180deg); cursor: default; }
+  .flip > div { position: absolute; inset: 0; backface-visibility: hidden; }
+  .flip .back { border-radius: 12px; border: 2px solid var(--border); background: repeating-linear-gradient(45deg, var(--soft), var(--soft) 10px, var(--panel) 10px, var(--panel) 20px); display: flex; align-items: center; justify-content: center; font-size: 40px; }
+  .flip .front { transform: rotateY(180deg); } .flip .front .card { height: 100%; text-align: left; }
+  .flip.open.big .front .card { animation: glow 1.6s ease; }
+  @keyframes glow { 0% { box-shadow: 0 0 0 transparent; } 40% { box-shadow: 0 0 36px var(--rc); } 100% { box-shadow: 0 0 14px color-mix(in srgb, var(--rc) 45%, transparent); } }
+
+  /* play */
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } @media (max-width: 900px) { .cols2 { grid-template-columns: 1fr; } }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+  .row:first-child { border-top: 0; }
+  .row .t { font-weight: 750; } .row .s { font-size: 12px; color: var(--muted); }
+  .row .acts { display: flex; gap: 6px; align-items: center; }
+  .row.mine { background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+  .odd { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .res .sc { font-variant-numeric: tabular-nums; font-weight: 800; }
+  .banner { border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .queuebox { text-align: center; padding: 6px 0 12px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+  .queuebox .s { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  /* the game */
+  .live-h { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); text-align: center; }
+  .scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 22px; margin: 8px auto 2px; max-width: 640px; }
+  .scoreboard .tm { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .scoreboard .tm.away { justify-content: flex-end; } .scoreboard .tm.home { flex-direction: row-reverse; justify-content: flex-end; }
+  .scoreboard .ab { font-size: 22px; font-weight: 850; } .scoreboard .nm { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .scoreboard .tm.home .who { text-align: left; } .scoreboard .tm.away .who { text-align: right; }
+  .scoreboard .pts { font-size: 44px; font-weight: 850; font-variant-numeric: tabular-nums; min-width: 60px; text-align: center; }
+  .scoreboard .pts.flash { animation: flash 1.2s ease; }
+  @keyframes flash { 0% { color: #eab308; transform: scale(1.25); } 100% { color: inherit; transform: none; } }
+  .scoreboard .clk { font-size: 13px; color: var(--muted); min-width: 80px; text-align: center; }
+  .final { text-align: center; margin: 10px 0 4px; } .final .t { font-size: 20px; font-weight: 800; } .final .s { font-size: 13px; color: var(--muted); }
+  .summary { max-width: 760px; margin: 14px auto 0; text-align: left; }
+  .summary h3, .boxh { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 6px; text-align: center; }
+  .play { display: grid; grid-template-columns: 64px 44px 1fr auto; gap: 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .play .q { color: var(--faint); font-size: 12px; } .play .ab { font-weight: 800; font-size: 12px; }
+  .play .note { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--accent); }
+  .play .run { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  .play.new { animation: fadein .5s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .boxgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 16px; text-align: left; }
+  @media (max-width: 760px) { .boxgrid { grid-template-columns: 1fr; } }
+  .bteam h3 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 6px; font-size: 15px; }
+  .bteam h3 .pts { margin-left: auto; font-size: 22px; }
+  table.bs { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+  table.bs th { text-align: right; font-size: 10.5px; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 3px 5px; border-bottom: 1px solid var(--border); }
+  table.bs td { text-align: right; padding: 3px 5px; border-bottom: 1px solid var(--border); }
+  table.bs th:first-child, table.bs td:first-child { text-align: left; }
+  table.ts { margin: 14px auto 0; max-width: 520px; }
+  table.ts td:nth-child(2) { text-align: center; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+  table.ts td:first-child { text-align: right; } table.ts td:last-child { text-align: left; }
+  .note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px; }
+  .filters { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html" class="on">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+  </header>
+
+  <div class="panel" id="hero"></div>
+  <div class="tabs"><div class="seg" id="tabs"><button data-t="play" class="on">⚔ Play</button><button data-t="bots">🤖 Bots</button><button data-t="season">📅 Season</button><button data-t="lineup">🃏 Lineup</button><button data-t="packs">📦 Packs</button><button data-t="cols">🏆 Collections</button><button data-t="coll">🗂 Cards</button><button data-t="leaders">🏅 Leaders</button></div></div>
+
+  <div class="panel" id="game" hidden></div>
+  <section id="t-play">
+    <div id="unseen"></div>
+    <div class="cols2">
+      <div class="panel"><h2>📣 Open games</h2><div id="queue"></div></div>
+      <div class="panel"><h2>📜 Recent results</h2><div id="results"></div></div>
+    </div>
+  </section>
+  <section id="t-lineup" hidden><div class="panel" id="lineup"></div></section>
+  <section id="t-packs" hidden><div class="panel" id="packs"></div></section>
+  <section id="t-cols" hidden><div class="panel" id="cols"></div></section>
+  <section id="t-coll" hidden><div class="panel" id="coll"></div></section>
+  <section id="t-bots" hidden><div class="panel" id="bots"></div></section>
+  <section id="t-season" hidden><div class="panel" id="season"></div><div class="panel" id="seasonHist"></div></section>
+  <section id="t-leaders" hidden>
+    <div class="cols2">
+      <div class="panel"><h2>🏆 Record (vs other players)</h2><div id="bRecord"></div></div>
+      <div class="panel"><h2>💪 Best lineup (overall)</h2><div id="bOverall"></div></div>
+    </div>
+    <div class="cols2">
+      <div class="panel"><h2>👑 Legendary &amp; 🌈 Mythic pulls</h2><div id="pulls"></div></div>
+      <div class="panel"><h2>✨ Who's pulled one</h2><div id="pullers"></div></div>
+    </div>
+  </section>
+</main>
+<div class="modal" id="modal" hidden><div class="mbox"><button class="x" id="mx" title="Close">✕</button><div id="mbody"></div></div></div>
+
+<script>
+// 🃏 Ultimate Team: open packs, build a lineup from the cards, queue it up and let someone challenge it. The server
+// (ultimate_api.js) opens the packs and plays the games; this page shows them, live (🍿 suspense) or as a box score.
+const $ = id => document.getElementById(id);
+const UT = window.VM_UT, API = '/api/ut';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ago = iso => { const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} hr ago` : new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
+const post = (url, body) => fetch(url, { method: 'POST', headers: VM.headers(), body: JSON.stringify(body || {}) }).then(r => { if (r.status === 401) VM.signedOut(); return r.json(); });
+let S = { me: null, queue: [], games: [] }, TAB = (() => { try { return sessionStorage.getItem('vm.utTab') || 'play'; } catch { return 'play'; } })();
+let FILTER = 'All', LIVE = null, HOLD = null, AFTER = null; // HOLD: the game being watched live; AFTER: what to do when it ends
+ // LIVE = the game on screen (its timer, while it plays out)
+
+// ---------- talking to the server ----------
+async function load() {
+  if (!location.protocol.startsWith('http')) { $('hero').innerHTML = '<p class="empty">Ultimate Team needs the server: open the site with start.bat.</p>'; return; }
+  const me = VM.profile();
+  const lite = !!S.collections; // after the first load, the static parts (collections, logos, teams) are kept
+  const r = await fetch((me ? `${API}/${me}` : API) + (lite ? '?lite=1' : '')).then(r => r.json()).catch(() => null);
+  if (!r?.ok) { if (me) { S = { ...S, me: null, queue: [], games: [] }; drawAll(); } return; }
+  S = lite ? { ...r, collections: S.collections, logos: S.logos, teams: S.teams } : r; drawAll();
+}
+// defer: hold the new record, points and unlocks back (a game being watched live mustn't give its result away)
+async function act(action, body, errEl, defer = false) {
+  const r = await post(`${API}/${VM.profile()}/${action}`, body).catch(() => ({ ok: false, error: 'The server didn\'t answer.' }));
+  if (!r.ok) { if (errEl) errEl.textContent = r.error; else alert(r.error); return null; }
+  if (!defer) apply(r);
+  return r;
+}
+function apply(r) {
+  S.me = r.me; syncHeader();
+  (r.unlocked || []).forEach((a, i) => setTimeout(() => VM.toast(a), 600 + i * 700));
+}
+// the 👤 header shows the same points as this page (VM.adjust takes the unwatched games out of it)
+function syncHeader() { const me = S.me, d = me ? me.balance - shown(me).balance : 0; VM.adjust = b => b - d; if (me) VM.setBalance(me.balance); }
+// your record and points without the games you haven't watched yet (someone played your queued team): no spoilers
+function shown(me) {
+  let { w, l } = me.rec, balance = me.balance;
+  for (const id of me.unseen || []) {
+    const g = S.games.find(x => x.gid === id); if (!g) continue;
+    g[g.winner].pid === VM.profile() ? (w--, balance -= UT.REWARD.win) : (l--, balance -= UT.REWARD.loss);
+  }
+  return { w: Math.max(0, w), l: Math.max(0, l), balance };
+}
+
+// ---------- drawing: your team ----------
+const lineupCards = me => Object.fromEntries(Object.entries(me.lineup).map(([s, u]) => [s, me.cards.find(c => c.u === u)]).filter(([, c]) => c));
+const isFull = me => UT.REQUIRED.every(([s]) => me.lineup[s]); // the eleven players (coach and stadium are optional)
+function drawHero() {
+  const me = S.me;
+  if (!me) { $('hero').innerHTML = '<p class="empty">Sign in or create a profile with the 👤 button at the top right to get your free starter pack and build a team. You can still watch the games below.</p>'; return; }
+  const R = UT.ratings(lineupCards(me)), V = shown(me);
+  syncHeader();
+  $('hero').innerHTML = `<div class="hero">
+    <div class="tile" id="teamTile"><div class="k">Your team <button class="edit" id="editTeam" title="Rename your team">✏️</button></div><div class="v">${esc(me.team.abbr)} · ${esc(me.team.name)}</div><div class="s">${esc(VM_PROFILE_NAME())}</div></div>
+    <div class="tile" data-tip="<b>Record</b>Games against other players (+${UT.REWARD.win} points a win, +${UT.REWARD.loss} a loss). Bot games and seasons are kept apart."><div class="k">Record</div><div class="v">${V.w}-${V.l}</div><div class="s">Bots ${botRec(me)} · 🏆 ${me.titles} season title${me.titles === 1 ? '' : 's'}</div></div>
+    <div class="tile" data-tip="<b>Team rating</b>Your lineup's grades rolled up like the 17-0 page: offense (QB 36%, O-line 22%, receivers 24%, RB 10%, TE 8%) and defense (pass rush 50%, secondary 32%, linebacker 18%). Empty spots play like a grade-25 backup."><div class="k">Overall</div><div class="v">${R.ovr}</div><div class="s">Offense ${Math.round(R.o)} · Defense ${Math.round(R.d)}</div></div>
+    <div class="tile"><div class="k">Points</div><div class="v gold">${V.balance.toLocaleString()}</div>
+      <div class="s">${me.dailyReady ? `<button class="btn sm go" id="daily">🎁 Claim ${UT.DAILY} free points</button>` : '✓ Daily points claimed. More tomorrow.'}</div></div></div>`;
+  $('editTeam').onclick = () => {
+    $('teamTile').innerHTML = `<div class="k">Team name and abbreviation</div><form class="teamform" id="teamForm"><input name="name" maxlength="24" value="${esc(me.team.name)}"><input name="abbr" maxlength="4" value="${esc(me.team.abbr)}"><button class="btn sm go">Save</button></form><div class="err" id="teamErr" style="text-align:left"></div>`;
+    $('teamForm').onsubmit = async e => { e.preventDefault(); const f = e.target; if (await act('team', { name: f.name.value, abbr: f.abbr.value }, $('teamErr'))) drawAll(); };
+  };
+  if ($('daily')) $('daily').onclick = async () => { if (await act('daily')) drawAll(); };
+}
+let NAME = '';
+const VM_PROFILE_NAME = () => NAME;
+
+// ---------- cards ----------
+// a picture that doesn't load moves on to the next one (ESPN → NFL.com → team logo), and the box goes when none do
+function nextPic(img) {
+  const rest = (img.dataset.alt || '').split(' ').filter(Boolean);
+  if (!rest.length) return img.parentNode.remove();
+  if (rest.length === 1 && /teamlogos/.test(rest[0])) img.parentNode.classList.add('tlogo');
+  img.dataset.alt = rest.slice(1).join(' '); img.src = rest[0];
+}
+const POS_LABEL = { HC: '🧢 COACH', ST: '🏟️ STADIUM' };
+function cardHtml(c, { slot, extra = '', cls = '', count = 0, sell = null } = {}) { // sell: the id of a copy that can be sold
+  const r = UT.rarityOf(c.gr), pics = UT.photos(c, S.logos), isLogo = !c.h;
+  return `<div class="card r-${r.key} ${cls}" style="--rc:${r.color}" ${extra}>${count > 1 ? `<span class="cnt">×${count}</span>` : ''}
+    <div class="top"><span class="pos">${slot || POS_LABEL[c.g] || c.g}</span><span class="gr">${c.gr}</span></div>
+    ${pics.length ? `<div class="ph ${isLogo ? 'tlogo' : ''}"><img src="${esc(pics[0])}" data-alt="${esc(pics.slice(1).join(' '))}" alt="" loading="lazy" onerror="nextPic(this)"></div>` : ''}
+    <div class="nm">${esc(c.n)}</div><div class="yr">${c.s} ${esc(c.t)}</div>${c.ed ? `<div class="ed">🏆 ${esc(c.ed)} edition</div>` : c.set ? `<div class="ed" style="color:var(--muted)">${esc(c.set)} set card</div>` : ''}<div class="ln">${esc(c.l)}</div>
+    <div class="ft"><span>${r.name}</span>${sell ? `<button class="btn sm" data-sell="${sell}">Sell · ${r.sell}</button>` : ''}</div></div>`;
+}
+
+// ---------- lineup ----------
+function drawLineup() {
+  const me = S.me;
+  if (!me) { $('lineup').innerHTML = '<p class="empty">Sign in to build a lineup.</p>'; return; }
+  if (!me.cards.length) { $('lineup').innerHTML = '<p class="empty">No cards yet. Open your free starter pack in 📦 Packs.</p>'; return; }
+  const C = lineupCards(me), R = UT.ratings(C);
+  // each spot where it lines up: [slot, grid column, grid row] on a 5-column field
+  const spot = ([s, col, row, label]) => { const g = UT.SLOTS.find(x => x[0] === s)[1];
+    return `<div class="slot" data-slot="${s}" style="grid-column:${col};grid-row:${row}"><div class="lbl">${label || s}</div>${C[s] ? cardHtml(C[s], { slot: s }) : `<div class="hole">+ ${UT.NAMES[g]}</div>`}</div>`; };
+  const DEF = [['DB1', 1, 2, 'CB'], ['DB2', 5, 2, 'S'], ['LB', 3, 3, 'MLB'], ['DL1', 2, 4, 'EDGE'], ['DL2', 4, 4, 'EDGE']];
+  const OFF = [['WR1', 1, 2, 'WR · X'], ['OL', 3, 2, 'O-LINE'], ['TE', 4, 2, 'TE'], ['WR2', 5, 2, 'WR · Z'], ['QB', 3, 3], ['RB', 3, 4, 'RB']];
+  $('lineup').innerHTML = `<h2>🃏 Lineup · Overall ${R.ovr}</h2>
+    <div class="field">
+      <div class="half"><h3><span>🛡️ Defense</span><b>${Math.round(R.d)}</b></h3>${DEF.map(spot).join('')}</div>
+      <div class="los"><span>Line of scrimmage</span></div>
+      <div class="half">${OFF.map(spot).join('')}<h3 style="grid-row:5"><span>🏈 Offense</span><b>${Math.round(R.o)}</b></h3></div>
+    </div>
+    <div class="sideline"><div class="lbl2">Sideline (optional)</div>${spot(['HC', 1, 2, 'Head coach'])}${spot(['ST', 2, 2, 'Stadium'])}</div>
+    <div class="bar2"><button class="btn" id="best">⚡ Best lineup</button></div>
+    <p class="note">Click a spot to choose its card. One card per player. ≈ ${R.ppg.toFixed(1)} points scored and ${R.pa.toFixed(1)} allowed against an average team.
+      🧢 Coach ${C.HC ? C.HC.gr : `none (plays like a ${UT.NO_COACH})`}: a little better on both sides and bigger game-plan edges. 🏟️ Home field when you host: ${R.hfa.toFixed(1)} points${C.ST ? `, ${esc(C.ST.x?.roof === 'outdoors' ? `outdoor weather (about ${C.ST.x.dec}° in December)` : 'indoors')}` : ''}.</p>`;
+  $('best').onclick = async () => { if (await act('lineup', { lineup: 'best' })) drawAll(); };
+  $('lineup').querySelectorAll('[data-slot]').forEach(el => (el.onclick = () => openPicker(el.dataset.slot)));
+}
+function openPicker(slot) {
+  const me = S.me, g = UT.SLOTS.find(([s]) => s === slot)[1], here = me.lineup[slot];
+  const where = u => Object.entries(me.lineup).find(([, x]) => x === u)?.[0];
+  const list = me.cards.filter(c => c.g === g).sort((a, b) => b.gr - a.gr);
+  $('mbody').innerHTML = `<h2 style="margin:0 0 12px">${slot} · ${UT.NAMES[g]}</h2>
+    ${list.length ? `<div class="cards" style="text-align:left">${list.map(c => cardHtml(c, { cls: `pickable ${c.u === here ? 'in' : ''}`, extra: `data-pick="${c.u}"`, slot: where(c.u) ? `${g} · in ${where(c.u)}` : g })).join('')}</div>`
+      : `<p class="empty">No ${UT.NAMES[g].toLowerCase()} cards yet. Open some packs.</p>`}<div class="err" id="pickErr"></div>`;
+  $('modal').hidden = false;
+  $('mbody').querySelectorAll('[data-pick]').forEach(el => (el.onclick = async () => {
+    const u = el.dataset.pick, lineup = { ...me.lineup }, from = where(u);
+    if (from && from !== slot) lineup[from] = lineup[slot]; // the two spots swap (WR1 ↔ WR2…)
+    lineup[slot] = u;
+    if (await act('lineup', { lineup }, $('pickErr'))) { closeModal(); drawAll(); }
+  }));
+}
+
+// ---------- packs ----------
+function drawPacks() {
+  const me = S.me;
+  if (!me) { $('packs').innerHTML = '<p class="empty">Sign in to open packs.</p>'; return; }
+  const odds = o => `<div class="odds">${UT.RARITY.filter(r => o[r.key]).map(r => `<span style="color:${r.color};font-weight:700">${r.name}</span><div class="b"><div style="width:${Math.max(o[r.key] * 100, 1.5)}%;background:${r.color}"></div></div><span>${o[r.key] < 0.01 ? (o[r.key] * 100).toFixed(2) : Math.round(o[r.key] * 100)}%</span>`).join('')}</div>`;
+  $('packs').innerHTML = `<h2>📦 Packs · ${me.balance.toLocaleString()} points</h2>
+    ${!me.starter ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.starter.icon}</div><b>${UT.PACKS.starter.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.starter.desc}</div><button class="btn go" data-open="starter">Open it</button></div>`
+      : !me.staff ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.staff.icon}</div><b>New: ${UT.PACKS.staff.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.staff.desc} Coaches and stadiums now have their own spots on the sideline.</div><button class="btn go" data-open="staff">Open it</button></div>` : ''}
+    <div class="packs">${['standard', 'premium', 'legend'].map(k => { const p = UT.PACKS[k]; return `<div class="pack"><div class="ic">${p.icon}</div><div class="nm">${p.name}</div><div class="pr">${p.price.toLocaleString()} pts</div><div class="d">${p.desc}</div>${odds(p.odds)}
+      <button class="btn ${me.balance >= p.price ? 'go' : ''}" data-open="${k}" ${me.balance < p.price ? 'disabled' : ''}>${me.balance >= p.price ? 'Open' : `Need ${(p.price - me.balance).toLocaleString()} more`}</button></div>`; }).join('')}</div>
+    <p class="note">Rarity goes by grade (how good that season was, like 17-0): Common under 60, Rare 60–79, Epic 80–89, Legendary 90–98 and <b style="color:${UT.RARITY[4].color}">Mythic 99</b>, the best seasons ever. Every position comes up as often as it's in the lineup (coaches and stadiums too). Team packs for the 🏆 legendary teams are in Collections. Points come from 🏆 achievements, games (+${UT.REWARD.win} a win, +${UT.REWARD.loss} a loss) and ${UT.DAILY} free a day.</p>`;
+  $('packs').querySelectorAll('[data-open]').forEach(b => (b.onclick = () => openPack(b.dataset.open)));
+}
+async function openPack(key) {
+  const r = await act('open', { pack: key }); if (!r) return;
+  revealCards(UT.PACKS[key], r.cards);
+}
+// the flip-to-reveal window: packs, team packs and collection rewards
+function revealCards(P, cards) {
+  const r = { cards };
+  $('mbody').innerHTML = `<h2 style="margin:0">${P.icon} ${P.name}</h2><p class="muted" style="font-size:13px;margin:4px 0 0">Click a card to flip it.</p>
+    <div class="reveal">${r.cards.map((c, i) => `<div class="flip ${UT.rarityOf(c.gr).min >= 80 ? 'big' : ''}" data-i="${i}"><div class="back">${P.icon}</div><div class="front">${cardHtml(c)}</div></div>`).join('')}</div>
+    <div class="bar2"><button class="btn" id="flipAll">Reveal all</button><button class="btn go" id="packDone">Done</button></div>`;
+  $('modal').hidden = false;
+  const flips = [...$('mbody').querySelectorAll('.flip')];
+  flips.forEach(f => (f.onclick = () => f.classList.add('open')));
+  $('flipAll').onclick = () => flips.forEach((f, i) => setTimeout(() => f.classList.add('open'), i * 250));
+  $('packDone').onclick = () => { closeModal(); };
+  drawAll();
+}
+
+// ---------- collection ----------
+function drawColl() {
+  const me = S.me;
+  if (!me) { $('coll').innerHTML = '<p class="empty">Sign in to see your cards.</p>'; return; }
+  const inLineup = new Set(Object.values(me.lineup)), groups = new Map();
+  for (const c of me.cards) { if (!groups.has(c.k)) groups.set(c.k, []); groups.get(c.k).push(c); }
+  // duplicates: every copy after the first (keeping the one in your lineup)
+  const dupes = [...groups.values()].flatMap(cs => cs.sort((a, b) => inLineup.has(b.u) - inLineup.has(a.u)).slice(1)).filter(c => !inLineup.has(c.u));
+  const dupePts = dupes.reduce((a, c) => a + UT.rarityOf(c.gr).sell, 0);
+  const shown = [...groups.values()].map(cs => cs[0]).filter(c => FILTER === 'All' || c.g === FILTER).sort((a, b) => b.gr - a.gr);
+  $('coll').innerHTML = `<h2>🗂 Collection · ${me.cards.length} cards, ${groups.size} different</h2>
+    <div class="filters"><div class="seg" id="fseg">${['All', ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div>
+      <div class="trade">${Object.entries(UT.TRADE_UP).map(([f, t]) => { const n = tradeable(me, f).length, R = k => UT.RARITY.find(r => r.key === k);
+        return `<button class="btn" data-trade="${f}" ${n >= UT.TRADE_N ? '' : 'disabled'} title="You have ${n} tradeable">♻️ ${UT.TRADE_N} <b style="color:${R(f).color}">${R(f).name}</b> → 1 <b style="color:${R(t).color}">${R(t).name}</b></button>`; }).join('')}</div>
+      <button class="btn" id="sellDupes" ${dupes.length ? '' : 'disabled'}>💰 Sell ${dupes.length} duplicate${dupes.length === 1 ? '' : 's'}${dupes.length ? ` · ${dupePts} pts` : ''}</button></div>
+    ${shown.length ? `<div class="cards">${shown.map(c => { const copies = groups.get(c.k), free = copies.find(x => !inLineup.has(x.u));
+      return cardHtml(c, { count: copies.length, cls: copies.some(x => inLineup.has(x.u)) ? 'in' : '', sell: free?.u }); }).join('')}</div>`
+      : '<p class="empty">No cards here yet.</p>'}
+    <p class="note">Cards in your lineup have a blue outline and can't be sold.</p>`;
+  $('fseg').querySelectorAll('[data-f]').forEach(b => (b.onclick = () => { FILTER = b.dataset.f; drawColl(); }));
+  $('coll').querySelectorAll('[data-trade]').forEach(b => (b.onclick = () => tradeUp(b.dataset.trade)));
+  $('sellDupes').onclick = async () => { if (confirm(`Sell ${dupes.length} duplicate cards for ${dupePts} points?`) && await act('sell', { uids: dupes.map(c => c.u) })) drawAll(); };
+  $('coll').querySelectorAll('button[data-sell]').forEach(b => (b.onclick = async e => {
+    e.stopPropagation(); const c = me.cards.find(x => x.u === b.dataset.sell); if (!c) return;
+    if (confirm(`Sell ${c.n} (${c.s}) for ${UT.rarityOf(c.gr).sell} points?`) && await act('sell', { uids: [c.u] })) drawAll();
+  }));
+}
+
+// ---------- ♻️ trade-ups: 5 cards of one rarity for 1 of the next (never into Mythic) ----------
+// cards that can go (not in the lineup, not an edition), the ones you'll miss least first: extra copies, then cards no
+// unfinished collection needs, then the lowest grades
+function tradeable(me, from) {
+  const inLineup = new Set(Object.values(me.lineup)), seen = new Set(), done = me.collected || {};
+  const needed = new Set((S.collections || []).filter(c => !done[c.id]).flatMap(c => c.cards.map(x => UT.baseKey(x.k))));
+  const sorted = me.cards.slice().sort((a, b) => inLineup.has(b.u) - inLineup.has(a.u)); // a lineup copy is the "kept" one
+  const rank = c => { const dupe = seen.has(c.k); seen.add(c.k); return dupe ? 0 : needed.has(UT.baseKey(c.k)) ? 2 : 1; };
+  return sorted.map(c => ({ c, r: rank(c) })).filter(({ c }) => !inLineup.has(c.u) && !c.ed && UT.rarityOf(c.gr).key === from)
+    .sort((a, b) => a.r - b.r || a.c.gr - b.c.gr).map(x => x.c);
+}
+function tradeUp(from) {
+  const pick = tradeable(S.me, from).slice(0, UT.TRADE_N), to = UT.TRADE_UP[from], R = k => UT.RARITY.find(r => r.key === k);
+  $('mbody').innerHTML = `<h2 style="margin:0">♻️ Trade up: ${UT.TRADE_N} ${R(from).name} → 1 ${R(to).name}</h2>
+    <p class="muted" style="font-size:13px;margin:4px 0 10px">These go (extra copies first, then cards no unfinished collection needs, lowest grades first). You get a random ${R(to).name} card.</p>
+    <div class="cards" style="text-align:left">${pick.map(c => cardHtml(c)).join('')}</div>
+    <div class="bar2"><button class="btn go" id="tradeGo">♻️ Trade them</button></div><div class="err" id="tradeErr"></div>`;
+  $('modal').hidden = false;
+  $('tradeGo').onclick = async () => {
+    $('tradeGo').disabled = true;
+    const r = await act('tradeup', { uids: pick.map(c => c.u) }, $('tradeErr'));
+    if (r) revealCards({ icon: '♻️', name: `Trade-up: a new ${R(to).name}` }, r.cards); else $('tradeGo').disabled = false;
+  };
+}
+
+// ---------- 🏆 collections: legendary teams' cards, turned in once for points and a Mythic edition ----------
+let COLF = 'all'; const OPENCOL = new Set(); // collections filter, and the teams showing their cards
+function drawCols() {
+  const me = S.me, cols = S.collections || [];
+  if (!me) { $('cols').innerHTML = '<p class="empty">Sign in to collect legendary teams.</p>'; return; }
+  const have = new Set(me.cards.filter(c => !c.ed).map(c => UT.baseKey(c.k))), done = me.collected || {}, got = c => have.has(UT.baseKey(c.k)); // a set card or the card it's made from
+  const n = col => col.cards.filter(got).length;
+  const shownCols = cols.filter(c => COLF === 'all' || (COLF === 'done' ? done[c.id] : COLF === 'progress' ? !done[c.id] && n(c) > 0 : !done[c.id] && n(c) === 0));
+  $('cols').innerHTML = `<h2>🏆 Legendary teams · ${Object.keys(done).length} of ${cols.length} turned in</h2>
+    <p class="muted" style="text-align:center;margin:0 0 14px;font-size:13px">Collect a team's 8 cards from its team pack (${UT.TEAM_PACK.cards} cards for ${UT.TEAM_PACK.price} points, repeats happen) or any other pack.
+      Turn the set in once for <b style="color:var(--gold)">${UT.COLLECTION_PTS.toLocaleString()} points</b> and a <b style="color:${UT.RARITY[4].color}">Mythic 99</b> edition of the team's star you can't get anywhere else. Turning in uses up one copy of each card. Sets never ask for a Mythic: a 99 in a set (Mahomes, Warner…) is needed as its Legendary set card (${UT.SET_CAP}), which comes in the team pack; the real 99 counts too.</p>
+    <div class="filters"><div class="seg" id="colseg">${[['all', 'All'], ['progress', 'In progress'], ['new', 'Not started'], ['done', 'Turned in']].map(([k, t]) => `<button class="${k === COLF ? 'on' : ''}" data-cf="${k}">${t}</button>`).join('')}</div></div>
+    <div class="colgrid">${shownCols.map(col => { const k = n(col), full = k === col.cards.length, fin = done[col.id];
+      return `<div class="col ${fin ? 'done' : ''}"><div class="hd"><div><div class="t">${esc(col.name)} <span class="muted" style="font-size:13px;font-weight:600">${col.season} ${esc(col.team)}</span></div><div class="s">${esc(col.story)}</div></div>
+        <div class="acts2">${fin ? `<b style="color:var(--gold)">✓ Turned in ${ago(fin)}</b>` : `<button class="btn go" data-collect="${col.id}" ${full ? '' : 'disabled'}>🏆 Turn in</button>`}
+          <button class="btn" data-tpack="${col.id}" ${me.balance >= UT.TEAM_PACK.price ? '' : 'disabled'}>${UT.TEAM_PACK.icon} Team pack · ${UT.TEAM_PACK.price}</button></div></div>
+        <div class="prog"><div style="width:${100 * k / col.cards.length}%"></div></div><div class="s muted" style="font-size:12px"><button class="edit" data-opencol="${col.id}" style="padding:0;margin-right:6px">${OPENCOL.has(col.id) ? '▾ Hide cards' : '▸ Show cards'}</button>${fin ? 'Complete' : `${k} of ${col.cards.length} cards`}</div>
+        ${OPENCOL.has(col.id) ? `<div class="cards">${col.cards.map(c => cardHtml(c, { cls: got(c) || fin ? '' : 'missing' })).join('')}
+          <div title="The reward">${cardHtml(col.edition, { cls: fin ? '' : 'missing' })}</div></div>` : ''}</div>`; }).join('') || '<p class="empty">No collections yet.</p>'}</div>
+    <div class="err" id="colErr"></div>`;
+  $('colseg').querySelectorAll('[data-cf]').forEach(b => (b.onclick = () => { COLF = b.dataset.cf; drawCols(); }));
+  $('cols').querySelectorAll('[data-opencol]').forEach(b => (b.onclick = () => { const id = b.dataset.opencol; OPENCOL.has(id) ? OPENCOL.delete(id) : OPENCOL.add(id); drawCols(); }));
+  $('cols').querySelectorAll('[data-tpack]').forEach(b => (b.onclick = async () => {
+    const col = cols.find(c => c.id === b.dataset.tpack), r = await act('teampack', { id: col.id }, $('colErr'));
+    if (r) { OPENCOL.add(col.id); revealCards({ icon: UT.TEAM_PACK.icon, name: `${col.name} pack` }, r.cards); }
+  }));
+  $('cols').querySelectorAll('[data-collect]').forEach(b => (b.onclick = async () => {
+    const col = cols.find(c => c.id === b.dataset.collect);
+    if (!confirm(`Turn in the ${col.name}? One copy of each of its ${col.cards.length} cards is used up, for ${UT.COLLECTION_PTS.toLocaleString()} points and Mythic ${col.edition.n}.`)) return;
+    const r = await act('collect', { id: col.id }, $('colErr'));
+    if (r) revealCards({ icon: '🏆', name: `${col.name}: collection complete! +${UT.COLLECTION_PTS.toLocaleString()} points` }, r.cards);
+  }));
+}
+
+// ---------- 📋 game plan: picked before queueing, challenging or playing a bot (the last one is remembered) ----------
+let PLAN_DONE = null;
+function pickPlan(title, goLabel) {
+  return new Promise(resolve => {
+    const plan = { ...UT.DEFAULT_PLAN, ...(S.me?.tactics || {}) };
+    const sec = (key, head) => `<h4>${head}</h4><div class="opts">${Object.entries(UT.TACTICS[key]).map(([k, t]) =>
+      `<button type="button" class="opt ${plan[key] === k ? 'on' : ''}" data-pk="${key}" data-pv="${k}"><b>${t.icon} ${t.name}</b><span>${t.desc}</span></button>`).join('')}</div>`;
+    $('mbody').innerHTML = `<div class="plan"><h2 style="margin:0">📋 ${esc(title)}</h2>
+      <p class="muted" style="font-size:13px;margin:4px 0 0">Your plan stays secret until kickoff. Each plan beats some and loses to others, works better when your cards suit it, and a better 🧢 coach makes the edges bigger.</p>
+      ${sec('off', '🏈 Offense')}${sec('def', '🛡️ Defense')}${sec('tempo', '⏱️ Tempo')}
+      <div class="bar2"><button class="btn go" id="planGo">${goLabel}</button></div></div>`;
+    $('modal').hidden = false;
+    PLAN_DONE = resolve;
+    $('mbody').querySelectorAll('[data-pk]').forEach(b => (b.onclick = () => {
+      plan[b.dataset.pk] = b.dataset.pv;
+      $('mbody').querySelectorAll(`[data-pk="${b.dataset.pk}"]`).forEach(x => x.classList.toggle('on', x === b));
+    }));
+    $('planGo').onclick = () => { PLAN_DONE = null; closeModal(); if (S.me) S.me.tactics = plan; resolve(plan); };
+  });
+}
+const planText = p => p ? ['off', 'def', 'tempo'].map(k => { const t = UT.TACTICS[k][p[k]]; return t ? `${t.icon} ${t.name}` : ''; }).join(' · ') : '';
+
+// ---------- play: the queue, results and the game ----------
+const sideName = x => `${esc(x.abbr)} · ${esc(x.team)}`;
+function drawPlay() {
+  const me = S.me, myId = VM.profile();
+  // games someone played against your queued team
+  const unseen = (me?.unseen || []).map(id => S.games.find(g => g.gid === id)).filter(Boolean);
+  $('unseen').innerHTML = unseen.slice(0, 3).map(g => `<div class="banner"><span>⚔ <b>${sideName(g.away)}</b> challenged your team ${ago(g.at)}. Watch to find out how it went.</span><button class="btn go sm" data-watch="${g.gid}">▶ Watch</button></div>`).join('');
+  // the queue
+  const mine = S.queue.find(q => q.pid === myId), others = S.queue.filter(q => q.pid !== myId);
+  const myCards = me ? lineupCards(me) : {};
+  const odds = q => { const theirs = Object.fromEntries(q.lineup.map(([s, , gr]) => [s, { gr }])); return 1 - UT.expected(theirs, myCards).homeWin; };
+  const tipOf = q => esc(`<b>${esc(q.team)} · OVR ${q.ovr}</b>` + q.lineup.map(([s, n, gr]) => `${s} ${esc(n)} (${gr})`).join('<br>'));
+  $('queue').innerHTML = `<div class="queuebox">${!me ? '<span class="muted">Sign in to queue up a team.</span>'
+      : mine ? `<button class="btn" id="unqueue">✕ Take my team off the queue</button><div class="s">Your team is waiting for a challenger (queued ${ago(mine.at)}). You'll get a replay when someone plays it.</div>`
+      : `<button class="btn go" id="enqueue" ${isFull(me) ? '' : 'disabled'}>📣 Queue up my team</button><div class="s">${isFull(me) ? 'Anyone can challenge it. You host (home field), and the game is played the moment they accept.' : 'Fill every spot in your lineup first.'}</div>`}</div>
+    ${others.length ? others.map(q => `<div class="row" data-tip="${tipOf(q)}"><div><div class="t">${sideName(q)}</div><div class="s">${esc(q.name)} · OVR ${q.ovr} · queued ${ago(q.at)}</div></div>
+      <div class="acts">${me && isFull(me) ? `<span class="odd" data-tip="<b>Your chances</b>From both lineups' ratings, on the road.">${Math.round(100 * odds(q))}%</span><button class="btn go sm" data-ch="${q.qid}">⚔ Challenge</button>` : ''}</div></div>`).join('')
+      : '<p class="empty">No one else is queued right now.</p>'}<div class="err" id="qErr"></div>`;
+  if ($('enqueue')) $('enqueue').onclick = async () => { const tactics = await pickPlan('Game plan for your queued team', '📣 Queue up'); if (tactics && await act('queue', { tactics }, $('qErr'))) load(); };
+  if ($('unqueue')) $('unqueue').onclick = async () => { if (await act('queue', { cancel: true }, $('qErr'))) load(); };
+  $('queue').querySelectorAll('[data-ch]').forEach(b => (b.onclick = async () => {
+    const tactics = await pickPlan('Your game plan (theirs is secret too)', '⚔ Play the game'); if (!tactics) return;
+    b.disabled = true;
+    const r = await act('challenge', { qid: b.dataset.ch, tactics }, $('qErr'), true);
+    if (r) { HOLD = r.game.gid; S.queue = S.queue.filter(q => q.qid !== b.dataset.ch); drawPlay(); showGame(r.game, true, () => { apply(r); load(); }); } else { b.disabled = false; load(); }
+  }));
+  // results
+  $('results').innerHTML = S.games.length ? S.games.slice(0, 25).map(g => {
+    const mineG = g.home.pid === myId || g.away.pid === myId, W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'];
+    const res = mineG ? ((g[g.winner].pid === myId) ? '<b class="W">W</b> ' : '<b class="L">L</b> ') : '';
+    const hide = (me?.unseen || []).includes(g.gid) || g.gid === HOLD; // don't spoil a game you haven't watched
+    return `<div class="row res ${mineG ? 'mine' : ''}"><div><div class="t">${hide ? `${sideName(g.away)} @ ${sideName(g.home)}` : `${res}${esc(W.abbr)} <span class="sc">${Math.max(g.hs, g.as)}-${Math.min(g.hs, g.as)}</span> ${esc(L.abbr)}${g.ot ? ' (OT)' : ''}`}</div>
+      <div class="s">${hide ? 'Not watched yet' : `${esc(W.team)} beat ${esc(L.team)}`} · ${ago(g.at)}</div></div>
+      <div class="acts"><button class="btn sm" data-watch="${g.gid}" title="Replay it live">▶</button>${hide ? '' : `<button class="btn sm" data-box="${g.gid}" title="Box score">📋</button>`}</div></div>`; }).join('')
+    : '<p class="empty">No games yet. Queue up your team or challenge one.</p>';
+  document.querySelectorAll('#t-play [data-watch]').forEach(b => (b.onclick = () => watch(b.dataset.watch, true)));
+  document.querySelectorAll('#t-play [data-box]').forEach(b => (b.onclick = () => watch(b.dataset.box, false)));
+}
+async function watch(gid, live) {
+  const r = await fetch(`${API}/game/${gid}`).then(r => r.json()).catch(() => null);
+  if (!r?.ok) return alert(r?.error || 'Couldn\'t load that game.');
+  const first = S.me?.unseen.includes(gid);
+  showGame(r.game, live, first ? async () => { if (await act('seen', { gid })) drawAll(); } : null); // counts as watched once it's over
+}
+// the game: 🍿 live, one scoring play at a time like the Super Bowl's suspense mode, then the box score
+function showGame(g, live, onDone = null) {
+  finishUp();
+  AFTER = onDone;
+  const el = $('game'), L = g.log;
+  el.hidden = false;
+  const tm = (k, cls) => `<div class="tm ${cls}"><div class="who"><div class="ab">${esc(g[k].abbr)}</div><div class="nm">${esc(g[k].team)} · OVR ${g[k].ovr}</div></div><span class="pts" id="s-${k}">${live ? 0 : k === 'home' ? g.hs : g.as}</span></div>`;
+  el.innerHTML = `<div class="live-h" id="liveh">${live ? '🍿 Live' : '📋 Final'} · ${esc(g.away.name)} @ ${esc(g.home.name)}</div>
+    <div class="scoreboard">${tm('away', 'away')}<div class="clk" id="clk">${live ? 'Kickoff' : g.ot ? 'Final (OT)' : 'Final'}</div>${tm('home', 'home')}</div>
+    ${plansHtml(g)}
+    <div style="text-align:center;margin-top:8px">${live ? '<button class="btn sm" id="skip">⏭ Skip to the end</button>' : ''} <button class="btn sm" id="closeGame">✕ Close</button></div>
+    <div id="after"></div>
+    <div class="summary"><h3>Scoring plays</h3><div id="plays">${live ? '' : L.map(p => playRow(g, p)).join('') || '<p class="empty">No scoring.</p>'}</div></div>
+    <div id="boxes">${live ? '' : boxHtml(g)}</div>`;
+  if (!live) $('after').innerHTML = finalHtml(g);
+  $('closeGame').onclick = () => { finishUp(); el.hidden = true; };
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!live) return;
+  let i = 0;
+  const done = () => {
+    finishUp();
+    $('plays').innerHTML = L.map(p => playRow(g, p)).join('') || '<p class="empty">No scoring.</p>';
+    $('s-home').textContent = g.hs; $('s-away').textContent = g.as; $('clk').textContent = g.ot ? 'Final (OT)' : 'Final';
+    $('after').innerHTML = finalHtml(g); $('boxes').innerHTML = boxHtml(g); $('skip')?.remove();
+    $('liveh').textContent = `📋 Final · ${g.away.name} @ ${g.home.name}`;
+  };
+  const step = () => {
+    if (i >= L.length) return done();
+    const p = L[i++];
+    $('plays').insertAdjacentHTML('beforeend', playRow(g, p, 'new'));
+    $('s-home').textContent = p.h; $('s-away').textContent = p.a; $('clk').textContent = p.when;
+    const hit = $('s-' + p.team); hit.classList.remove('flash'); void hit.offsetWidth; hit.classList.add('flash');
+    LIVE = setTimeout(step, i === L.length ? 2400 : i >= L.length - 2 ? 2000 : 1400); // slows down at the end
+  };
+  $('skip').onclick = done;
+  LIVE = setTimeout(step, 900);
+}
+// stop the clock, then let the held result through
+function finishUp() { clearTimeout(LIVE); LIVE = null; const f = AFTER; AFTER = null; HOLD = null; if (f) f(); }
+const playRow = (g, p, cls = '') => `<div class="play ${cls}"><span class="q">${p.when}</span><span class="ab">${esc(g[p.team].abbr)}</span><span>${esc(p.text)}${p.note ? `<span class="note">${esc(p.note)}</span>` : ''}</span>
+  <span class="run">${esc(g.away.abbr)} ${p.a} – ${p.h} ${esc(g.home.abbr)}</span></div>`;
+// both game plans and the weather, shown at kickoff (games from before game plans have none)
+function plansHtml(g) {
+  if (!g.plans) return '';
+  const coach = k => (g.coach?.[k] ? ` · 🧢 ${esc(g.coach[k])}` : '');
+  return `<div class="plans"><div class="pl away"><b>${esc(g.away.abbr)}</b> ${planText(g.plans.away)}${coach('away')}</div>
+    <div class="wx">${g.wx ? `${g.wx.at ? `🏟️ ${esc(g.wx.at)}<br>` : ''}${esc(g.wx.text)}` : ''}</div>
+    <div class="pl"><b>${esc(g.home.abbr)}</b> ${planText(g.plans.home)}${coach('home')}</div></div>`;
+}
+// how the plans played out: each edge, in points for the team it helped
+function edgesHtml(g) {
+  if (!g.edges) return '';
+  const T = (k, w) => UT.TACTICS[k][w] ? `${UT.TACTICS[k][w].icon} ${UT.TACTICS[k][w].name}` : w;
+  const rows = [];
+  for (const side of ['away', 'home']) {
+    const me = esc(g[side].abbr), them = esc(g[side === 'home' ? 'away' : 'home'].abbr);
+    for (const e of g.edges[side] || []) {
+      const pts = `${e.pts > 0 ? '+' : '−'}${Math.abs(e.pts).toFixed(1)} ${me}`;
+      const text = e.kind === 'beat' ? `✅ ${me}'s ${T('off', e.o)} beat ${them}'s ${T('def', e.d)}`
+        : e.kind === 'stuffed' ? `❌ ${them}'s ${T('def', e.d)} shut down ${me}'s ${T('off', e.o)}`
+        : e.kind === 'fitO' ? (e.pts > 0 ? `💪 ${me}'s cards suit ${T('off', e.o)}` : `😬 ${me}'s cards don't suit ${T('off', e.o)}`)
+        : e.kind === 'fitD' ? (e.pts < 0 ? `💪 ${them}'s defenders suit the ${T('def', e.d)}` : `😬 ${them}'s defenders don't suit the ${T('def', e.d)}`)
+        : `⚡ ${me}'s ${T('tempo', e.t)} pairs with ${T('off', e.o)}`;
+      rows.push(`<div>${text}<span class="pts">${pts}</span></div>`);
+    }
+  }
+  return rows.length ? `<div class="edges"><h3 class="boxh">📋 How the game plans played out</h3>${rows.join('')}</div>` : '';
+}
+function finalHtml(g) {
+  const W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'], myId = VM.profile();
+  const mine = g.home.pid === myId ? 'home' : g.away.pid === myId ? 'away' : null;
+  const you = g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! ${g.reward ? `+${g.reward} points` : `No points: you've hit today's ${UT.BOT_CAP} bot points`}${g.capped && g.reward ? ` (today's ${UT.BOT_CAP}-point bot limit)` : ''}` : 'The bot wins this one. No points for a loss.')
+    : mine ? (g.winner === mine ? `🎉 You win! +${UT.REWARD.win} points` : `Tough loss. +${UT.REWARD.loss} points for playing`) : '';
+  return `<div class="final"><div class="t">🏆 ${esc(W.team)} ${Math.max(g.hs, g.as)}, ${esc(L.team)} ${Math.min(g.hs, g.as)}${g.ot ? ' (OT)' : ''}</div>
+    <div class="s">⭐ Player of the game: ${esc(g.mvp.name)} (${esc(g.mvp.line)})${g.comeback ? ` · came back from ${g.comeback} down` : ''}</div>
+    ${you ? `<div class="s" style="margin-top:4px;font-weight:700;color:var(--text)">${you}</div>` : ''}</div>
+    ${mine && g.reward?.[mine] ? `<div style="max-width:190px;margin:10px auto 0;text-align:left"><div class="boxh">🎁 Your card for playing</div>${cardHtml(g.reward[mine])}</div>` : ''}
+    ${edgesHtml(g)}`;
+}
+function boxHtml(g) {
+  const row = cells => `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+  const table = (head, rows) => `<table class="bs"><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${rows.join('') || row(['–', ...head.slice(1).map(() => '')])}</table>`;
+  const side = k => { const x = g.box[k]; return `<div class="bteam"><h3>${esc(g[k].abbr)} <span class="muted" style="font-size:13px;font-weight:600">${esc(g[k].team)}</span><span class="pts">${x.pts}</span></h3>
+    ${table(['Passing', 'C/ATT', 'YDS', 'TD', 'INT', 'SCK'], [row([esc(x.qb.name), `${x.qb.cmp}/${x.qb.att}`, x.qb.yds, x.qb.td, x.qb.int, x.qb.sacked])])}
+    ${table(['Rushing', 'CAR', 'YDS', 'AVG', 'TD', 'LNG'], x.rush.filter(r => r.n).map(r => row([esc(r.name), r.n, r.yds, (r.yds / r.n).toFixed(1), r.td, r.lng ?? '–'])))}
+    ${table(['Receiving', 'REC', 'YDS', 'AVG', 'TD', 'LNG'], x.rec.map(r => row([esc(r.name), r.n, r.yds, (r.yds / r.n).toFixed(1), r.td, r.lng ?? '–'])))}
+    ${table(['Defense', 'TKL', 'SCK', 'INT', 'FF', 'TD'], x.def.map(r => row([esc(r.name), r.tkl, r.sck, r.int, r.ff, r.td])))}
+    ${table(['Kicking', 'FG', 'LNG', 'XP'], [row([esc(x.kick.name), `${x.kick.fgm}/${x.kick.fga}`, x.kick.lng || '–', `${x.kick.xpm}/${x.kick.xpa}`])])}
+    ${x.ret?.length ? `<div class="s muted" style="font-size:12px">Return TDs: ${x.ret.map(r => esc(r.name)).join(', ')}</div>` : ''}</div>`; };
+  const A = g.box.away.team, H = g.box.home.team;
+  const ts = [['First downs', 'fd'], ['Total yards', 'total'], ['Passing', 'pass'], ['Rushing', 'rush'], ['Sacks–yards', 'sacks'], ['Turnovers', 'to'], ['Plays', 'plays'], ['Possession', 'top']];
+  return `<div class="boxh" style="margin-top:18px">📋 Box score</div>
+    <table class="bs ts"><tr><th style="text-align:right">${esc(g.away.abbr)}</th><th></th><th style="text-align:left">${esc(g.home.abbr)}</th></tr>${ts.map(([n, k]) => row([A[k], n, H[k]])).join('')}</table>
+    <div class="boxgrid">${side('away')}${side('home')}</div>
+    <p class="note">Simulated stat lines built around the scoring plays, from each card's grade and season.</p>`;
+}
+
+// ---------- 🤖 bots ----------
+const botRec = me => { const r = Object.values(me.bot?.rec || {}).reduce((a, x) => ({ w: a.w + x.w, l: a.l + x.l }), { w: 0, l: 0 }); return `${r.w}-${r.l}`; };
+function drawBots() {
+  const me = S.me;
+  if (!me) { $('bots').innerHTML = '<p class="empty">Sign in to play the bots.</p>'; return; }
+  const C = lineupCards(me), today = me.bot.ptsToday, left = Math.max(0, UT.BOT_CAP - today);
+  // your chances against a lineup of cards right at the bot's overall (you host)
+  const odds = ovr => UT.expected(C, Object.fromEntries(UT.SLOTS.map(([s]) => [s, { gr: ovr }]))).homeWin;
+  $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} / ${UT.BOT_CAP} bot points today</h2>
+    <div class="packs">${Object.entries(UT.BOTS).map(([k, B]) => { const r = me.bot.rec[k] || { w: 0, l: 0 }, mid = (B.ovr[0] + B.ovr[1]) / 2;
+      return `<div class="pack"><div class="ic">🤖</div><div class="nm">${B.name}</div><div class="d">${B.team} · ${B.ovr[0] === B.ovr[1] ? B.ovr[0] : `${B.ovr[0]}–${B.ovr[1]}`} overall</div>
+        <div class="pr">+${B.reward} a win</div>
+        <div class="d">Your chances ≈ ${isFull(me) ? Math.round(100 * odds(mid)) + '%' : '–'} · you're ${r.w}-${r.l} against it</div>
+        <button class="btn go" data-bot="${k}" ${isFull(me) ? '' : 'disabled'}>Play</button></div>`; }).join('')}</div>
+    <div class="err" id="botErr"></div>
+    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. Losses pay nothing, and bot wins pay until you've made ${UT.BOT_CAP} bot points in a day (${left} left today). Bot games don't count toward your record or the leaderboards.</p>`;
+  $('bots').querySelectorAll('[data-bot]').forEach(b => (b.onclick = async () => {
+    const tactics = await pickPlan(`Game plan vs the ${UT.BOTS[b.dataset.bot].name} bot`, '▶ Play'); if (!tactics) return;
+    $('bots').querySelectorAll('[data-bot]').forEach(x => (x.disabled = true));
+    const r = await act('bot', { level: b.dataset.bot, tactics }, $('botErr'), true);
+    if (r) { HOLD = 'bot'; showGame(r.game, true, () => { apply(r); drawAll(); }); } else drawBots();
+  }));
+}
+
+// ---------- 📅 season ----------
+const recStr = s => `${s.wins}-${s.losses}${s.ties ? '-' + s.ties : ''}`;
+const teamName = t => S.teams?.find(x => x.t === t)?.name || t;
+function seasonHeadline(s) {
+  const lost = s.post.find(g => !g.w), lossG = s.games.find(g => !g.w);
+  if (s.perfect) return [`🏆 PERFECT SEASON. ${s.games.length + s.post.length}-0.`, 'Pop the champagne. The 1972 Dolphins are calling to complain.'];
+  if (s.champ) return [`🏆 ${recStr(s)} and Super Bowl champs`, `Your ${esc(s.team.name)} won it all on the ${esc(s.name || s.F)} schedule.`];
+  if (s.wins === s.games.length) return [`${recStr(s)}… then lost the ${lost.round} 😭`, `Lost ${lost.us}–${lost.them} to ${esc(lost.opp)}. The 2007 Patriots send their condolences.`];
+  if (!s.playoffs) return [`${recStr(s)}. Missed the playoffs.`, lossG ? `First loss: week ${lossG.week}, ${lossG.us}–${lossG.them} ${lossG.where === 'home' ? 'vs' : 'at'} ${esc(lossG.opp)}.` : ''];
+  return [`${recStr(s)}, out in the ${lost.round}`, `Lost ${lost.us}–${lost.them} to ${esc(lost.opp)}.`];
+}
+const wkTile = (g, label, cls = '') => `<div class="wk ${g.w ? 'W' : g.tie ? 'T' : 'L'} ${cls}"><div class="k">${label}</div><div class="o">${g.where === 'away' ? '@ ' : g.where === 'neutral' ? 'vs ' : ''}<b>${esc(g.opp)}</b></div><div><span class="r">${g.w ? 'W' : g.tie ? 'T' : 'L'}</span> ${g.us}–${g.them}${g.ot ? ' OT' : ''}</div></div>`;
+function seasonHtml(s, upTo = Infinity) { // upTo: how many games are shown so far (the reveal)
+  const all = [...s.games.map(g => [g, `Week ${g.week}`]), ...s.post.map(g => [g, g.round])];
+  const shownN = Math.min(upTo, all.length), done = shownN >= all.length, [t, sub] = seasonHeadline(s);
+  const reg = all.slice(0, Math.min(shownN, s.games.length)), post = all.slice(s.games.length, shownN);
+  const w = reg.filter(([g]) => g.w).length, l = reg.filter(([g]) => !g.w && !g.tie).length, ti = reg.filter(([g]) => g.tie).length;
+  return `<div class="sbanner ${done && s.perfect ? 'perfect' : ''}">${done ? `<div class="t">${t}</div><div class="s">${sub}</div><div class="s" style="font-weight:700;color:var(--gold);margin-top:4px">+${s.reward.toLocaleString()} points</div>`
+      : `<div class="t">${w}-${l}${ti ? '-' + ti : ''}</div><div class="s">${shownN < s.games.length ? 'Playing the regular season…' : 'Playoffs…'}</div>`}</div>
+    <div class="weeks">${reg.map(([g, k], i) => wkTile(g, k, i === shownN - 1 && !done ? 'new' : '')).join('')}</div>
+    ${post.length ? `<h3 class="boxh" style="margin-top:12px">Playoffs</h3><div class="weeks">${post.map(([g, k], i) => wkTile(g, k, s.games.length + i === shownN - 1 && !done ? 'new' : '')).join('')}</div>` : ''}`;
+}
+function drawSeason() {
+  const me = S.me;
+  if (!me) { $('season').innerHTML = '<p class="empty">Sign in to play a season.</p>'; $('seasonHist').hidden = true; return; }
+  if (HOLD === 'season') return; // a season is being revealed
+  const fav = (() => { try { return localStorage.getItem('vm.utSched') || VM.pref('fav') || ''; } catch { return ''; } })();
+  const R = UT.SEASON_REWARD, last = me.seasons[0], today = last && new Date(last.at).toDateString() === new Date().toDateString();
+  $('season').innerHTML = `<h2>📅 Season mode</h2>
+    <p class="muted" style="text-align:center;margin:0 0 12px;font-size:13px">One season a day: your lineup takes over a real team's schedule this season, like the 17-0 page. Make the playoffs with 10+ wins (13+ earns a bye).<br>
+      <b style="color:var(--gold)">${R.played} points</b> for playing, <b style="color:var(--gold)">${R.playoffs}</b> for making the playoffs, <b style="color:var(--gold)">${R.champ}</b> for winning the Super Bowl… and something special if you never lose. 🤫</p>
+    <div class="bar2" style="margin:0 0 6px"><label>Schedule <select id="sched">${(S.teams || []).map(t => `<option value="${t.t}" ${t.t === fav ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
+      ${me.seasonReady ? `<button class="btn go" id="playSeason" ${isFull(me) ? '' : 'disabled'}>▶ Play today's season</button>` : '<button class="btn" disabled>✓ Played today. Next season tomorrow.</button>'}</div>
+    <div class="err" id="seasonErr">${isFull(me) ? '' : 'Fill every spot in your lineup first.'}</div>
+    <div id="seasonOut">${today ? seasonHtml(last) : ''}</div>`;
+  if ($('playSeason')) $('playSeason').onclick = async () => {
+    const team = $('sched').value; try { localStorage.setItem('vm.utSched', team); } catch {}
+    $('playSeason').disabled = true;
+    const r = await act('season', { team }, $('seasonErr'), true);
+    if (r) revealSeason(r); else drawSeason();
+  };
+  // past seasons
+  $('seasonHist').hidden = !me.seasons.length;
+  $('seasonHist').innerHTML = `<h2>📜 Your seasons</h2>${me.seasons.map(s => { const [t] = seasonHeadline(s);
+    return `<div class="row"><div><div class="t">${t}</div><div class="s">${new Date(s.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${esc(s.team.abbr)} on the ${esc(s.name || s.F)} schedule · OVR ${s.ovr}</div></div><div class="acts" style="color:var(--gold);font-weight:800">+${s.reward.toLocaleString()}</div></div>`; }).join('')}`;
+}
+// the season plays out a week at a time, the playoffs slower; the points and record wait for the end
+function revealSeason(r) {
+  const s = r.season, n = s.games.length + s.post.length;
+  HOLD = 'season';
+  $('seasonOut').innerHTML = `<div style="text-align:center;margin-bottom:8px"><button class="btn sm" id="skipSeason">⏭ Skip to the end</button></div><div id="sv"></div>`;
+  let i = 0, timer = null;
+  const end = () => { clearTimeout(timer); HOLD = null; apply(r); drawAll(); };
+  const step = () => { i++; $('sv').innerHTML = seasonHtml(s, i); if (i >= n) return setTimeout(end, 600); timer = setTimeout(step, i >= s.games.length ? 1300 : 260); };
+  $('skipSeason').onclick = end;
+  timer = setTimeout(step, 300);
+}
+
+// ---------- 🏅 leaders ----------
+function drawLeaders() {
+  const myId = VM.profile(), B = S.boards || { record: [], overall: [] };
+  const me = S.me && shown(S.me); // your own row leaves out games you haven't watched
+  const rec = B.record.map(r => r.pid === myId && me ? { ...r, w: me.w, l: me.l } : r).filter(r => r.w + r.l);
+  const pct = r => (r.w / (r.w + r.l)).toFixed(3).replace(/^0/, '');
+  const table = (head, rows) => `<table class="board"><tr>${head.map((h, i) => `<th class="${i > 1 ? 'num' : ''}">${h}</th>`).join('')}</tr>${rows.join('')}</table>`;
+  const who = r => `<b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· ${esc(r.name)}</span>`;
+  $('bRecord').innerHTML = rec.length ? table(['#', 'Team', 'W-L', 'Pct', '🏆'], rec.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num">${r.w}-${r.l}</td><td class="num">${pct(r)}</td><td class="num" title="Season titles">${r.titles}</td></tr>`))
+    : '<p class="empty">No games between players yet.</p>';
+  $('bOverall').innerHTML = B.overall.length ? table(['#', 'Team', 'OVR', 'Off', 'Def'], B.overall.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num"><b>${r.ovr}</b></td><td class="num">${r.o}</td><td class="num">${r.d}</td></tr>`))
+    : '<p class="empty">No full lineups yet.</p>';
+  const card = c => `<b>${esc(c.n)}</b> ${c.s} ${esc(c.t)} <span class="muted">${c.g}</span> <b style="color:${UT.rarityOf(c.gr).color}">${c.gr}</b>${c.gr >= 99 ? ' 🌈 Mythic' : ''}${c.ed ? ` <span class="muted">· ${esc(c.ed)} edition</span>` : ''}`;
+  $('pulls').innerHTML = (S.pulls || []).length ? (S.pulls || []).map(x => `<div class="row"><div><div>${x.card.gr >= 99 ? '🌈' : '👑'} ${card(x.card)}</div><div class="s">${esc(x.name)}${x.pack ? ` · ${esc(x.pack)}` : ''} · ${x.at ? ago(x.at) : 'before the log started'}</div></div></div>`).join('')
+    : '<p class="empty">No Legendary pulls yet. Grade 90+ cards are 3% of a Standard pack.</p>';
+  $('pullers').innerHTML = (S.pullers || []).length ? table(['#', 'Profile', 'Pulls', 'Best'], S.pullers.map((x, i) => `<tr class="${x.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${esc(x.name)}</td><td class="num">${x.n}</td><td class="num">${esc(x.best.n)} ${x.best.gr}</td></tr>`))
+    : '<p class="empty">Nobody yet.</p>';
+}
+
+// ---------- tabs, modal, refresh ----------
+function setTab(t) {
+  TAB = t; try { sessionStorage.setItem('vm.utTab', t); } catch {}
+  $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  for (const k of ['play', 'bots', 'season', 'lineup', 'packs', 'cols', 'coll', 'leaders']) $('t-' + k).hidden = k !== t;
+}
+$('tabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b) setTab(b.dataset.t); };
+const closeModal = () => { $('modal').hidden = true; if (PLAN_DONE) { const f = PLAN_DONE; PLAN_DONE = null; f(null); } }; // closing the plan picker cancels
+$('mx').onclick = closeModal; $('modal').onclick = e => { if (e.target === $('modal')) closeModal(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+function drawAll() {
+  drawHero(); drawLineup(); drawPacks(); drawCols(); drawColl(); drawPlay(); drawBots(); drawSeason(); drawLeaders();
+}
+async function start() {
+  VM.adjust = null; // (set again for the profile that just signed in)
+  const me = VM.profile();
+  NAME = me ? VM.name() || await fetch('/api/profiles/' + me).then(r => r.json()).then(r => r.profile?.name || '').catch(() => '') : '';
+  await load();
+  if (S.me && !S.me.starter) setTab('packs'); else setTab(TAB);
+}
+start();
+// signing in or out in the 👤 menu
+let last = VM.profile(); setInterval(() => { if (VM.profile() !== last) { last = VM.profile(); $('game').hidden = true; start(); } }, 800);
+// new challengers and results: check every 10 seconds while the page is open (not while a pack or picker is open)
+setInterval(() => { if (!document.hidden && !LIVE && !HOLD && $('modal').hidden && !document.querySelector('.teamform')) load(); }, 10000);
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t || !t.dataset.tip) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

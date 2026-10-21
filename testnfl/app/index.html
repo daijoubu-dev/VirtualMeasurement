@@ -1,0 +1,1591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Measurement</title>
+<script src="profile.js"></script>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="apple-touch-icon" href="pylon.png">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1b1f24; --muted: #6b7482; --faint: #9aa3b0; --border: #e3e6eb;
+    --accent: #2563eb; --a: #c2410c; --b: #0f766e; --win: #15803d; --loss: #b91c1c; --soft: #f0f2f5; --gold: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #171b21; --text: #e6e9ee; --muted: #8b95a5; --faint: #5d6675; --border: #262c35;
+      --accent: #60a5fa; --a: #fb923c; --b: #2dd4bf; --win: #4ade80; --loss: #f87171; --soft: #1e232b; --gold: #fbbf24;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 18px 16px 48px; }
+  button, select, input { font: inherit; color: inherit; }
+  select, input[type=number] { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); }
+  input[type=number] { width: 64px; }
+  .muted { color: var(--muted); }
+  .ta { color: var(--a); } .tb { color: var(--b); }
+  .W { color: var(--win); } .L { color: var(--loss); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  [data-tip] { cursor: help; }
+  .tipped { border-bottom: 1px dotted var(--faint); }
+
+  /* Header + settings bar */
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  h1 { font-size: 19px; margin: 0; display: flex; align-items: center; gap: 8px; }
+  h1 img { height: 24px; }
+  .nav { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 13px; }
+  .nav a { padding: 5px 14px; text-decoration: none; color: var(--muted); }
+  .nav a:hover { color: var(--text); background: var(--soft); }
+  .nav a.on { background: var(--accent); color: #fff; }
+  .navs { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .ngrp { display: inline-flex; align-items: center; gap: 6px; }
+  .nlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; }
+  .status { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .btn { border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 6px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .spin { width: 12px; height: 12px; border: 2px solid var(--faint); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #refreshMsg.err { color: var(--loss); }
+  .matchbar { display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap; font-size: 13px; padding: 10px 14px; }
+  .allhist { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .warn { color: var(--loss); font-size: 12px; }
+  .gear { margin-left: auto; color: var(--muted); background: none; border: 0; cursor: pointer; }
+  .gear:hover { color: var(--text); }
+  .settings-body { display: flex; flex-wrap: wrap; gap: 12px 18px; border-top: 1px solid var(--border); padding-top: 12px; width: 100%; }
+  .settings-body[hidden] { display: none; }
+  .settings-body label.f { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 18px; width: 100%; }
+  .checks fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; }
+  .checks legend { font-size: 12px; color: var(--muted); margin-bottom: 3px; padding: 0; }
+  .selall { font-size: 11px; border: 1px solid var(--border); background: var(--soft); color: var(--muted); border-radius: 5px; padding: 0 6px; margin-left: 4px; cursor: pointer; }
+  .selall:hover { color: var(--text); border-color: var(--accent); }
+  .checks label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .checks fieldset:disabled { opacity: .45; }
+
+  /* Layout + sidebar */
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { position: static !important; max-height: none !important; } }
+  aside { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: thin; padding: 14px 10px 12px; }
+  aside h2 { padding: 0 6px; margin-bottom: 8px; }
+  .gitem { display: block; width: 100%; text-align: left; background: none; border: 1px solid transparent; border-radius: 8px; padding: 7px 8px; cursor: pointer; }
+  .gitem:hover { background: var(--soft); }
+  .gitem.on { background: var(--soft); border-color: var(--accent); }
+  .gitem .t { font-weight: 600; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px; }
+  .gitem .t .side { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .gitem .t .side.r { justify-content: flex-end; }
+  .gitem .t .at { color: var(--faint); font-weight: 400; font-size: 12px; }
+  .gitem .t .rec { font-weight: 400; font-size: 11px; color: var(--faint); }
+  .gitem .t .slogo { margin: 0; }
+  .gitem .sub { font-size: 12px; color: var(--muted); text-align: center; margin-top: 2px; }
+  .gitem .fs { font-variant-numeric: tabular-nums; } .gitem .side:not(.won) .fs { color: var(--muted); font-weight: 500; }
+  .weeknav { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+  .weeknav h2 { margin: 0 !important; flex: 1; text-align: center; }
+  .weeknav button { border: 1px solid var(--border); background: var(--soft); color: var(--text); border-radius: 6px; padding: 1px 8px; cursor: pointer; }
+  .weeknav button:disabled { opacity: .35; cursor: default; }
+  .wkrec { margin-left: 4px; color: var(--win); text-transform: none; letter-spacing: 0; }
+  .scorecard { background: var(--soft); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; cursor: help; }
+  .scorecard .sc-t { font-weight: 700; margin-bottom: 4px; }
+  .scorecard .sc-row { display: grid; grid-template-columns: 1fr auto 44px; gap: 8px; } .scorecard .sc-row b { font-variant-numeric: tabular-nums; } .scorecard .sc-row span:last-child { text-align: right; }
+  .favpick { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 0 2px 10px; }
+  .favpick span { font-weight: 650; white-space: nowrap; } .favpick select { flex: 1; min-width: 0; }
+  .gitem { position: relative; } .gitem .favstar { position: absolute; top: 4px; right: 6px; font-size: 10px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); margin: 0 2px; }
+  .pill.good { color: #fff; background: var(--win); border-color: var(--win); }
+  .pill.bad { color: #fff; background: var(--loss); border-color: var(--loss); }
+  .pill.push { color: var(--muted); }
+  /* a finished game: just the scoreboard and what Virtual Measurement predicted */
+  body.pastview #strip, body.pastview #board, body.pastview #counters { display: none; }
+  /* 📋 box score of a finished game */
+  .bx-team { width: 100%; max-width: 560px; margin: 0 auto 14px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .bx-team td { padding: 4px 8px; border-bottom: 1px solid var(--border); }
+  .bx-team td:first-child { text-align: right; font-weight: 700; } .bx-team td:last-child { text-align: left; font-weight: 700; }
+  .bx-team td:nth-child(2) { text-align: center; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+  .bx-team td.better { color: var(--win); }
+  .bx-team th { font-size: 13px; padding: 4px 8px; } .bx-team th:first-child { text-align: right; } .bx-team th:last-child { text-align: left; }
+  .bx-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  @media (max-width: 900px) { .bx-grid { grid-template-columns: minmax(0, 1fr); } }
+  .bx-side h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 15px; }
+  .bx-side h3 img { width: 26px; height: 26px; object-fit: contain; }
+  .bx-scroll { overflow-x: auto; }
+  table.bx { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+  table.bx th { text-align: right; font-size: 10.5px; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 3px 5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.bx td { text-align: right; padding: 3px 5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.bx th:first-child, table.bx td:first-child { text-align: left; }
+  table.bx td:first-child { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  table.bx td .ps { color: var(--faint); font-size: 10.5px; margin-left: 4px; }
+  .bx-more { border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0 0 8px; }
+  .sbt { border-radius: 12px; padding: 8px 12px; }
+  .sbt a { color: inherit; text-decoration: none; } .sbt a.lg { line-height: 0; }
+  .sbt .who2 { min-width: 0; } .sbt .who2 .full { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sbt .nm .rec2 { font-size: 13px; font-weight: 500; color: var(--faint); }
+  .sbt .sc.proj { font-style: italic; }
+  .sbm .fin.proj { color: var(--accent); }
+  .strip .closelink { cursor: pointer; border-bottom: 1px dotted var(--faint); }
+  .scoreboard2 { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; padding: 6px 0 4px; }
+  .sbt { display: flex; align-items: center; gap: 12px; } .sbt.r { flex-direction: row-reverse; text-align: right; }
+  .sbt img { height: 56px; width: 56px; object-fit: contain; }
+  .sbt .nm { font-size: 26px; font-weight: 800; line-height: 1; } .sbt .full { font-size: 12px; color: var(--muted); } .sbt .rec2 { font-size: 12px; color: var(--faint); }
+  .sbt .sc { font-size: 52px; font-weight: 850; font-variant-numeric: tabular-nums; margin-left: auto; line-height: 1; color: var(--muted); }
+  .sbt.r .sc { margin-left: 0; margin-right: auto; }
+  .sbt.win .sc { color: var(--text); }
+  .sbm { text-align: center; }
+  .sbm .fin { font-size: 13px; font-weight: 800; letter-spacing: .12em; }
+  .sbm .wk, .sbm .ln { font-size: 12px; color: var(--muted); }
+  .sbm button { margin-top: 6px; font-size: 12px; border: 1px solid var(--border); background: var(--soft); color: var(--text); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+  .vmcard { border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 12px; padding: 10px 14px; max-width: 620px; margin: 0 auto; }
+  .vmcard .vm-h { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin-bottom: 6px; text-align: center; }
+  .vm-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 5px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .vm-row:first-of-type { border-top: 0; }
+  .vm-conf { text-align: center; font-size: 12px; margin: -2px 0 6px; } .vm-conf.low { color: var(--muted); } .vm-conf.high { color: var(--win); }
+  .vm-row .vm-k { font-size: 12px; color: var(--muted); } .vm-row .vm-v small { color: var(--muted); font-size: 12px; }
+  .vm-row .pill { font-size: 12px; padding: 1px 10px; }
+  .verdict { text-align: center; font-size: 13px; margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--soft); }
+  .won { font-weight: 800; }
+  .custom { display: flex; gap: 6px; align-items: center; font-size: 13px; padding: 12px 6px 0; border-top: 1px solid var(--border); margin-top: 8px; }
+  .custom select { flex: 1; }
+
+  /* Matchup header */
+  .hero { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: stretch; }
+  .team .name { font-size: 30px; font-weight: 750; line-height: 1.1; display: flex; align-items: center; gap: 8px; }
+  .team.right .name { justify-content: flex-end; }
+  .team .name .logo { height: 40px; width: 40px; object-fit: contain; }
+  .team .full { font-size: 13px; font-weight: 600; margin-top: 2px; }
+  .slogo { height: 16px; width: 16px; object-fit: contain; vertical-align: -3px; margin: 0 3px 0 0; }
+  .mlogo { height: 26px; width: 26px; object-fit: contain; vertical-align: -6px; margin-right: 4px; }
+  .team .name a { color: inherit; text-decoration: none; border-bottom: 2px dotted currentColor; }
+  .team .name a.lg { border: 0; line-height: 0; }
+  .team { border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; }
+  .team .closest { margin-top: auto; } /* sits at the bottom so both cards line up */
+  .team > :nth-last-child(2) { margin-bottom: 10px; }
+  .team .rec { font-size: 15px; color: var(--muted); font-weight: 500; margin: 0 6px; }
+  .team .who { font-size: 13px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Schedule lines: always three rows so both cards stay level */
+  .sched { margin-top: 8px; font-size: 13px; display: grid; gap: 2px; }
+  .sched div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sched .k { color: var(--muted); }
+  .sched .hard { color: var(--loss); font-weight: 600; } .sched .easy { color: var(--win); font-weight: 600; }
+  .team.right { text-align: right; } .team.right .tags { justify-content: flex-end; }
+  .closest { margin-top: 10px; font-size: 13px; background: var(--soft); border-radius: 8px; padding: 8px 10px; cursor: pointer;
+    display: block; width: 100%; text-align: center; margin-top: auto; }
+  .closest .tags { justify-content: center !important; }
+  .closest:hover { outline: 1px solid var(--accent); }
+  .closest .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; display: block; }
+  .vegas { text-align: center; width: 180px; } /* fixed so the team cards keep the same width for every game */
+  .vegas .at { font-size: 22px; color: var(--faint); }
+  .vegas .box { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-top: 6px; font-size: 13px; }
+  .vegas .box .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .vegas .box .v { font-weight: 650; }
+  .vegas .box div + div { margin-top: 4px; }
+  .vegas .venue { font-size: 11px; color: var(--faint); margin-top: 6px; }
+  @media (max-width: 700px) { .hero { grid-template-columns: 1fr; } .team.right { text-align: left; } .team.right .tags { justify-content: flex-start; } }
+
+  /* Tags */
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .tag { font-size: 12px; padding: 1px 7px; border-radius: 4px; border: 1px solid; white-space: nowrap; }
+  .tier-top3    { color: #fff; background: #15803d; border-color: #15803d; }
+  .tier-great   { color: var(--win); background: color-mix(in srgb, var(--win) 14%, transparent); border-color: color-mix(in srgb, var(--win) 60%, transparent); }
+  .tier-good    { color: var(--win); border-color: color-mix(in srgb, var(--win) 40%, transparent); }
+  .tier-avg     { color: var(--muted); border-color: var(--border); }
+  .tier-bad     { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 40%, transparent); }
+  .tier-bottom3 { color: #fff; background: #b91c1c; border-color: #b91c1c; }
+  .tier-style   { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+  .tier-more    { color: var(--muted); border-color: var(--border); border-style: dashed; }
+  .tag.arch { font-weight: 600; color: #7c3aed; border-color: color-mix(in srgb, #7c3aed 50%, transparent); background: color-mix(in srgb, #7c3aed 8%, transparent); }
+  @media (prefers-color-scheme: dark) { .tag.arch { color: #c4b5fd; border-color: #8b5cf6; } }
+  .tag.ctx-gold { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 60%, transparent); background: color-mix(in srgb, var(--gold) 10%, transparent); font-weight: 600; }
+  .tag.ctx-hot { color: #ea580c; border-color: color-mix(in srgb, #ea580c 55%, transparent); }
+  .tag.ctx-cold { color: #0284c7; border-color: color-mix(in srgb, #0284c7 55%, transparent); }
+  .tag.ctx-info { color: var(--text); border-color: var(--border); background: var(--soft); }
+  .tag.ctx-warn { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 45%, transparent); }
+  .tag.ctx-plain { color: var(--muted); border-color: var(--border); }
+  .tag.take { color: #a855f7; border: 1px dashed color-mix(in srgb, #a855f7 60%, transparent); background: color-mix(in srgb, #a855f7 7%, transparent); font-style: italic; }
+  .counters { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); text-align: center; }
+  .counters .tags { justify-content: center; }
+  .predbox { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .pred { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 0 18px; align-items: center; cursor: help; }
+  .pside.l { text-align: right; } .pside.r { text-align: left; }
+  .pside .pp { font-size: 30px; font-weight: 850; line-height: 1; font-variant-numeric: tabular-nums; opacity: .55; }
+  .pside.lead .pp { opacity: 1; }
+  .pside .ps { font-size: 12px; color: var(--muted); }
+  .pmid { text-align: center; }
+  .pmid .pk { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .pbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 6px 0; background: var(--soft); }
+  .pbar .pa { background: var(--a, var(--accent)); } .pbar .pb { background: var(--b, var(--loss)); }
+  .pmid .pd { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .predbox .expander { margin-top: 8px; }
+  .strip { display: grid; grid-template-columns: minmax(0, 1fr) 180px minmax(0, 1fr); gap: 0 18px; margin-top: 12px; font-size: 13px; }
+  .strip > div { padding: 3px 0; border-top: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .strip .sl { text-align: right; } .strip .sr { text-align: left; }
+  .strip .sm { text-align: center; color: var(--muted); font-size: 12px; cursor: help; }
+  .strip .k { color: var(--muted); }
+  .strip .hard { color: var(--loss); } .strip .easy { color: var(--win); }
+  @media (max-width: 700px) { .strip { grid-template-columns: minmax(0, 1fr) 90px minmax(0, 1fr); gap: 0 8px; } }
+  .board { display: grid; grid-template-columns: minmax(0, 1fr) 130px minmax(0, 1fr); gap: 0 12px; margin-top: 14px; border-top: 1px solid var(--border); }
+  .board > div { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .board .grp-end { border-bottom-color: color-mix(in srgb, var(--text) 25%, transparent); }
+  .board .first { border-bottom-style: dotted; }
+  .bcell { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 4px; align-content: center; min-height: 26px; }
+  .bcell.l { direction: rtl; } /* mirrored: slot 1 sits next to the middle on both sides */
+  .bcell > * { direction: ltr; }
+  .bcell .none { grid-column: 1 / -1; text-align: center; }
+  .md { overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .md.ghost { opacity: .32; border-style: dashed; filter: grayscale(1); font-weight: 400; font-style: normal; background: none; }
+  .md-avg { color: var(--muted); }
+  .bcell .none { color: var(--faint); font-size: 12px; }
+  .blbl { text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; display: flex; flex-direction: column; justify-content: center; }
+  .blbl small { font-size: 10px; text-transform: none; letter-spacing: 0; color: var(--faint); font-weight: 400; }
+  .md { font-size: 11.5px; line-height: 1.35; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+  .md-top3 { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #422006; border-color: #f59e0b; font-weight: 700; }
+  .md-great { background: linear-gradient(135deg, #f8fafc, #cbd5e1); color: #1e293b; border-color: #94a3b8; font-weight: 650; }
+  .md-good { background: linear-gradient(135deg, #fed7aa, #ea9a5b); color: #431407; border-color: #c2410c; font-weight: 600; }
+  .md-bad { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 45%, transparent); }
+  .md-bottom3 { background: #b91c1c; color: #fff; border-color: #b91c1c; font-weight: 650; }
+  .md-style { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+  .md-arch { color: #7c3aed; border-color: color-mix(in srgb, #7c3aed 45%, transparent); background: color-mix(in srgb, #7c3aed 8%, transparent); font-weight: 600; }
+  .md-take { color: #a855f7; border: 1px dashed color-mix(in srgb, #a855f7 60%, transparent); background: color-mix(in srgb, #a855f7 7%, transparent); font-style: italic; font-weight: 600; }
+  .md-gold { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 60%, transparent); background: color-mix(in srgb, var(--gold) 10%, transparent); font-weight: 650; }
+  .md-hot { color: #ea580c; border-color: color-mix(in srgb, #ea580c 55%, transparent); }
+  .md-cold { color: #0284c7; border-color: color-mix(in srgb, #0284c7 55%, transparent); }
+  .md-info { background: var(--soft); }
+  .md-warn { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 45%, transparent); }
+  .md-plain { color: var(--muted); }
+  @media (prefers-color-scheme: dark) { .md-arch { color: #c4b5fd; border-color: #8b5cf6; } }
+  @media (max-width: 700px) { .board { grid-template-columns: minmax(0, 1fr) 70px minmax(0, 1fr); gap: 0 8px; } .blbl small { display: none; } }
+  .edge { margin-top: 6px; font-size: 12px; }
+  .idbox { margin-top: 10px; height: 260px; width: 100%; scroll-behavior: auto; overscroll-behavior: contain; overflow-y: auto; scrollbar-width: thin; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px 8px; text-align: left; }
+  .idbox .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: 8px; text-align: center; }
+  .idbox .lbl:first-child { margin-top: 0; }
+  /* One tag per row, full box width, so both teams' boxes line up */
+  .idbox .tags { margin-top: 3px; flex-direction: column; flex-wrap: nowrap; }
+  .idbox .tag { display: block; width: 100%; text-align: center; padding: 3px 7px; }
+  .idbox .tag.pad { visibility: hidden; }
+  .tag.arch.shared { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+  .tag.arch.dim { opacity: .4; }
+
+  /* Tale of the tape */
+  .tape { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; table-layout: fixed; }
+  .tape col.c { width: 15%; min-width: 80px; } .tape col.m { width: 22px; } .tape col.k { width: 36px; } .tape col.n { width: 72px; }
+  .tape td { padding: 5px 4px; border-top: 1px solid var(--border); }
+  .tape td { white-space: nowrap; }
+  .tape td.c { overflow: hidden; } .tape tr > td.c:first-child { text-align: right; } .tape tr > td.c:last-child { text-align: left; }
+  .tape td.m { text-align: center; padding: 0; }
+  .tape td.k { text-align: center; font-size: 11px; color: var(--faint); }
+  .tape td.n { font-weight: 650; } .tape td.n:nth-child(4) { text-align: right; } .tape td.n:nth-child(6) { text-align: left; }
+  .tape .nv-avg { color: var(--text); font-weight: 500; }
+  .tape .nv-top3 { color: var(--win); font-weight: 800; } .tape .nv-great, .tape .nv-good { color: var(--win); }
+  .tape .nv-bad { color: var(--loss); } .tape .nv-bottom3 { color: var(--loss); font-weight: 800; } .tape .nv-style { color: var(--accent); }
+  .tc { display: inline-block; width: 66px; text-align: center; font-size: 10.5px; font-weight: 650; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); margin: 0 8px; vertical-align: 1px; }
+  .tc-top3 { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #422006; border-color: #f59e0b; }
+  .tc-great { background: color-mix(in srgb, var(--win) 22%, transparent); color: var(--win); border-color: color-mix(in srgb, var(--win) 50%, transparent); }
+  .tc-good { color: var(--win); border-color: color-mix(in srgb, var(--win) 40%, transparent); }
+  .tc-avg { color: var(--faint); }
+  .tc-bad { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 40%, transparent); }
+  .tc-bottom3 { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+  .tc-style { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+  .star { color: var(--gold); margin-left: 3px; font-size: 12px; }
+  .tape td.stat { white-space: normal; line-height: 1.25; text-align: center; color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .tape .best { font-weight: 750; }
+  .tape tr.grp td { border-top: 0; padding: 14px 4px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); text-align: center; cursor: pointer; }
+  .tape tr.grp:hover td { color: var(--text); }
+  .tape tr.off td { opacity: .45; }
+
+  /* Similar matchups */
+  .headline { font-size: 18px; font-weight: 650; margin: 2px 0 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .tile { background: var(--soft); border-radius: 8px; padding: 10px 12px; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+  .tile .v { font-size: 18px; font-weight: 650; }
+  .tile .s { font-size: 12px; color: var(--muted); }
+  .expander { display: block; width: 100%; margin-top: 4px; padding: 8px 0 0; border: 0; border-top: 1px solid var(--border);
+    background: none; color: var(--muted); font-size: 12px; cursor: pointer; text-align: center; }
+  .expander:hover { color: var(--text); }
+  .expander[hidden] { display: none; }
+  .scroll { overflow-x: auto; }
+  .scroll[hidden] { display: none; }
+  table.games { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .games th, .games td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  .games th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  .games .num { text-align: right; }
+  .games .rec { color: var(--faint); font-size: 12px; }
+  .games td .tags { margin-top: 3px; }
+  .sim { display: inline-block; width: 46px; height: 6px; border-radius: 3px; background: var(--soft); vertical-align: middle; margin-right: 6px; overflow: hidden; }
+  .sim > div { height: 100%; background: var(--accent); }
+
+  /* Look-alike popup */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 20; overflow-y: auto; }
+  .overlay[hidden] { display: none; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 860px; padding: 18px 20px; }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .modal-head h3 { margin: 0; font-size: 18px; }
+  .close { background: none; border: 0; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); }
+  .lookalikes td { vertical-align: top; white-space: normal; }
+
+  /* Archetype map drawer */
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100vw); background: var(--panel); border-left: 1px solid var(--border);
+    box-shadow: -8px 0 24px rgba(0,0,0,.25); z-index: 25; display: flex; flex-direction: column; }
+  .drawer[hidden] { display: none; }
+  .drawer-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
+  .drawer-head .row { display: flex; justify-content: space-between; align-items: center; }
+  .drawer-head h3 { margin: 0; font-size: 16px; }
+  .drawer-head .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 8px; font-size: 12px; }
+  .drawer-head .seg button { border: 0; background: none; padding: 3px 10px; cursor: pointer; }
+  .drawer-head .seg button.on { background: var(--accent); color: #fff; }
+  .drawer-body { overflow-y: auto; padding: 4px 16px 20px; scrollbar-width: thin; }
+  .drawer-body h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 6px; }
+  .arow { border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; margin-bottom: 5px; }
+  .arow.hit { border-color: #8b5cf6; background: color-mix(in srgb, #7c3aed 8%, transparent); }
+  .arow .top { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-weight: 600; font-size: 13px; }
+  .arow .desc { font-size: 12px; color: var(--muted); }
+  .arow .now { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .mark { font-size: 11px; font-weight: 700; color: #fff; border-radius: 4px; padding: 0 6px; margin-left: 3px; }
+  .mark.a { background: var(--a); } .mark.b { background: var(--b); }
+  #tip { position: fixed; z-index: 30; max-width: 320px; background: var(--text); color: var(--bg); padding: 8px 10px;
+    border-radius: 6px; font-size: 12px; line-height: 1.45; pointer-events: none; display: none; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+  #tip b { display: block; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html" class="on">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <div class="status">
+      <span class="muted" id="meta"></span>
+      <span id="refreshMsg"></span>
+      <button class="btn" id="mapBtn">◆ Archetype map (<span id="archCount"></span>)</button>
+      <button class="btn" id="refresh">↻ Refresh data</button>
+    </div>
+  </header>
+
+  <div class="panel matchbar">
+    <span class="muted" data-tip="<b>Look-alikes</b>The closest historical teams and matchups are found by comparing every stat against each season's league, at the same point in the season."><span class="tipped">Look-alike search</span></span>
+    <span class="muted" style="font-size:12px" data-tip="<b>★ = matched without pass-rush stats</b>Pressure, pressure allowed and blitz rate only exist from 2018. Teams from earlier seasons are matched on the other stats, and marked ★.">Searching every season since 1999 · ★ = pre-2018, matched without pass-rush stats</span>
+    <button class="gear" id="gear">⚙ Settings</button>
+    <div class="settings-body" id="settingsBody" hidden>
+      <label class="f">Seasons since<select id="since"></select></label>
+      <label class="f">Home field<select id="venue"><option value="home">Must match</option><option value="any">Ignore</option></select></label>
+      <label class="f">Min games played<input type="number" id="minGp" min="1" max="17" value="3"></label>
+      <label class="f" data-tip="Only past matchups at least this similar count toward the similar-matchups average.">Min similarity %<input type="number" id="minSim" min="30" max="95" value="60"></label>
+      <div class="checks" id="statChecks"></div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="panel">
+      <label class="favpick" data-tip="<b>⭐ My team</b>The Matchups page opens on this team's game (remembered in this browser), and its games are starred in the list."><span>⭐ My team</span><select id="favTeam"></select></label>
+      <div class="scorecard" id="scorecard" data-tip="<b>How Virtual Measurement has done this season</b>Every finished game from week 2 on, picked with only what was known before kickoff (both teams' stats through their previous game, history from past seasons only), using the same blended prediction as the card: 80% points scored vs allowed, 20% similar matchups. Winners: the side with the higher win chance. Against the spread: the side the predicted score beats the Vegas line for. Week 1 has no stats yet, so no picks."></div>
+      <div class="weeknav"><button id="wkPrev" aria-label="Previous week">◀</button><h2 id="weekLabel">This week</h2><button id="wkNext" aria-label="Next week">▶</button></div>
+      <div id="glist"></div>
+      <div class="custom"><select id="teamA"></select><span class="muted">@</span><select id="teamB"></select></div>
+    </aside>
+
+    <div>
+      <div class="panel"><div class="hero" id="hero"></div><div class="strip" id="strip"></div>
+        <!-- similar-matchups prediction, mirrored like the rest of the card, with the game list under it -->
+        <div class="predbox"><div id="summary"></div>
+          <button class="expander" id="showGames"></button>
+          <div class="scroll" id="gamesWrap" hidden><table class="games" id="results"></table></div></div>
+        <div class="board" id="board"></div><div class="counters" id="counters"></div></div>
+
+      <!-- 📋 a finished game's real box score (app/boxscores.js, loaded the first time one is opened) -->
+      <div class="panel" id="boxPanel" hidden></div>
+
+      <div class="panel curonly">
+        <h2 data-tip="<b>Tale of the tape</b>Season-to-date numbers. Bars show each team's league rank (longer = better, 1st = full bar). Click a section header to fold it.">
+          <span class="tipped">Tale of the tape</span></h2>
+        <table class="tape" id="tape"></table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<aside class="drawer" id="drawer" hidden aria-label="Archetype map">
+  <div class="drawer-head">
+    <div class="row"><h3>◆ Archetype map</h3><button class="close" id="mapClose" aria-label="Close">×</button></div>
+    <div class="muted" id="mapSub" style="font-size:12px"></div>
+    <span class="seg" id="mapFilter"><button data-f="all" class="on">All</button><button data-f="match">This matchup</button><button data-f="league">Active now</button></span>
+  </div>
+  <div class="drawer-body" id="mapBody"></div>
+</aside>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head"><div><h3 id="laTitle"></h3><div class="muted" id="laSub"></div></div><button class="close" id="laClose" aria-label="Close">×</button></div>
+    <div id="laSummary"></div>
+    <div class="scroll"><table class="games lookalikes" id="laTable"></table></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script>
+const D = window.NFL_DATA;
+const { S, TIERS, TIER_KEY, tierIndex, current, lineText } = GLT;
+const $ = id => document.getElementById(id);
+const GROUPS = { box: 'Scoring & yards per game', epa: 'Efficiency (EPA per play)', more: 'Big plays, sacks & situational', pfr: 'Pass rush (PFR, 2018+)' };
+const LOOKALIKES = 20;
+// Every stat counts for look-alike matching by default (big plays, sacks and situational too). The ⚙ Settings picks are
+// saved to the signed-in profile (VM.pref('stats') / VM.pref('match')), so they follow you to any browser.
+const ALL_STATS = S.map(s => s.key);
+const savedStats = () => { const v = window.VM?.pref('stats'); return Array.isArray(v) && v.some(k => ALL_STATS.includes(k)) ? v.filter(k => ALL_STATS.includes(k)) : ALL_STATS; };
+const selected = new Set(savedStats());
+const openGroups = new Set(Object.keys(GROUPS));
+// Pass-rush stats are always used where they exist; pre-2018 teams simply don't have them, and the
+// comparison skips any stat that either side is missing (those matches are marked ★).
+const allHistory = false;
+let showGames = false;
+
+const fmtNum = (v, d = 1) => (v === null || v === undefined || isNaN(v) ? '–' : v.toFixed(d));
+const signed = (v, d = 1) => (v > 0 ? '+' : '') + fmtNum(v, d);
+const fmtStat = (s, v) => (v === null || v === undefined ? '–' : s.pct ? (v * 100).toFixed(1) + '%' : s.fmt === 3 ? signed(v, 3) : fmtNum(v, s.fmt === 2 ? 2 : 1));
+const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const esc = s => String(s).replace(/"/g, '&quot;');
+const pct = (a, b) => (b ? Math.round(100 * a / b) : 0);
+// ★ for teams from before pass-rush data existed (matched on the other stats only)
+const preStar = season => (season < D.pfrFirst ? `<span class="star" data-tip="<b>★ Matched without pass-rush stats</b>Pressure, pressure allowed and blitz rate only exist from ${D.pfrFirst}, so this ${season} team was compared on the other stats.">★</span>` : '');
+
+// ---------- team logos and colors ----------
+const logo = (T, cls) => (D.teamInfo?.[T]?.logo ? `<img class="${cls}" src="${D.teamInfo[T].logo}" alt="" loading="lazy" onerror="this.remove()">` : '');
+const hexRgb = h => { const n = parseInt(h.trim().slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const lum = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const contrast = (x, y) => { const [hi, lo] = [lum(x), lum(y)].sort((p, q) => q - p); return (hi + 0.05) / (lo + 0.05); };
+const rgbDist = (x, y) => Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+// Every team color made readable on the current background (3:1 contrast or better), primary first.
+// A color that's too dark (or too light) is blended toward white (or black) until it reads, so navy becomes a
+// lighter blue on dark mode and gold becomes a deeper gold on light mode instead of being dropped.
+function readableColors(T) {
+  const info = D.teamInfo?.[T]; if (!info) return [];
+  const bg = hexRgb(getComputedStyle(document.documentElement).getPropertyValue('--panel')), dark = lum(bg) < 0.5;
+  return info.colors.filter(c => /^#[0-9a-f]{6}$/i.test(c)).map(hex => {
+    const p = hexRgb(hex);
+    for (let t = 0; t <= 1; t += 0.05) {
+      const c = p.map(v => Math.round(dark ? v + (255 - v) * t : v * (1 - t)));
+      if (contrast(c, bg) >= 3) return c;
+    }
+    return null;
+  }).filter(Boolean);
+}
+function applyTeamColors(A, B) {
+  const ca = readableColors(A), cb = readableColors(B), root = document.documentElement.style;
+  if (!ca.length || !cb.length) { root.removeProperty('--a'); root.removeProperty('--b'); return; }
+  // If both teams' best colors look alike (two red teams, say), use the home team's next readable color
+  const b = cb.find(c => rgbDist(c, ca[0]) > 90) || cb[0];
+  root.setProperty('--a', `rgb(${ca[0].join(',')})`);
+  root.setProperty('--b', `rgb(${b.join(',')})`);
+}
+
+// ---------- matching settings ----------
+const minSeason = () => GLT.firstSeason;
+const activeIdx = () => S.map((s, j) => (selected.has(s.key) && !(allHistory && s.group === 'pfr') ? j : -1)).filter(j => j >= 0);
+const settings = () => ({ since: +$('since').value, minGp: +$('minGp').value || 1, venueMatters: $('venue').value === 'home', minSim: +$('minSim').value || 60 });
+const findLookalikes = (T, limit) => GLT.findLookalikes(current[T], { idx: activeIdx(), since: settings().since, before: D.currentSeason, limit });
+
+// ---------- tags ----------
+// Tier tags from each stat that has a tag definition, always in the same order (the stat list's) so two
+// teams' tags line up row for row. A stat with no data yet still gets a placeholder row.
+function identityTags(p) {
+  return S.map((s, j) => [s, j]).filter(([s]) => s.tag && !(allHistory && s.group === 'pfr')).map(([s, j]) => {
+    if (p.ranks[j] === null) return { label: `– ${s.tag.name}`, tip: `<b>${s.tag.name}</b>No data yet.`, cls: 'more' };
+    const rank = p.ranks[j], tier = TIERS[tierIndex(rank)], avg = tier.cls === 'avg';
+    const label = `${s.tag.descriptive ? tier.style : tier.label} ${s.tag.name}`;
+    const tip = `<b>${label}</b>Ranked ${ord(rank)} of 32 in ${s.tag.metric}: ${fmtStat(s, p.avg[j])}` +
+      (s.better === 'low' && !s.tag.descriptive ? ' (lower is better).' : '.') +
+      (s.tag.descriptive ? '<br><br>Describes style, not quality.' : `<br><br>${TIER_KEY}`);
+    return { label, tip, cls: s.tag.descriptive && !avg ? 'style' : tier.cls };
+  });
+}
+const identityHtml = p => identityTags(p).map(t => `<span class="tag tier-${t.cls}" data-tip="${esc(t.tip)}">${t.label}</span>`).join('');
+// Invisible filler rows so both teams' boxes have the same number of rows in each section
+const pad = n => '<span class="tag pad" aria-hidden="true">&nbsp;</span>'.repeat(Math.max(0, n));
+const countTags = html => (html.match(/class="tag /g) || []).length;
+function archHtml(p, compareTo = null) {
+  const out = GLT.archetypeOutcomes(p.gp);
+  const theirs = compareTo ? new Set(GLT.archetypesOf(compareTo).map(a => a.key)) : null;
+  return GLT.archetypesOf(p).map(a => {
+    const o = out[a.key];
+    const tip = `<b>${a.icon} ${a.name}</b>${a.desc}.` + (o.n
+      ? `<br><br>Since ${GLT.ARCH_FIRST}, <b>${o.n}</b> teams looked like this after ${Math.max(p.gp, 4)} games:<br>• ${pct(o.playoffs, o.n)}% made the playoffs<br>• ${fmtNum(o.wins / o.n)} wins on average<br>• ${o.sb} won the Super Bowl` +
+        (o.examples.length ? `<br><br>Examples: ${o.examples.join(', ')}` : '')
+      : '<br><br>No past team fit this at the same point in the season.');
+    const shared = theirs && theirs.has(a.key);
+    return `<span class="tag arch ${theirs ? (shared ? 'shared' : 'dim') : ''}" data-tip="${esc(tip + (shared ? `<br><br>✓ ${compareTo.team} ${compareTo.season === D.currentSeason ? 'has' : 'had'} this too` : ''))}">${a.icon} ${a.name}</span>`;
+  }).join('');
+}
+// How many archetypes two profiles share (for the look-alike lists)
+const sharedCount = (p, q) => { const k = new Set(GLT.archetypesOf(q).map(a => a.key)); return GLT.archetypesOf(p).filter(a => k.has(a.key)).length; };
+// Opponents faced, teams beaten, and the schedule ahead: combined current records (rank 1 = hardest/best of 32)
+// The matchup strip: schedule, head-to-head and similar matchups, one mirrored row each (label in the middle,
+// each team's number on its own side, records closest to the middle so they line up)
+function stripHtml(A, B, hist) {
+  const ss = GLT.scheduleStrength(), sa = ss[A], sb = ss[B];
+  const tone = (rank, flip) => ((flip ? rank >= 23 : rank <= 10) ? 'hard' : (flip ? rank <= 10 : rank >= 23) ? 'easy' : '');
+  const opps = x => x.opps.map(o => `${o} ${current[o].rec}`).join(', ');
+  const side = (x, extra, cls, left) => !x || !x.opps.length ? '<span class="k">none yet</span>'
+    : left ? `<span class="k">${extra} ·</span> <b class="${cls}">${GLT.fmtRecord(x)}</b>` : `<b class="${cls}">${GLT.fmtRecord(x)}</b> <span class="k">· ${extra}</span>`;
+  const row = (label, tip, l, r) => `<div class="sl">${l}</div><div class="sm" data-tip="${esc(tip)}">${label}</div><div class="sr">${r}</div>`;
+  const sched = (key, icon, label, extraOf, flip, tipOf) => row(`${icon} ${label}`, tipOf(),
+    side(sa?.[key], extraOf(sa?.[key]), tone(sa?.[key].rank, flip), true), side(sb?.[key], extraOf(sb?.[key]), tone(sb?.[key].rank, flip), false));
+  // Last 5 meetings (results go back to D.h2hSince)
+  const meets = D.results.filter(r => (r[3] === A && r[4] === B) || (r[3] === B && r[4] === A)).sort((x, y) => String(y[2]).localeCompare(String(x[2]))).slice(0, 5);
+  const wOf = T => meets.filter(r => (r[3] === T ? r[5] > r[6] : r[6] > r[5])).length, ties = meets.filter(r => r[5] === r[6]).length;
+  const h2h = T => { const w = wOf(T), l = meets.length - w - ties, lead = w > l ? 'easy' : w < l ? 'hard' : ''; return `<b class="${lead}">${w}-${l}${ties ? '-' + ties : ''}</b>`; };
+  const meetTip = `<b>Last ${meets.length || 5} meetings</b>` + (meets.length ? meets.map(r => `${r[0]} ${typeof r[1] === 'number' ? 'wk ' + r[1] : r[1]}: ${r[4]} ${r[6]} @ ${r[3]} ${r[5]}`).join('<br>') : `They haven't played since ${D.h2hSince}.`);
+  // Similar matchups (green = the side whose look-alikes won more)
+  const simTip = hist ? `<b>Similar matchups</b>Past games where both teams looked like these two (details below the header). The side whose look-alikes won more gets the green glow.` : '';
+  const sim = (w, l) => `<b class="${w > l ? 'easy' : w < l ? 'hard' : ''}">${w}-${l}</b>`;
+  return sched('played', '📋', 'Faced', x => `${GLT.ordinal(x?.rank)} hardest`, false, () => `<b>Opponents faced</b>Their combined current record, rank of 32 (1 = hardest schedule so far).<br><br>${A}: ${sa ? opps(sa.played) : ''}<br>${B}: ${sb ? opps(sb.played) : ''}`) +
+    sched('beat', '✅', 'Beat', x => `${GLT.ordinal(x?.rank)} best`, true, () => `<b>Teams beaten</b>The combined current record of the teams each side has beaten (quality of wins), rank of 32.<br><br>${A}: ${sa?.beat.opps.length ? opps(sa.beat) : 'no wins yet'}<br>${B}: ${sb?.beat.opps.length ? opps(sb.beat) : 'no wins yet'}`) +
+    sched('ahead', '🔮', 'Ahead', x => `${GLT.sosLabel(x?.rank)}, ${GLT.ordinal(x?.rank)}`, false, () => `<b>Schedule ahead</b>Remaining opponents' combined current record and how hard that is, rank of 32.<br>Brutal 1–4 · Tough 5–10 · Average 11–22 · Soft 23–28 · Cupcake 29–32<br><br>${A}: ${sa ? opps(sa.ahead) : ''}<br>${B}: ${sb ? opps(sb.ahead) : ''}`) +
+    row(`🆚 Last ${meets.length || 5} meetings`, meetTip, meets.length ? h2h(A) : '<span class="k">–</span>', meets.length ? h2h(B) : '<span class="k">–</span>') +
+    (() => {
+      const la = T => (activeIdx().length ? findLookalikes(T, 1)[0] : null), ca = la(A), cb = la(B);
+      const cell = (T, x, left) => !x ? '<span class="k">–</span>' : `<span class="closelink" data-team="${T}" data-tip="${esc(`<b>${x.h.season} ${x.h.name}</b>${x.pct}% alike, was ${x.h.rec} at this point, finished ${x.h.fin.replace(' · ', ', ')}.<br><br>Click for ${T}'s 20 closest look-alikes, with shared archetypes.`)}">${left ? `<span class="k">${x.pct}% ·</span> <b>${x.h.season} ${x.h.name}</b>` : `<b>${x.h.season} ${x.h.name}</b> <span class="k">· ${x.pct}%</span>`}</span>`;
+      return row('🧬 Closest match', '<b>Closest historical match</b>The past team that looked most like each side at the same point in its season.', cell(A, ca, true), cell(B, cb, false));
+    })();
+}
+function schedHtml(T) {
+  const s = GLT.scheduleStrength()[T]; if (!s) return '';
+  const tone = (rank, flip) => ((flip ? rank >= 23 : rank <= 10) ? 'hard' : (flip ? rank <= 10 : rank >= 23) ? 'easy' : '');
+  const opps = x => x.opps.map(o => `${o} ${current[o].rec}`).join(', ');
+  const line = (icon, label, x, extra, cls, tip) => `<div data-tip="${esc(tip)}"><span class="k">${icon} ${label}:</span> ` +
+    (x.opps.length ? `<span class="${cls}">${GLT.fmtRecord(x)} (${GLT.fmtPct(x.pct)})</span> <span class="k">· ${extra}</span>` : '<span class="k">none yet</span>') + '</div>';
+  return `<div class="sched">` +
+    line('📋', 'Faced', s.played, `${GLT.ordinal(s.played.rank)} hardest`, tone(s.played.rank),
+      `<b>Opponents faced: ${GLT.fmtRecord(s.played)}</b>Their combined current record, the ${GLT.ordinal(s.played.rank)} hardest schedule so far of 32.<br><br>${opps(s.played)}`) +
+    line('✅', 'Beat', s.beat, `${GLT.ordinal(s.beat.rank)} best wins`, tone(s.beat.rank, true) === 'hard' ? 'hard' : s.beat.rank <= 10 ? 'easy' : '',
+      `<b>Teams beaten: ${GLT.fmtRecord(s.beat)}</b>The combined current record of the teams ${T} has beaten (quality of wins), ${GLT.ordinal(s.beat.rank)} of 32.<br><br>${s.beat.opps.length ? opps(s.beat) : 'No wins yet.'}`) +
+    line('🔮', 'Ahead', s.ahead, `${GLT.sosLabel(s.ahead.rank)}, ${GLT.ordinal(s.ahead.rank)} hardest`, tone(s.ahead.rank),
+      `<b>Schedule ahead: ${GLT.sosLabel(s.ahead.rank)}</b>The ${s.ahead.opps.length} remaining opponents are a combined ${GLT.fmtRecord(s.ahead)} right now, the ${GLT.ordinal(s.ahead.rank)} hardest schedule left of 32.<br>Brutal 1–4 · Tough 5–10 · Average 11–22 · Soft 23–28 · Cupcake 29–32<br><br>${opps(s.ahead)}`) +
+    '</div>';
+}
+function contextHtml(team) {
+  return GLT.contextTags(team).map(t => `<span class="tag ctx-${t.cls}" data-tip="${esc(`<b>${t.icon} ${t.label}</b>${t.tip}`)}">${t.icon} ${t.label}</span>`).join('');
+}
+// ---------- 🗯 Hot takes: Twitter discourse, not stats ----------
+// Keyed by the current starting QB / head coach (so they follow people to new teams) and by team. Purely for fun.
+const HOT_TAKES = { // each entry: a list of [icon, short chip label, full title, tooltip]; one is rolled at random per page load
+  qb: {
+    "Josh Allen": [
+      ["🏔️", "Merchant", "Regular season merchant", "September Josh: MVP. January Josh: 13 seconds, a shovel pass, and a long flight home. Fantasy league winner, real league runner-up."],
+      ["🎢", "Chaos merchant", "Creates his own comebacks", "Throws three picks so he can lead the fourth-quarter comeback he needed because of the three picks."],
+      ["🪑", "Folds in Jan", "Folds like a Bills Mafia table", "Bills fans put each other through tables. Josh puts his team through January heartbreak. Same energy."],
+    ],
+    "Justin Herbert": [
+      ["🦸", "IF-Man", "IF-Man", "IF he had a line. IF he had receivers. IF he had a coach. Has had all three. Still IF."],
+      ["📊", "Stat sheet son", "Fantasy football's son", "Thousands of yards, zero playoff wins. The fantasy community's favorite child and nobody else's."],
+      ["🫥", "NPC", "NPC energy", "Has the personality of a loading screen. Says \"we gotta be better\" like a Madden cutscene."],
+    ],
+    "Patrick Mahomes": [
+      ["🦓", "Ref's pet", "Has the refs on payroll", "Breathe on him and it's 15 yards. The zebras send him a Christmas card."],
+      ["🎭", "Flop king", "Oscar-worthy flopper", "Hits the turf like he got sniped when a defensive end sneezes in his direction."],
+      ["📺", "Commercial QB", "More ads than incompletions", "You can't sit through a timeout without him selling you insurance, ketchup and a truck."],
+    ],
+    "Joe Burrow": [
+      ["🕶️", "Runway QB", "Runway model, part-time QB", "The tunnel fit gets more snaps than he does some years. Joey Fashion, Joey Injured Reserve."],
+      ["🚬", "Cigar guy", "Living off one cigar", "Lit one victory cigar in 2021 and Cincinnati has been riding that smoke ever since."],
+      ["🥚", "Fabergé Joe", "Built like a Fabergé egg", "Gorgeous, expensive, and you're terrified every time someone touches him."],
+    ],
+    "Jared Goff": [
+      ["🏟️", "Dome-only", "Dome-dependent", "Indoors at 72°: Hall of Famer. Outdoors in December: Blake Bortles. Needs a roof like a houseplant."],
+      ["🤖", "Goff.exe", "Robot Goff", "Works perfectly until you blitz him, then blue-screens. Turn him off and on again."],
+      ["🔁", "Rams reject", "The Rams paid to get rid of him", "LA attached two first-round picks just to make him somebody else's problem."],
+    ],
+    "Dak Prescott": [
+      ["📉", "Wild card Dak", "Paid like a champion, plays like a wild card", "$60 million a year and as many NFC title game trips as you. The most expensive one-and-done in sports."],
+      ["💸", "$240M bum", "Quarter-billion-dollar wild card exit", "Got paid $240M to lose in the wild card round with a straight face."],
+      ["🗑️", "Garbage time", "Garbage-time merchant", "Down 24 in the fourth? That's when Dak's numbers really start cooking."],
+    ],
+    "Kirk Cousins": [
+      ["🌙", "MNF Kirk", "Monday Night Kirk", "Guaranteed money, guaranteed prime-time pick. You like that?"],
+      ["⛓️", "Kirko Chainz", "Kirko Chainz", "Wore a chain on a team plane once and named himself Kirko Chainz. Still can't win in prime time."],
+      ["🪑", "$100M backup", "The $100 million backup", "Atlanta paid him $100M guaranteed, then drafted his replacement six weeks later. Brutal."],
+    ],
+    "Aaron Rodgers": [
+      ["🌑", "Darkness", "Do your own research", "Spent an offseason in a pitch-black room and came out with opinions. Receivers still can't read his hand signals."],
+      ["🍵", "Ayahuasca QB", "Found himself, lost his arm", "Went on a soul-searching retreat to find his true self. Found Pittsburgh."],
+      ["🎙️", "McAfee regular", "Podcast QB", "Has spent more time on The Pat McAfee Show than in the divisional round lately."],
+    ],
+    "Matthew Stafford": [
+      ["🪄", "No-look", "No-look merchant", "Half the highlights are no-look passes. The other half are no-look interceptions."],
+      ["🎒", "Lions escapee", "Escaped Detroit", "12 years in Detroit, zero playoff wins. One year in LA, one ring. Draw your own conclusions."],
+    ],
+    "Jalen Hurts": [
+      ["🫸", "Tush merchant", "Tush Push merchant", "Half his rushing TDs are a rugby scrum at the 1 behind the best O-line in football. Elite QB play, apparently."],
+      ["🗿", "Stone face", "Emotional range of a parking cone", "Wins a Super Bowl, looks like he got a parking ticket."],
+      ["🧱", "O-line's QB", "Product of the O-line", "Put him behind the Giants' line and see how much he pushes then."],
+    ],
+    "Lamar Jackson": [
+      ["🏃", "RB1", "Running back", "Two MVPs, and Twitter still files him under running backs. (Not bad for a running back.)"],
+      ["🥶", "Playoff Lamar", "January allergy", "Regular-season cheat code, playoff loading screen. The MVP trophies don't come with playoff wins."],
+    ],
+    "Brock Purdy": [
+      ["🧪", "System QB", "System QB", "Mr. Irrelevant playing Shanahan's video game on rookie mode. Put him on the Jets and see what happens."],
+      ["💰", "$265M system", "A $265 million system", "Got $265M for pressing X while McCaffrey and Kittle did the work."],
+      ["🧃", "Mr. Irrelevant", "Mr. Irrelevant", "Last pick in the draft, first in line for credit."],
+    ],
+    "Trevor Lawrence": [
+      ["⏳", "Bust watch", "Generational bust watch", "Generational prospect, $275M contract, still waiting on the generational part."],
+      ["💇", "Hair > game", "Best hair, mid game", "Top-3 hair in the league, bottom-10 passer rating. Shampoo commercials are his best tape."],
+    ],
+    "Kyler Murray": [
+      ["🎮", "Homework", "Call of Duty homework", "Needed a clause in his contract to make him study film. Twitter will never, ever let it go."],
+      ["🔭", "Periscope", "Can't see over the line", "Reads the defense through the gaps between his linemen's elbows."],
+    ],
+    "Geno Smith": [
+      ["✍️", "Pen pal", "They wrote me off", "...and he keeps handing them the pen."],
+      ["🔁", "Jets again", "Back on the Jets", "Got punched by a teammate, left the Jets, revived his career, came back to the Jets. Nobody could write this."],
+    ],
+    "Daniel Jones": [
+      ["💸", "Danny Dimes", "Danny Dimes (to the other team)", "Got $160M off one good season and has been on the \"make or break year\" list ever since."],
+      ["🏃", "Turnover Danny", "Fumbles when nobody touches him", "Has fumbled on plays where the nearest defender was in a different zip code."],
+    ],
+    "Jameis Winston": [
+      ["🎲", "30-for-30", "30-for-30", "30 TDs and 30 INTs in 2019. Every snap is a coin flip, for both teams."],
+      ["🍽️", "Eat a W", "Eat a W", "Gave the most unhinged pregame speech in NFL history, then threw a pick on the first drive."],
+    ],
+    "Bo Nix": [
+      ["🎓", "Super senior", "Eighth-year senior", "Played 61 college games. Has a pension from Auburn and Oregon."],
+      ["🥧", "Checkdown Bo", "Checkdown merchant", "Throws a 2-yard pass on 3rd-and-9 and Denver calls it a shot play."],
+    ],
+    "Michael Penix Jr.": [
+      ["🧓", "Grad student", "Grad student QB", "Was in college so long he could have finished med school. Has more torn ACLs than playoff starts."],
+      ["🪑", "Cousins' heir", "The guy they drafted over Kirk", "Atlanta picked him six weeks after paying Cousins $100M. Every pass he throws is a $100M punchline."],
+    ],
+    "Jayden Daniels": [
+      ["🙏", "Hail Mary", "Hail Mary merchant", "Needs a 52-yard prayer every week to look good. Works shockingly often."],
+      ["🧂", "Commanders luck", "Running on Commanders luck", "Washington finally found a QB. Give it a year, the franchise will find a way."],
+    ],
+    "Drake Maye": [
+      ["📻", "Next Brady", "The next Brady (per Boston radio)", "Boston will crown him or run him out of town by Thanksgiving. Possibly both in the same week."],
+      ["🍼", "Baby Brady", "Brady at home", "Mom said we have Tom Brady at home. The Tom Brady at home:"],
+    ],
+    "C.J. Stroud": [
+      ["🌰", "Buckeye curse", "Buckeye QB curse", "Ohio State QBs bust. He had one great rookie year and has been fighting history (and his O-line) since."],
+      ["📉", "Year-3 Stroud", "From ROTY to \"is he good?\"", "Rookie of the Year to a weekly debate thread in 24 months."],
+    ],
+    "Jordan Love": [
+      ["🧀", "Spoiled", "Participation-trophy QB", "Inherited the job after two Hall of Famers. Packers fans think 9-8 is suffering."],
+      ["💔", "Love hurts", "Love hurts", "Packers fans' favorite pun, used mostly in December."],
+    ],
+    "Caleb Williams": [
+      ["🐻", "Bear-ly", "Generational... eventually", "\"The next Mahomes,\" said everyone in April. Turned out to be the next Bears quarterback."],
+      ["🧲", "Sack magnet", "Holds the ball like it owes him money", "Took 68 sacks as a rookie. Some of them twice."],
+    ],
+    "Cam Ward": [
+      ["🍑", "We ass.", "\"We ass.\"", "His own words after a Titans loss. Honestly? The most accurate scouting report in the building."],
+      ["🎤", "All talk", "Rookie with a vet's mouth", "Talks like a 10-year vet. Plays like a rookie on the Titans, because he is."],
+    ],
+    "Bryce Young": [
+      ["🔁", "Over Stroud?", "Picked over Stroud", "The Panthers took him 1st. C.J. Stroud went 2nd. Carolina fans re-run that math every Sunday and cry."],
+      ["🔭", "Periscope", "Needs a periscope", "Reads the defense through the center's armpit."],
+    ],
+    "Deshaun Watson": [
+      ["💰", "$230M", "Fully guaranteed", "$230 million, fully guaranteed. Possibly the worst contract in NFL history. The Browns front office is still in therapy."],
+      ["🧾", "Dead money", "Walking dead cap space", "Cleveland's cap sheet has a whole wing named after him."],
+    ],
+    "Tyler Huntley": [
+      ["🧯", "Clipboard", "Backup on fire duty", "Your season now rests on the guy who holds the clipboard."],
+      ["🎟️", "Waiver hero", "Waiver-wire hero", "From practice squad to starter in one ACL. The NFL is a cruel place."],
+    ],
+    "Drew Lock": [
+      ["🔒", "Lottery", "Lottery Lock", "Every throw is a scratch-off ticket. Most of them lose."],
+      ["🔐", "Locked out", "Locked out", "Every team that has started him eventually found a reason to stop."],
+    ],
+    "Malik Willis": [
+      ["🎰", "Slot machine", "Slot machine QB", "Pull the lever: 60-yard bomb or three sacks in a row. No in-between."],
+      ["🏃", "Runs, can't pass", "A running back with a QB number", "Can outrun the defense. Can't outthrow it."],
+    ],
+    "Tyson Bagent": [
+      ["🍺", "D-II legend", "Division II legend", "Division II arm-wrestling legend turned NFL starter. The Bears are the Bears."],
+      ["🍻", "Bar league QB", "Looks like your bar-league QB", "Plays like the guy who shows up to flag football in jeans and somehow throws three TDs."],
+    ],
+    "Jacoby Brissett": [
+      ["📋", "Bridge QB", "Professional bridge QB", "Has kept more seats warm than a heated car."],
+      ["🌉", "Bridge to nowhere", "Bridge to nowhere", "Every team says he's the bridge to the future. The future never shows up."],
+    ],
+    "Tyler Shough": [
+      ["🎓", "Tenured", "Seventh-year senior", "Spent so long in college he has tenure and a parking spot."],
+      ["👴", "Oldest rookie", "Oldest rookie alive", "Was a rookie at an age when most QBs are negotiating their second contract."],
+    ],
+    "Jalon Daniels": [
+      ["❓", "Who?", "Who?", "Even Bucs fans had to Google him."],
+      ["🎲", "Bucs roulette", "Bucs QB roulette", "Spin the wheel, see who's under center in Tampa this week."],
+    ],
+  },
+  coach: {
+    "Andy Reid": [
+      ["🍔", "Clock mgmt", "Clock management (pre-rings)", "Burned more timeouts than calories for 20 years. Then Mahomes showed up and fixed everything."],
+      ["🍔", "Cheeseburger", "Undefeated at the buffet", "Has never lost a fight with a cheeseburger. Has lost several to the play clock."],
+    ],
+    "Kyle Shanahan": [
+      ["📉", "Lead blower", "Blown-lead connoisseur", "28–3 (as OC), 20–10 vs KC, the OT coin-toss confusion... Has never met a lead he couldn't give back."],
+      ["🧠", "3-quarter genius", "Offensive genius (three quarters)", "Best play-caller in football for 45 minutes. Then the fourth quarter starts."],
+    ],
+    "Sean McVay": [
+      ["🧠", "No run game", "Photographic memory, forgot the run game", "Remembers every snap since 2009. Forgets to run it on 3rd-and-1."],
+      ["📺", "TV booth soon", "One bad year from a TV booth", "Amazon has a $20M headset waiting the second he gets bored."],
+    ],
+    "Dan Campbell": [
+      ["🦵", "Kneecaps", "Kneecap biter", "Goes for it on 4th-and-15 from his own 20. Kneecaps and playoff hopes not safe."],
+      ["💪", "Pushups", "Coaches like a CrossFit instructor", "Answers every failed fourth down with 50 push-ups and a bigger fourth down."],
+    ],
+    "Jim Harbaugh": [
+      ["🥛", "Milk man", "Whole milk & khakis", "Fueled entirely by dairy and spite. Will leave for another job within 3 years. Always does."],
+      ["🏃", "Flight risk", "Flight risk", "His car is always running in the parking lot. The NFL and college are on speed dial."],
+    ],
+    "John Harbaugh": [
+      ["👔", "Big bro", "The other Harbaugh", "Has a ring and will never let his little brother forget it."],
+      ["🗽", "Giant mistake?", "Left Baltimore for the Giants", "Left a stable 18-year gig for the New York Giants. Bold. Possibly insane."],
+    ],
+    "Mike McCarthy": [
+      ["🔁", "Reunion", "Reunion tour", "Back with Rodgers. Two men who famously loved each other. Popcorn ready."],
+      ["🧾", "Cowboys reject", "Dallas reject", "Got let go by Jerry Jones, a man who keeps everyone. Think about that."],
+    ],
+    "Sean Payton": [
+      ["📋", "Laminated", "Laminated ego", "The play sheet is the size of a pizza box and laminated so it survives the tantrums."],
+      ["🎯", "Bounty hunter", "Bountygate alumnus", "Got suspended a whole season for Bountygate and still acts like the smartest man in the building."],
+    ],
+    "Nick Sirianni": [
+      ["📣", "Taunter", "Taunts the crowd", "Yells at opposing fans after wins his roster earned."],
+      ["🔥", "Fire him chant", "\"Fire Sirianni\" (during a win)", "Eagles fans chanted for his job in the middle of a game they were winning. That's Philly."],
+    ],
+    "Mike Vrabel": [
+      ["💪", "Best LB", "Would still start at LB", "Probably the toughest guy in the building. Check the depth chart, he might be on it."],
+      ["🧨", "Titans exile", "Fired by the Titans", "The Titans fired him, then got worse every year. He's laughing in Foxborough."],
+    ],
+    "Ben Johnson": [
+      ["🎩", "Trick plays", "Trick-play addict", "Every 3rd down is a hook-and-ladder. Every 4th down is a fake punt."],
+      ["🐻", "Bears victim", "Took the Bears job (RIP)", "Turned down everyone to coach the Bears. Thoughts and prayers."],
+    ],
+    "Todd Bowles": [
+      ["🌪️", "Blitz addict", "Blitzes into oblivion", "Sends eight on 3rd-and-20. Gives up 21 yards. Every single time."],
+      ["😴", "Sideline nap", "Sideline energy: nap", "Has the sideline intensity of a man waiting for his flight to board."],
+    ],
+    "Sean McDermott": [
+      ["⏱️", "13 seconds", "13 seconds", "Squib it. Just squib it. January 2022 lives rent-free."],
+      ["🧊", "Playoff freezer", "Puts the playoffs on ice", "Great regular-season coach. In January his headset only plays elevator music."],
+    ],
+    "Zac Taylor": [
+      ["👕", "Burrow intern", "Burrow's assistant", "Best coaching decision he ever made was going 2-14 and getting the first pick."],
+      ["🎭", "McVay cosplay", "Sean McVay cosplay", "Same tree, same hair, same headset, a fraction of the results."],
+    ],
+    "Raheem Morris": [
+      ["🤷", "Vibes", "Vibes coordinator", "Nobody can name a single play he called. Great smile though."],
+    ],
+    "Brian Schottenheimer": [
+      ["🗣️", "Yes-man", "Jerry's yes-man", "Got the job because he answers Jerry's calls on the first ring."],
+      ["🧸", "Jerry's puppet", "Jerry's puppet", "You can see Jerry's hand moving when he talks at press conferences."],
+    ],
+    "Dan Quinn": [
+      ["🫠", "28–3 HC", "The 28–3 head coach", "Was the head coach for 28–3. Has spent every season since being reminded."],
+    ],
+    "Klint Kubiak": [
+      ["👶", "Nepo coach", "Nepo baby", "Dad Gary won a Super Bowl. The resume writes itself."],
+    ],
+    "Klint Kubliak": [
+      ["👶", "Nepo coach", "Nepo baby", "Dad Gary won a Super Bowl. The resume writes itself."],
+    ],
+    "Robert Saleh": [
+      ["🦵", "Calves", "Calves of steel", "Best calves in the league. Defense depends on the week."],
+      ["🔥", "Jets survivor", "Survived the Jets (barely)", "Got fired by the Jets midseason. Somehow that's a resume builder now."],
+    ],
+    "Liam Coen": [
+      ["☎️", "Ghoster", "Ghosted Tampa", "Told Tampa he was staying, then took the Jacksonville job. Recruiting tactics: elite."],
+    ],
+    "Kevin O'Connell": [
+      ["🧙", "QB wizard", "Backup QB whisperer", "Turned Sam Darnold into a 14-win QB, then watched him do it somewhere else."],
+    ],
+    "Dave Canales": [
+      ["🔧", "QB fixer?", "QB fixer (results may vary)", "Fixed Geno and Baker. Then met Bryce."],
+    ],
+    "Mike Macdonald": [
+      ["🧒", "Looks 12", "Youngest-looking HC", "Defensive genius who still gets carded at R-rated movies."],
+      ["🤓", "Nerd ball", "Spreadsheet coach", "Calls defenses off a laptop. The laptop is undefeated; the team isn't."],
+    ],
+    "Jonathan Gannon": [
+      ["🕵️", "Tampering", "Hired via tampering", "Arizona literally had to forfeit a draft pick over how they hired him."],
+    ],
+    "Jesse Minter": [
+      ["❓", "Who's he?", "Who is this guy", "Replaced John Harbaugh. Very big shoes, very small name recognition."],
+    ],
+    "Todd Monken": [
+      ["🏭", "Factory boss", "New factory manager", "Took over the Factory of Sadness. Production of sadness remains on schedule."],
+    ],
+    "Matt LaFleur": [
+      ["📋", "Rodgers' ex", "Aaron's ex", "Still gets asked about Rodgers in every other press conference."],
+    ],
+    "DeMeco Ryans": [
+      ["😎", "Swag coach", "All swag, no AFC title game", "More swagger than road playoff wins."],
+    ],
+    "Shane Steichen": [
+      ["🏥", "QB doctor", "QB doctor", "Spends every season nursing a different quarterback back to health."],
+    ],
+    "Jeff Hafley": [
+      ["❄️", "Wrong fit", "A Boston College guy in Miami", "Swapped Chestnut Hill snow for Miami heat. The team still melts in the cold."],
+    ],
+    "Kellen Moore": [
+      ["🧒", "Dak's old OC", "Dak's old OC", "Designed the Cowboys offense that couldn't win in January. Now he's a head coach. Sure."],
+    ],
+    "Aaron Glenn": [
+      ["🦁", "Lions knockoff", "Detroit's playbook, Jets results", "Brought Detroit's playbook to the Jets. Jets gonna Jet anyway."],
+    ],
+  },
+  team: {
+    DAL: [
+      ["🤠", "Since '95", "America's team (since 1995)", "No NFC title game since the 1995 season. Most talked-about team in sports anyway. Content > rings."],
+      ["🎮", "Jerry's Madden", "Jerry Jones' Madden franchise", "The owner is the GM. The GM is the owner. The owner is also the reason."],
+      ["📺", "Hype > wins", "Hype merchants", "Win two games in September, book the parade route. Every single year."],
+    ],
+    NYJ: [
+      ["✈️", "Jetting", "Same old Jets", "Hall of Fame QB? Tore his Achilles four snaps in. Longest playoff drought in the four major sports. Jets gonna Jet."],
+      ["🍑", "Butt fumble", "Home of the Butt Fumble", "Thanksgiving 2012. A QB ran face-first into his own lineman's butt and fumbled. The franchise never recovered."],
+      ["🧓", "QB nursing home", "Where QBs go to retire", "Favre, Rodgers, Geno twice... the Jets collect quarterbacks like other teams collect playoff wins."],
+    ],
+    CLE: [
+      ["🏭", "Sad factory", "Factory of sadness", "Dozens of starting QBs since 1999 and one playoff win. The Browns are a support group with a stadium."],
+      ["🧾", "$230M lesson", "The $230M lesson", "Paid the most fully guaranteed money in NFL history for a backup. Cleveland, baby."],
+    ],
+    LAC: [
+      ["⚡", "Chargering", "Chargering", "Up 27–0 in a playoff game? Lose 31–30. Losing a game you already won is an art form."],
+      ["🏟️", "Away at home", "Away crowd at home", "Plays in front of more opposing fans at home than their own. SoFi is a neutral site with extra steps."],
+    ],
+    ATL: [
+      ["🫠", "28–3", "28–3", "Led the Super Bowl 28–3. Lost. It will never, ever not be brought up."],
+      ["🦅", "Falconing", "Falcons gonna Falcon", "If there is a way to blow it, Atlanta has a playbook page for it."],
+    ],
+    SEA: [
+      ["🏃", "Should've run", "Should've run it", "Beast Mode on the 1-yard line, Super Bowl on the line. Threw it. Got picked."],
+      ["🔊", "Fake noise", "12th man (allegedly)", "The loudest stadium in football, according to the stadium."],
+    ],
+    MIN: [
+      ["💜", "0–4", "0–4 in Super Bowls", "Purple pain is a lifestyle. The kicker is always the villain."],
+      ["🦵", "Kicker curse", "Kicker curse", "Blair Walsh, Gary Anderson... in Minnesota the kicker is the boogeyman."],
+    ],
+    BUF: [
+      ["⏱️", "Wide right", "Wide right forever", "Four straight Super Bowl losses, wide right, 13 seconds. The trauma is generational."],
+      ["🪑", "Table divers", "Bills Mafia", "Fans jump through folding tables because watching January football hurts less."],
+    ],
+    CHI: [
+      ["🐻", "QB graveyard", "QB graveyard", "Eighty years of quarterbacks and Sid Luckman is still the answer to \"best Bears QB\"."],
+      ["🤡", "Da Bears", "Da Bears (derogatory)", "Every year is the year. Every year is not the year."],
+    ],
+    LA: [
+      ["🧾", "F them picks", "F them picks", "First-round picks are just trade chips the GM hasn't used yet."],
+      ["👻", "Empty SoFi", "LA doesn't care", "Won a Super Bowl and the city still checked what the Lakers were doing."],
+    ],
+    MIA: [
+      ["❄️", "Snow allergy", "Snow allergy", "Under 40 degrees, the Fins melt faster than the snow. No playoff win since 2000."],
+      ["🌴", "Fraud in Jan", "Speedsters until it's cold", "Fastest team in football right up until the first frost."],
+    ],
+    CIN: [
+      ["🐅", "One-hit wonder", "One-hit wonder", "One Super Bowl run and they called it a dynasty. Burrowhead is closed for renovations."],
+      ["🤦", "Bungles", "The Bungles", "The nickname from the 90s that keeps finding new reasons to come back."],
+    ],
+    GB: [
+      ["🥄", "Spoiled", "Born with a QB spoon", "Thirty years of Hall of Fame QBs and one ring with Rodgers. Unbelievable waste of a cheat code."],
+      ["🧀", "Cheese brains", "Cheeseheads", "Wear foam cheese on their heads in public. Voluntarily."],
+    ],
+    TB: [
+      ["🏖️", "Brady's B&B", "Brady's retirement home", "Still hanging the 2020 banner over a 9-8 team."],
+      ["🏴‍☠️", "NFC South kings", "Kings of a garbage division", "Winning the NFC South is like winning the tallest dwarf planet award."],
+    ],
+    NE: [
+      ["🌲", "It was Brady", "Turns out it was Brady", "Six rings, then 4-13. The Belichick-or-Brady debate got settled in real time."],
+      ["📼", "Spygate", "Spygate", "Taped the other team's signals for years and still needed Tom Brady."],
+    ],
+    PHI: [
+      ["🔋", "Battery arms", "Battery throwers", "Booed Santa. Their fans are the biggest threat to opposing players, and to greased light poles."],
+      ["🧈", "Pole climbers", "Crisco on the poles", "The city greases its light poles before big games. That's the scouting report on the fan base."],
+    ],
+    LV: [
+      ["🏴‍☠️", "Carousel", "Coaching carousel", "New coach every season. The constant is chaos."],
+      ["🎰", "Sin City sins", "Vegas: what happens here, loses here", "The house always wins. The Raiders are not the house."],
+    ],
+    NYG: [
+      ["🗽", "Rebuild loop", "Rebuilding since 2012", "Wait 'til next year. Then the next one. Then the next one..."],
+      ["🏚️", "MetLife tenants", "Tenants in New Jersey", "\"New York\" Giants, play in New Jersey, haven't been relevant in either."],
+    ],
+    PIT: [
+      ["💍", "No QB", "Six rings, no QB", "Lombardi count elite. QB room: a retirement community."],
+      ["🎟️", "One-and-done", "Wild card weekend regulars", "Their last playoff win came when Big Ben still had his fastball."],
+    ],
+    CAR: [
+      ["🔁", "Reset button", "Keep pounding (the reset button)", "Fired coaches: many. Playoff wins since 2015: zero."],
+      ["🐈", "Kitty litter", "Panthers? More like housecats", "Owner throws drinks at fans. The team throws games at opponents."],
+    ],
+    JAX: [
+      ["🐆", "Duval-ish", "Duuuval (please clap)", "One magical season every 10 years. Then back to the cellar."],
+      ["🇬🇧", "London's team", "London's team", "Plays home games in London because Jacksonville apparently doesn't count."],
+    ],
+    DEN: [
+      ["🏔️", "Post-Peyton", "Post-Peyton purgatory", "A dozen-plus starting QBs since Peyton retired."],
+      ["💸", "Russ refund", "Paid Russ to leave", "Ate $85M in dead money to make Russell Wilson somebody else's problem. Let's ride (out of town)."],
+    ],
+    DET: [
+      ["🦁", "0-16 alumni", "Still 0-16 at heart", "From 0-16 to contender... and still haven't played in a Super Bowl. Ever."],
+      ["🍽️", "Thanksgiving L", "Thanksgiving tradition: losing", "Every Thanksgiving the whole country watches Detroit. For decades, that was a cruelty."],
+    ],
+    HOU: [
+      ["🤠", "Never AFCCG", "Divisional round tourists", "Never been to an AFC title game. Ever. Not once."],
+      ["🧢", "Oilers lite", "The team that replaced the Oilers", "Houston lost the Oilers and got this. Bum Phillips is spinning."],
+    ],
+    ARI: [
+      ["❤️", "Cardiac", "Cardiac Cards", "No lead is safe, especially their own."],
+      ["🌵", "Desert mirage", "Desert mirage", "Looks like a playoff team in October. Turns out to be heat stroke."],
+    ],
+    BAL: [
+      ["🦵", "Kicker team", "Kicker-dependent", "When the offense stalls in January, the plan is a 60-yard field goal."],
+      ["🥶", "January exits", "January exit specialists", "No. 1 seed, MVP quarterback, home playoff game... out by dinner."],
+    ],
+    IND: [
+      ["🏥", "QB hospice", "QB retirement home", "Rivers, Ryan, Wentz... where quarterbacks go for one last season."],
+      ["🍀", "Luck ran out", "Luck ran out", "Andrew Luck retired at 29 and took the franchise's will to live with him."],
+    ],
+    NO: [
+      ["⛪", "Cap hell", "Who Dat salary cap", "Their cap space is a negative number nobody can explain, not even the GM."],
+      ["🎺", "Brees-less", "Life after Brees", "The band still plays on Bourbon Street. The offense stopped in 2020."],
+    ],
+    WAS: [
+      ["🔄", "Name TBD", "Name-change speedrun", "Three names in three years. Still looking for an identity."],
+      ["🌊", "FedEx puddles", "Stadium of puddles", "Their old stadium leaked on fans from the ceiling. The franchise leaked wins for decades."],
+    ],
+    TEN: [
+      ["🚢", "Titanic", "Sinking ship", "Traded away A.J. Brown and the season sank with him."],
+      ["🍑", "We ass.", "\"We ass.\" — the franchise", "Their own rookie QB said it into a microphone. Nobody in the building argued."],
+    ],
+    KC: [
+      ["💖", "Swiftie FC", "Swiftie bandwagon", "The broadcast spends more time in the suite than on the sideline."],
+      ["🦓", "Ref FC", "Refs on payroll (team edition)", "Every close Chiefs game ends with a flag and a Twitter riot."],
+    ],
+    SF: [
+      ["🥈", "Bridesmaids", "Always the bridesmaid", "Best roster in football every year. Lose the big one every year."],
+      ["💸", "Paid, no ring", "Expensive, ringless", "Paid everyone on the roster, won nothing since 1995."],
+    ],
+  },
+};
+// Each QB / coach / team can have several takes; one is rolled at random per page load and kept while you browse
+const ROLLED = {};
+function rollTake(kind, key) {
+  const v = key && HOT_TAKES[kind][key]; if (!v) return null;
+  const list = Array.isArray(v[0]) ? v : [v];
+  return (ROLLED[kind + '|' + key] ||= list[Math.floor(Math.random() * list.length)]);
+}
+const lastName = n => n.split(' ').filter(w => !/^(Jr\.?|Sr\.?|II|III|IV)$/.test(w)).pop();
+let takeDiff = null; // point differential and one-score wins this season, from the schedule results
+function hotTakes(team) {
+  if (!takeDiff) {
+    takeDiff = {};
+    for (const [season, week, , home, away, hs, as] of D.results || []) {
+      if (season !== D.currentSeason || typeof week !== 'number') continue;
+      for (const [t, pf, pa] of [[home, hs, as], [away, as, hs]]) { const x = takeDiff[t] ||= { gp: 0, w: 0, l: 0, diff: 0, close: 0 }; x.gp++; x.diff += pf - pa; pf > pa ? x.w++ : pf < pa && x.l++; if (pf > pa && pf - pa <= 8) x.close++; }
+    }
+  }
+  const c = D.context?.[team] || {}, x = takeDiff[team] || { gp: 0, w: 0, l: 0, diff: 0, close: 0 }, out = [];
+  for (const t of [rollTake('qb', c.qb), rollTake('coach', c.coach), rollTake('team', team)]) if (t) out.push(t);
+  const push = (icon, short, label, tip) => out.push([icon, short, label, tip]);
+  // Data-flavored takes (still meaningless)
+  if (x.gp >= 4 && x.w / x.gp >= 0.7 && x.diff / x.gp < 4) push('🚨', 'Fraud', 'Fraud watch', `${x.w}-${x.l} with only a ${x.diff >= 0 ? '+' : ''}${x.diff} point differential. The replies are typing.`);
+  if (x.gp >= 4 && x.w < x.l && x.diff > 0) push('🤞', 'Trust me bro', 'Better than their record (trust me bro)', `${x.w}-${x.l} but ${'+' + x.diff} in point differential. Trust me bro.`);
+  if (x.close >= 3) push('💓', 'Lucky', 'Cardiac kids', `${x.close} wins by one score this season. Clutch or lucky? Lucky.`);
+  if (c.streak >= 4) push('🚌', 'Bandwagon', 'Bandwagon is full', `Won ${c.streak} straight. Everyone was a fan all along.`);
+  if (x.gp >= 5 && x.w <= 1) push('🪖', 'Tanking', 'Tank commander', 'Already scouting college QBs. Mock drafts are the only playoffs this year.');
+  if (c.qbStarts >= 150 && !c.qbSb?.length) push('💍', 'Ringless', 'Ringless veteran', `${c.qb}: ${c.qbStarts} starts, zero rings. Stat-padder until proven otherwise.`);
+  return out.slice(0, 4);
+}
+// ---------- the board: compact "medals" in symmetrical rows (hover any for the details) ----------
+const SIDE = { pf: 'off', pass: 'off', rush: 'off', pass_epa: 'off', rush_epa: 'off', big_pass: 'off', big_run: 'off', sack_off: 'off', cpoe: 'off', fd_off: 'off', pressure_alw: 'off',
+  pa: 'def', pass_alw: 'def', rush_alw: 'def', def_pass_epa: 'def', def_rush_epa: 'def', big_alw: 'def', sack_def: 'def', fd_def: 'def', pressure: 'def', blitz: 'def',
+  to_diff: 'det', pen_yds: 'det', fg_pct: 'det' };
+const WORD = { pf: 'Points', pass: 'Air yards', rush: 'Ground yards', pass_epa: 'Passing', rush_epa: 'Running', big_pass: 'Deep shots', big_run: 'Breakaways',
+  sack_off: 'Sack-proof', cpoe: 'Accuracy', fd_off: 'Chains', pressure_alw: 'Pocket', pa: 'Points D', pass_alw: 'Pass D', rush_alw: 'Run D',
+  def_pass_epa: 'Coverage', def_rush_epa: 'Run stop', big_alw: 'No big plays', sack_def: 'Sacks', fd_def: 'Stops', pressure: 'Pressure', blitz: 'Blitz',
+  to_diff: 'Turnovers', pen_yds: 'Discipline', fg_pct: 'Kicking' };
+const MEDAL = { top3: '🥇', great: '🥈', good: '🥉', bad: '🔻', bottom3: '💀' };
+// Every row has a fixed set of slots, the same on both sides and mirrored (slot 1 sits next to the middle on both).
+// A team without something gets an empty "ghost" slot, so the same thing is always in the same spot.
+const slot = (cls, text, tip, ghost = false) => `<span class="md md-${cls}${ghost ? ' ghost' : ''}" data-tip="${esc(tip)}">${text}</span>`;
+const ghost = (text, tip) => slot('plain', text, tip, true);
+// Stat ranks as medals, one slot per stat: 🥇 1–3, 🥈 4–5, 🥉 6–10, · 11–22, 🔻 23–29, 💀 30–32
+// Tier chip for the Tale of the tape: the stat-tag tier, with Top 3 called "Elite" (hover for rank and value)
+function tierChip(s, j, p) {
+  const rank = p.ranks[j]; if (rank === null || rank === undefined) return '';
+  const tier = TIERS[tierIndex(rank)], desc = s.tag?.descriptive;
+  const label = desc ? tier.style : tier.cls === 'top3' ? 'Elite' : tier.label;
+  const tip = `<b>${label} ${s.tag?.name || s.label}</b>Ranked ${ord(rank)} of 32 in ${s.tag?.metric || s.label}: ${fmtStat(s, p.avg[j])}` +
+    (s.better === 'low' && !desc ? ' (lower is better).' : '.') + (desc ? '<br><br>Describes style, not quality.' : `<br><br>Elite = 1–3 · Great 4–5 · Good 6–10 · Average 11–22 · Bad 23–29 · Bottom 3 = 30–32`);
+  return `<span class="tc tc-${desc ? (tier.cls === 'avg' ? 'avg' : 'style') : tier.cls}" data-tip="${esc(tip)}">${label}</span>`;
+}
+function statSlots(p, side) {
+  return S.map((s, j) => [s, j]).filter(([s]) => SIDE[s.key] === side && !(allHistory && s.group === 'pfr')).map(([s, j]) => {
+    const word = WORD[s.key] || s.label, rank = p.ranks[j];
+    if (rank === null) return ghost(`· ${word}`, `<b>${word}</b>No data for this team.`);
+    const tier = TIERS[tierIndex(rank)], desc = s.tag?.descriptive, avg = tier.cls === 'avg';
+    const title = desc ? `${tier.style} ${s.tag.name}` : `${tier.label} ${s.tag?.name || s.label}`;
+    const tip = `<b>${title}</b>Ranked ${ord(rank)} of 32 in ${s.tag?.metric || s.label}: ${fmtStat(s, p.avg[j])}` +
+      (s.better === 'low' && !desc ? ' (lower is better).' : '.') + (desc ? '<br><br>Describes style, not quality.' : `<br><br>${TIER_KEY}`);
+    const icon = desc ? (avg ? '·' : '⚡') : avg ? '·' : MEDAL[tier.cls];
+    return slot(desc ? (avg ? 'avg' : 'style') : tier.cls, `${icon} ${word}`, tip);
+  });
+}
+// Archetypes: the slots are every archetype in this group that either team has, in the same order on both sides
+function archSlots(p, group, union) {
+  const out = GLT.archetypeOutcomes(p.gp), mine = new Set(GLT.archetypesOf(p).map(a => a.key));
+  return union.map(a => {
+    const o = out[a.key];
+    const hist = o.n ? `<br><br>Since ${GLT.ARCH_FIRST}, <b>${o.n}</b> teams looked like this after ${Math.max(p.gp, 4)} games:<br>• ${pct(o.playoffs, o.n)}% made the playoffs<br>• ${fmtNum(o.wins / o.n)} wins on average<br>• ${o.sb} won the Super Bowl` + (o.examples.length ? `<br><br>Examples: ${o.examples.join(', ')}` : '') : '';
+    return mine.has(a.key) ? slot('arch', `${a.icon} ${a.name}`, `<b>${a.icon} ${a.name}</b>${a.desc}.${hist}`)
+      : ghost(`${a.icon} ${a.name}`, `<b>${a.icon} ${a.name}</b>${a.desc}.<br><br>Not this team (the other one has it).`);
+  });
+}
+const unionOf = (group, ...ps) => { const has = new Set(ps.flatMap(p => GLT.archetypesOf(p).map(a => a.key))); return GLT.ARCHETYPES.filter(a => a.group === group && has.has(a.key)); };
+// Team slots: QB · Coach · Form · Last year
+function teamSlots(T) {
+  const tags = GLT.contextTags(T), by = icons => tags.find(t => icons.includes(t.icon) && (icons !== '🏆' || true));
+  const tip = t => `<b>${t.icon} ${t.label}</b>${t.tip}`;
+  const c = D.context?.[T] || {};
+  const qb = tags.find(t => t.icon === '🏆' && /QB/.test(t.label)) || tags.find(t => ['🆕', '🎖️', '🔄'].includes(t.icon));
+  const coach = tags.find(t => t.icon === '🏆' && /coach/.test(t.label)) || tags.find(t => t.icon === '🧢');
+  const form = tags.find(t => ['💯', '🫥'].includes(t.icon)) || tags.find(t => ['🔥', '🧊'].includes(t.icon));
+  const champs = tags.find(t => t.icon === '👑'), last = tags.find(t => t.icon === '📅');
+  const yr = "'" + String(D.currentSeason - 1).slice(2);
+  const qbShort = t => (t.icon === '🏆' ? 'Ring QB' : t.icon === '🆕' ? 'Rookie QB' : t.icon === '🎖️' ? 'Vet QB' : t.label.replace(' this year', ''));
+  return [
+    qb ? slot(qb.cls, `${qb.icon} ${qbShort(qb)}`, tip(qb)) : ghost('🏈 QB', `<b>QB</b>${c.qb || 'Unknown'}: nothing notable (not a rookie, no rings, 150 starts or a QB change).`),
+    coach ? slot(coach.cls, `${coach.icon} ${coach.icon === '🏆' ? 'Ring coach' : 'New HC'}`, tip(coach)) : ghost('🧢 Coach', `<b>Coach</b>${c.coach || 'Unknown'}: no Super Bowl rings, not in year one.`),
+    form ? slot(form.cls, `${form.icon} ${form.icon === '💯' ? 'Unbeaten' : form.icon === '🫥' ? 'Winless' : (form.icon === '🔥' ? 'W' : 'L') + form.label.match(/\d+/)[0]}`, tip(form)) : ghost('〰 Form', '<b>Form</b>No streak of 3 or more right now.'),
+    champs ? slot(champs.cls, '👑 Champs', tip(champs)) : last ? slot(last.cls, `📅 ${yr}: ${(last.label.split(', ')[1] || last.label).replace('Missed playoffs', 'No playoffs')}`, tip(last)) : ghost('📅 Last year', '<b>Last year</b>No data.'),
+  ];
+}
+// Hot-take slots: QB · Coach · Team · Vibes (the data-driven one)
+function takeSlots(T) {
+  const c = D.context?.[T] || {}, named = [rollTake('qb', c.qb), rollTake('coach', c.coach), rollTake('team', T)];
+  const vibes = hotTakes(T).find(t => !named.includes(t));
+  // QB and coach takes say who they're about, right on the chip ("Vrabel: Best LB") and in the tooltip
+  const whoOf = { QB: c.qb && `${c.qb}, ${T} quarterback`, Coach: c.coach && `${c.coach}, ${T} head coach`, Team: `the ${D.teamInfo?.[T]?.name || T}` };
+  const one = (t, kind) => {
+    if (!t) return ghost(`🗯 ${kind}`, `<b>${kind}</b>No take yet. Suspiciously clean.`);
+    window.VM && VM.add('takes', `${kind}|${t[2]}`); // 🏆 every different take seen counts
+    const name = kind === 'QB' ? c.qb : kind === 'Coach' ? c.coach : null;
+    const chipText = name ? `${t[0]} ${lastName(name)}: ${t[1]}` : `${t[0]} ${t[1]}`;
+    return slot('take', chipText, `<b>${t[0]} ${t[2]}</b><i>About ${whoOf[kind] || T}</i><br>${t[3]}<br><br><i>🗯 Hot take: pure Twitter slander, not a stat. Reload for a different one.</i>`);
+  };
+  return [one(named[0], 'QB'), one(named[1], 'Coach'), one(named[2], 'Team'), one(vibes, 'Vibes')];
+}
+function boardHtml(A, B, ta, tb) {
+  const rows = [ // [label, sub-label, (team, profile) → slots, section end?]
+    ['Team', 'QB · coach · form · last year', (T, p) => teamSlots(T)],
+    ['', '◆ identity', (T, p) => archSlots(p, 'Whole team', unionOf('Whole team', ta, tb)), true],
+    ['🗯 Hot takes', 'QB · coach · team · vibes', T => takeSlots(T), true],
+    // stat ranks live in the Tale of the tape (tier chips next to each value), so the board sticks to identity
+    ['Offense', '◆ style', (T, p) => archSlots(p, 'Offense', unionOf('Offense', ta, tb)), true],
+    ['Defense', '◆ style', (T, p) => archSlots(p, 'Defense', unionOf('Defense', ta, tb)), true],
+    ['Details', 'ball security · flags · kicking', (T, p) => archSlots(p, 'Ball security & details', unionOf('Ball security & details', ta, tb)), true],
+  ];
+  return rows.map(([label, sub, f, end]) => {
+    const l = f(A, ta), r = f(B, tb), cls = end ? 'grp-end' : 'first';
+    const cell = (list, side) => `<div class="bcell ${side} ${cls}">${list.length ? list.join('') : '<span class="none">–</span>'}</div>`;
+    return cell(l, 'l') + `<div class="blbl ${cls}">${label}<small>${sub}</small></div>` + cell(r, 'r');
+  }).join('');
+}
+function counterHtml(A, B) {
+  const rec = GLT.counterRecords();
+  const list = [[A, B], [B, A]].flatMap(([x, y]) => GLT.countersOf(current[x], current[y]).map(c => ({ x, y, c, r: rec[c.key] })));
+  if (!list.length) return '<span class="muted" style="font-size:13px">⚔ No big unit-vs-unit mismatches in this one.</span>';
+  return '<h2 style="margin-bottom:6px">⚔ Matchup counters</h2><div class="tags">' + list.map(({ x, y, c, r }) => {
+    const tip = `<b>⚔ ${c.name}</b>${c.desc(x, y)}.<br><br>Since ${GLT.ARCH_FIRST}, teams holding this edge won <b>${r.w} of ${r.w + r.l} (${pct(r.w, r.w + r.l)}%)</b>, by ${signed(r.avgMargin)} points on average.`;
+    return `<span class="tag arch" data-tip="${esc(tip)}">${x}: ${c.name} · wins ${pct(r.w, r.w + r.l)}%</span>`;
+  }).join('') + '</div>';
+}
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  const left = Math.min(r.left, window.innerWidth - tipEl.offsetWidth - 8);
+  const top = r.bottom + 6 + tipEl.offsetHeight > window.innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6;
+  tipEl.style.left = Math.max(8, left) + 'px'; tipEl.style.top = top + 'px';
+});
+document.addEventListener('scroll', () => { tipEl.style.display = 'none'; }, true);
+
+// ---------- header + refresh ----------
+const built = new Date(D.built);
+$('meta').textContent = `${D.currentSeason} through week ${D.lastWeek} · updated ${built.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+if (location.protocol === 'file:') { $('refresh').disabled = true; $('refresh').title = 'Open the app with start.bat to enable refreshing'; }
+$('refresh').addEventListener('click', async () => {
+  const btn = $('refresh'), msg = $('refreshMsg');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Refreshing…'; msg.className = ''; msg.textContent = '';
+  try {
+    const body = await (await fetch('/api/refresh', { method: 'POST', headers: { 'X-VM-Auth': window.VM?.auth() || '' } })).json();
+    if (!body.ok) throw new Error(body.error);
+    sessionStorage.setItem('matchup', `${$('teamA').value}@${$('teamB').value}`);
+    location.reload();
+  } catch (e) {
+    msg.className = 'err'; msg.textContent = 'Refresh failed'; msg.title = e.message;
+    btn.disabled = false; btn.textContent = '↻ Refresh data';
+  }
+});
+
+// ---------- controls ----------
+for (const id of ['teamA', 'teamB']) $(id).innerHTML = D.teams.map(t => `<option>${t}</option>`).join('');
+function drawStatChecks() {
+  $('statChecks').innerHTML = Object.entries(GROUPS).map(([g, title]) =>
+    `<fieldset data-group="${g}"><legend>${title} <button type="button" class="selall" data-on="1">all</button><button type="button" class="selall" data-on="0">none</button></legend>${S.filter(s => s.group === g).map(s =>
+      `<label><input type="checkbox" value="${s.key}" ${selected.has(s.key) ? 'checked' : ''}> ${s.label}</label>`).join('')}</fieldset>`).join('');
+}
+drawStatChecks();
+const saveStats = () => window.VM?.setPref('stats', [...selected]);
+$('statChecks').addEventListener('change', e => { e.target.checked ? selected.add(e.target.value) : selected.delete(e.target.value); saveStats(); render(); });
+// "all" / "none" next to each group's title ticks or clears the whole group at once
+$('statChecks').addEventListener('click', e => {
+  const b = e.target.closest('.selall'); if (!b) return;
+  for (const box of b.closest('fieldset').querySelectorAll('input[type=checkbox]')) { box.checked = b.dataset.on === '1'; box.checked ? selected.add(box.value) : selected.delete(box.value); }
+  saveStats(); render();
+});
+$('gear').addEventListener('click', () => { $('settingsBody').hidden = !$('settingsBody').hidden; });
+function fillSince() {
+  const seasons = Object.keys(D.norms).map(Number).filter(s => s >= minSeason() && s < D.currentSeason);
+  $('since').innerHTML = seasons.map(s => `<option>${s}</option>`).join('');
+  $('since').value = seasons[0];
+  document.querySelector('#statChecks fieldset[data-group=pfr]').disabled = allHistory;
+}
+fillSince();
+// the other ⚙ Settings, saved to the profile too
+function applyMatchPrefs() {
+  const m = window.VM?.pref('match'); if (!m) return;
+  if (m.venue) $('venue').value = m.venue;
+  if (m.since && [...$('since').options].some(o => +o.value === m.since)) $('since').value = m.since;
+  if (m.minGp) $('minGp').value = m.minGp;
+  if (m.minSim) $('minSim').value = m.minSim;
+}
+applyMatchPrefs();
+for (const id of ['venue', 'since', 'minGp', 'minSim']) $(id).addEventListener('input', () => window.VM?.setPref('match', { venue: $('venue').value, since: +$('since').value, minGp: +$('minGp').value, minSim: +$('minSim').value }));
+for (const id of ['teamA', 'teamB', 'venue', 'since', 'minGp', 'minSim']) $(id).addEventListener('input', render);
+$('glist').addEventListener('click', e => {
+  const b = e.target.closest('.gitem'); if (!b) return;
+  pastGame = b.dataset.week ? PAST.find(g => g.week === +b.dataset.week && g.home === b.dataset.home && g.away === b.dataset.away) : null;
+  $('teamA').value = b.dataset.away; $('teamB').value = b.dataset.home; render();
+});
+$('tape').addEventListener('click', e => {
+  const g = e.target.closest('tr.grp')?.dataset.group; if (!g) return;
+  openGroups.has(g) ? openGroups.delete(g) : openGroups.add(g); render();
+});
+$('showGames').addEventListener('click', () => { showGames = !showGames; render(); });
+
+// ---------- sidebar: any week of the season. Upcoming games show the line; finished games show the score and how the
+// backdated Virtual Measurement pick did ----------
+const NOW_WEEK = D.upcoming[0]?.week ?? D.lastWeek + 1;
+let viewWeek = NOW_WEEK, pastGame = null; // pastGame: the finished game being looked at, if any
+// Every finished regular-season game this season, with each team's games played before kickoff (from the games table)
+const PAST = D.results.filter(r => r[0] === D.currentSeason && typeof r[1] === 'number').map(([season, week, day, home, away, hs, as, spread]) => {
+  const g = D.games.find(x => x[0] === season && x[1] === week && x[2] === home && x[3] === away);
+  return { season, week, day, home, away, hs, as, spread: spread === '' || spread === undefined ? null : spread, hgp: g ? g[8] : 0, agp: g ? g[9] : 0 };
+});
+const WEEKS = [...new Set([...PAST.map(g => g.week), ...D.upcoming.map(g => g.week)])].sort((a, b) => a - b);
+function renderSidebar(A, B) {
+  // a week shows its finished games (scores and how the picks did) and, for the current week, the games still to come,
+  // in kickoff order, so a Thursday game stays in the list after it's played
+  const done = viewWeek < NOW_WEEK, played = PAST.filter(g => g.week === viewWeek);
+  const games = [...played, ...(viewWeek === NOW_WEEK ? D.upcoming : [])].sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  const rec = BT.done ? BT.week[viewWeek] : null;
+  $('weekLabel').innerHTML = `Week ${viewWeek}${done ? ' <span class="muted" style="text-transform:none;letter-spacing:0">· final</span>' : ''}`
+    + (played.length && rec && rec.n ? ` <span class="wkrec" data-tip="<b>Virtual Measurement in week ${viewWeek}</b>Winners: ${rec.w}-${rec.l}<br>Against the spread: ${rec.aw}-${rec.al}${rec.ap ? '-' + rec.ap : ''}">${rec.w}-${rec.l}</span>` : '');
+  $('wkPrev').disabled = viewWeek <= WEEKS[0]; $('wkNext').disabled = viewWeek >= NOW_WEEK;
+  $('glist').innerHTML = games.map((g, i) => {
+    const day = new Date(g.day + 'T12:00').toLocaleDateString(undefined, { weekday: 'short' });
+    const line = g.spread === null || g.spread === undefined ? 'no line' : g.spread === 0 ? 'PK' : lineText(g.spread > 0 ? g.home : g.away, -Math.abs(g.spread));
+    const on = g.away === A && g.home === B && ('hs' in g ? pastGame?.week === g.week : !pastGame);
+    const star = FAV && (g.home === FAV || g.away === FAV) ? '<span class="favstar">⭐</span>' : '';
+    if (!('hs' in g)) return `<button class="gitem ${on ? 'on' : ''}" data-away="${g.away}" data-home="${g.home}">${star}
+      <div class="t"><span class="side">${logo(g.away, 'slogo')}${g.away} <span class="rec">${current[g.away].rec}</span></span><span class="at">@</span>
+        <span class="side r"><span class="rec">${current[g.home].rec}</span> ${g.home}${logo(g.home, 'slogo')}</span></div>
+      <div class="sub">${day} · ${line}${g.total ? ` · O/U ${g.total}` : ''}</div></button>`;
+    const bt = BT.done ? BT.games.get(g) : null, aw = g.as > g.hs, hw = g.hs > g.as;
+    const winOk = bt && bt.pick === (aw ? g.away : hw ? g.home : null);
+    const pills = !bt ? (BT.done ? '<span class="muted">no pick (week 1)</span>' : '<span class="muted">…</span>')
+      : `<span class="pill ${winOk ? 'good' : 'bad'}" data-tip="Virtual Measurement picked ${bt.pick} to win">${winOk ? '✓' : '✗'} winner</span>`
+        + (bt.ats ? `<span class="pill ${bt.ats.result === 'win' ? 'good' : bt.ats.result === 'loss' ? 'bad' : 'push'}" data-tip="Against the spread: picked ${bt.ats.team} ${bt.ats.line > 0 ? '+' : ''}${bt.ats.line === 0 ? 'PK' : bt.ats.line}">${bt.ats.result === 'win' ? '✓' : bt.ats.result === 'loss' ? '✗' : '–'} spread</span>` : '');
+    return `<button class="gitem past ${on ? 'on' : ''}" data-away="${g.away}" data-home="${g.home}" data-week="${g.week}">${star}
+      <div class="t"><span class="side ${aw ? 'won' : ''}">${logo(g.away, 'slogo')}${g.away} <b class="fs">${g.as}</b></span><span class="at">@</span>
+        <span class="side r ${hw ? 'won' : ''}"><b class="fs">${g.hs}</b> ${g.home}${logo(g.home, 'slogo')}</span></div>
+      <div class="sub">${pills}</div></button>`;
+  }).join('') || '<p class="muted" style="padding:6px">No games this week.</p>';
+  drawScorecard();
+}
+
+// ---------- backtest: the pick for every finished game, made only with what was known before kickoff ----------
+// Both teams' stats as of the game before (each team's snapshot after its previous game), compared only with past
+// seasons, through the same similar-matchups method as the prediction box. Week 1 has no stats yet, so no pick.
+// Two reads, blended 20% / 80%:
+//  1) similar matchups: past games where both teams looked like these two (who won, their average score)
+//  2) points: each offense's points per game against the other defense's points allowed (pulled 30% toward the
+//     league average, since a few games run hot), plus home field
+// Backtested before kickoff on 806 games from 2023–25: points alone picked 62.7% of winners, history alone 58.8%,
+// this blend 62.2%. How alike the past games were didn't predict accuracy, so the weight is fixed. The win chance
+// itself is well calibrated (70%+ picks were right ~80% of the time), so confidence comes from it.
+const BLEND = { lo: 0, span: 1, min: 0.2, max: 0.2 }; // weight on the similar-matchups read
+const LG_PTS = 22.5, PTS_REGRESS = 0.7, HOME_EDGE = 1.5, GAME_SD = 13.4; // GAME_SD: spread of NFL final margins
+const PF = S.findIndex(s => s.key === 'pf'), PA = S.findIndex(s => s.key === 'pa');
+const phi = z => { const t = 1 / (1 + 0.3275911 * Math.abs(z / Math.SQRT2)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2); return z >= 0 ? (1 + y) / 2 : (1 - y) / 2; };
+function predict(qa, qb, idx) { // qa = away team's profile, qb = home team's
+  const { since, minGp, venueMatters, minSim } = settings();
+  const pool = GLT.findMatches(qa, qb, { idx, since, before: D.currentSeason, minGp, topN: 100, venueMatters });
+  let list = pool.filter(m => m.pct >= minSim), fallback = false;
+  if (list.length < 3) { list = pool.slice(0, 10); fallback = true; } // too few close ones: use the 10 closest
+  const n = list.length; if (!n) return null;
+  const aW = list.filter(m => m.margin > 0).length, bW = list.filter(m => m.margin < 0).length, ties = n - aW - bW;
+  const simA = list.reduce((t, m) => t + m.aPts, 0) / n, simB = list.reduce((t, m) => t + m.bPts, 0) / n, simPa = (aW + ties / 2) / n;
+  // the points read
+  const reg = v => LG_PTS + PTS_REGRESS * ((v ?? LG_PTS) - LG_PTS);
+  const ptsA = (reg(qa.avg[PF]) + reg(qb.avg[PA])) / 2 - HOME_EDGE / 2, ptsB = (reg(qb.avg[PF]) + reg(qa.avg[PA])) / 2 + HOME_EDGE / 2;
+  const ptsPa = phi((ptsA - ptsB) / GAME_SD);
+  // how much to trust the history: the average likeness of the games used
+  const quality = list.reduce((t, m) => t + m.pct, 0) / n, w = Math.max(BLEND.min, Math.min(BLEND.max, (quality - BLEND.lo) / BLEND.span));
+  const avgA = w * simA + (1 - w) * ptsA, avgB = w * simB + (1 - w) * ptsB, pa = Math.round(100 * (w * simPa + (1 - w) * ptsPa));
+  const top = Math.max(pa, 100 - pa), conf = top >= 70 ? 'high' : top >= 58 ? 'medium' : 'low';
+  return { list, fallback, n, aW, bW, ties, avgA, avgB, pa, pb: 100 - pa, simA, simB, simPa, ptsA, ptsB, ptsPa, quality, w, conf };
+}
+// The picks: the side with the bigger share of similar-matchup wins (typical score breaks a 50/50), and against the
+// spread the side the typical score margin beats the line for
+function picksOf(pr, away, home, spread) {
+  const pick = pr.pa > 50 ? away : pr.pa < 50 ? home : pr.avgA > pr.avgB ? away : pr.avgB > pr.avgA ? home : null; // the blended win chance decides
+  const m = pr.avgB - pr.avgA; // typical home margin
+  const atsHome = spread === null || spread === undefined || m === spread ? null : m > spread;
+  return { pick, atsHome, margin: m };
+}
+const BT = { done: false, key: '', games: new Map(), week: {}, w: 0, l: 0, aw: 0, al: 0, ap: 0 };
+let btTimer = null;
+function runBacktest() {
+  const idx = activeIdx(), key = JSON.stringify([settings(), idx]);
+  if (BT.key === key) return;
+  Object.assign(BT, { done: false, key, games: new Map(), week: {}, w: 0, l: 0, aw: 0, al: 0, ap: 0 });
+  clearTimeout(btTimer);
+  const todo = PAST.filter(g => g.hgp > 0 && g.agp > 0);
+  let i = 0;
+  const step = () => { // a few games at a time so the page stays responsive
+    if (BT.key !== key) return;
+    for (const end = Math.min(todo.length, i + 8); i < end; i++) {
+      const g = todo[i], pr = idx.length ? predict(GLT.profile(g.season, g.away, g.agp), GLT.profile(g.season, g.home, g.hgp), idx) : null;
+      if (!pr) continue;
+      const { pick, atsHome } = picksOf(pr, g.away, g.home, g.spread), wk = BT.week[g.week] ||= { n: 0, w: 0, l: 0, aw: 0, al: 0, ap: 0 };
+      const winner = g.hs > g.as ? g.home : g.as > g.hs ? g.away : null, entry = { pick, pr };
+      if (pick && winner) { const ok = pick === winner; wk.n++; ok ? (wk.w++, BT.w++) : (wk.l++, BT.l++); entry.ok = ok; }
+      if (atsHome !== null) {
+        const hm = g.hs - g.as, res = hm === g.spread ? 'push' : (hm > g.spread) === atsHome ? 'win' : 'loss';
+        entry.ats = { team: atsHome ? g.home : g.away, line: atsHome ? -g.spread : g.spread, result: res };
+        res === 'push' ? (wk.ap++, BT.ap++) : res === 'win' ? (wk.aw++, BT.aw++) : (wk.al++, BT.al++);
+      }
+      BT.games.set(g, entry);
+    }
+    if (i < todo.length) { btTimer = setTimeout(step, 0); drawScorecard(); return; }
+    BT.done = true; renderSidebar($('teamA').value, $('teamB').value);
+  };
+  btTimer = setTimeout(step, 30);
+}
+function drawScorecard() {
+  const pc = (a, b) => (a + b ? Math.round(100 * a / (a + b)) + '%' : '–');
+  $('scorecard').innerHTML = `<div class="sc-t">📈 Virtual Measurement ${D.currentSeason}${BT.done ? '' : ' <span class="muted">(scoring…)</span>'}</div>
+    <div class="sc-row"><span>Winners</span><b>${BT.w}-${BT.l}</b><span class="muted">${pc(BT.w, BT.l)}</span></div>
+    <div class="sc-row"><span>vs the spread</span><b>${BT.aw}-${BT.al}${BT.ap ? '-' + BT.ap : ''}</b><span class="muted">${pc(BT.aw, BT.al)}</span></div>`;
+}
+$('wkPrev').addEventListener('click', () => { viewWeek = WEEKS[Math.max(0, WEEKS.indexOf(viewWeek) - 1)]; renderSidebar($('teamA').value, $('teamB').value); });
+$('wkNext').addEventListener('click', () => { viewWeek = WEEKS[Math.min(WEEKS.length - 1, WEEKS.indexOf(viewWeek) + 1)]; renderSidebar($('teamA').value, $('teamB').value); });
+
+// ---------- 📋 box score of a finished game (real stats from nflverse, app/boxscores.js) ----------
+let BOX = null, boxLoading = null; const boxOpen = new Set(); // boxOpen: "team|table" lists showing every player
+function loadBox() {
+  return (boxLoading ||= new Promise(res => {
+    const s = Object.assign(document.createElement('script'), { src: 'boxscores.js' });
+    s.onload = () => res((BOX = window.NFL_BOX || null)); s.onerror = () => res(null);
+    document.head.appendChild(s);
+  }));
+}
+function renderBox(P) {
+  const el = $('boxPanel');
+  if (!P) { el.hidden = true; return; }
+  el.hidden = false;
+  if (!BOX) { el.innerHTML = '<h2>📋 Box score</h2><p class="muted">Loading…</p>'; loadBox().then(() => { if (pastGame === P) renderBox(P); }); return; }
+  const id = `${P.season}_${String(P.week).padStart(2, '0')}_${P.away}_${P.home}`, g = BOX.games?.[id];
+  if (!g || !g.players[P.away] || !g.players[P.home]) {
+    el.innerHTML = `<h2>📋 Box score</h2><p class="muted">Not published yet: nflverse posts a week's player stats a day or two after the games. Try ↻ Refresh data later.</p>`; return;
+  }
+  const C = BOX.cols, obj = (cols, r) => Object.fromEntries(cols.map((c, i) => [c, r[i]]));
+  // team stats, mirrored: the better number of each pair is green
+  const T = k => obj(C.team, g.teams[k] || []);
+  const ta = T(P.away), tb = T(P.home);
+  const trow = (label, a, b, fa = x => x, hi = 1) => { const better = a === b || hi === 0 ? 0 : (a > b) === (hi > 0) ? -1 : 1;
+    return `<tr><td class="${better < 0 ? 'better' : ''}">${fa(a, ta)}</td><td>${label}</td><td class="${better > 0 ? 'better' : ''}">${fa(b, tb)}</td></tr>`; };
+  const teamTable = `<table class="bx-team"><tr><th class="ta">${P.away}</th><th></th><th class="tb">${P.home}</th></tr>
+    ${trow('First downs', ta.fd, tb.fd)}${trow('Total yards', ta.yds, tb.yds)}
+    ${trow('Passing', ta.pass, tb.pass, (v, t) => `${v} <span class="muted" style="font-weight:400">(${t.cmp}/${t.att})</span>`)}
+    ${trow('Rushing', ta.rush, tb.rush, (v, t) => `${v} <span class="muted" style="font-weight:400">(${t.car} car)</span>`)}
+    ${trow('Yards per play', ta.yds / (ta.plays || 1), tb.yds / (tb.plays || 1), v => v.toFixed(1))}
+    ${trow('Sacked', ta.sk, tb.sk, (v, t) => `${v}–${t.skyds}`, -1)}${trow('Turnovers', ta.to, tb.to, v => v, -1)}
+    ${trow('Penalties', ta.pen, tb.pen, (v, t) => `${v}–${t.penyds}`, -1)}${trow('Plays', ta.plays, tb.plays, v => v, 0)}</table>`;
+  // player tables: the top few by default, "show all" for the rest
+  const table = (team, key, head, cells, max) => {
+    const rows = g.players[team][key] || []; if (!rows.length) return '';
+    const all = boxOpen.has(team + '|' + key), shown = all ? rows : rows.slice(0, max);
+    return `<div class="bx-scroll"><table class="bx"><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${shown.map(r => `<tr>${cells(obj(C[key], r)).map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</table></div>
+      ${rows.length > max ? `<button class="bx-more" data-bxmore="${team}|${key}">${all ? 'Show fewer' : `Show all ${rows.length}`}</button>` : ''}`;
+  };
+  const nm = (r, pos = true) => `${r.name}${pos && r.pos ? `<span class="ps">${r.pos}</span>` : ''}`;
+  const avg = (y, n) => (n ? (y / n).toFixed(1) : '–');
+  const side = (team, cls) => `<div class="bx-side"><h3>${logo(team, '')}<span class="${cls}">${D.teamInfo?.[team]?.name || team}</span></h3>
+    ${table(team, 'pass', ['Passing', 'C/ATT', 'YDS', 'AVG', 'TD', 'INT', 'SCK', 'EPA'], r => [nm(r, false), `${r.cmp}/${r.att}`, r.yds, avg(r.yds, r.att), r.td, r.int, r.sk, r.epa.toFixed(1)], 3)}
+    ${table(team, 'rush', ['Rushing', 'CAR', 'YDS', 'AVG', 'TD'], r => [nm(r), r.car, r.yds, avg(r.yds, r.car), r.td], 4)}
+    ${table(team, 'rec', ['Receiving', 'REC', 'TGT', 'YDS', 'AVG', 'TD'], r => [nm(r), r.rec, r.tgt, r.yds, avg(r.yds, r.rec), r.td], 5)}
+    ${table(team, 'def', ['Defense', 'TKL', 'SCK', 'TFL', 'QBH', 'INT', 'PD', 'FF'], r => [nm(r), r.tkl, r.sk || 0, r.tfl, r.qbh, r.int, r.pd, r.ff], 6)}
+    ${table(team, 'kick', ['Kicking', 'FG', 'LNG', 'XP'], r => [nm(r, false), `${r.fgm}/${r.fga}`, r.lng || '–', `${r.xpm}/${r.xpa}`], 2)}
+    ${table(team, 'punt', ['Punting', 'NO', 'YDS', 'AVG', 'LNG', 'IN 20'], r => [nm(r, false), r.n, r.yds, avg(r.yds, r.n), r.lng, r.in20], 2)}
+    ${table(team, 'ret', ['Returns', 'KR', 'YDS', 'PR', 'YDS', 'TD'], r => [nm(r, false), r.kr, r.kryds, r.pr, r.pryds, r.td], 3)}</div>`;
+  el.innerHTML = `<h2>📋 Box score</h2>${teamTable}<div class="bx-grid">${side(P.away, 'ta')}${side(P.home, 'tb')}</div>
+    <p class="muted" style="font-size:12px;text-align:center;margin:4px 0 0">Real game stats from nflverse. Passing yards in the team table are net of sacks.</p>`;
+}
+$('boxPanel').addEventListener('click', e => {
+  const b = e.target.closest('[data-bxmore]'); if (!b) return;
+  boxOpen.has(b.dataset.bxmore) ? boxOpen.delete(b.dataset.bxmore) : boxOpen.add(b.dataset.bxmore); renderBox(pastGame);
+});
+
+// ---------- render ----------
+function render() {
+  const A = $('teamA').value, B = $('teamB').value, ta = current[A], tb = current[B], idx = activeIdx();
+  applyTeamColors(A, B);
+  renderSidebar(A, B);
+  const game = D.upcoming.find(g => g.away === A && g.home === B);
+  if (A !== B) window.VM && VM.add('matchups', `${A}@${B}`); // 🏆 achievements
+  if (pastGame) window.VM && VM.unlock('time_traveler');
+
+  // A finished game is shown as of kickoff: the prediction and the stats use both teams' numbers from before the game
+  if (pastGame && (pastGame.away !== A || pastGame.home !== B)) pastGame = null;
+  const P = pastGame, pg = P && P.agp > 0 && P.hgp > 0 ? P : null;
+  const pa0 = pg ? GLT.profile(pg.season, A, pg.agp) : ta, pb0 = pg ? GLT.profile(pg.season, B, pg.hgp) : tb;
+  const hist = renderMatchups(A, B, pa0, pb0, idx, P, game);
+  // One scoreboard for every game: the final score once it's played, Virtual Measurement's predicted score before that
+  const pr = hist?.pr, fmtDay = d => new Date(d + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const line = (spread, home, away) => (spread === null || spread === undefined ? '–' : spread === 0 ? 'PK' : lineText(spread > 0 ? home : away, -Math.abs(spread)));
+  const [sa, sb] = P ? [P.as, P.hs] : pr ? [Math.round(pr.avgA), Math.round(pr.avgB)] : ['–', '–'];
+  const glow = (right, won) => { // upcoming: the predicted winner glows, stronger the more lopsided the similar matchups were
+    if (P || !pr || !won) return '';
+    const pct = (right ? pr.pb : pr.pa) / 100, a = Math.max(0.06, 0.1 + 0.6 * (pct - 0.5)).toFixed(2);
+    return ` style="background: linear-gradient(${right ? 'to left' : 'to right'}, rgba(34,197,94,${a}), transparent 85%)"`;
+  };
+  const side = (T, p, pts, won, right) => {
+    const c = D.context?.[T] || {};
+    return `<div class="sbt ${right ? 'r' : 'l'} ${won ? 'win' : ''}"${glow(right, won)}>
+      <a class="lg" href="players.html?team=${T}" data-tip="Open ${T}'s player stats">${logo(T, '')}</a>
+      <div class="who2"><div class="nm ${right ? 'tb' : 'ta'}"><a href="players.html?team=${T}">${T}</a> <span class="rec2">${p.rec}</span></div>
+        <div class="full">${D.teamInfo?.[T]?.name || ''}</div>${P ? '' : `<div class="full">${c.qb ? `QB ${c.qb}` : ''}${c.coach ? ` · HC ${c.coach}` : ''}</div>`}</div>
+      <div class="sc ${P ? '' : 'proj'}">${pts}</div></div>`;
+  };
+  const aWon = P ? P.as > P.hs : pr && pr.avgA > pr.avgB, bWon = P ? P.hs > P.as : pr && pr.avgB > pr.avgA;
+  const mid = P ? `<div class="fin">FINAL</div><div class="wk">Week ${P.week} · ${fmtDay(P.day)}</div><div class="ln">Line: ${line(P.spread, B, A)}</div><button id="backNow">◀ Back to week ${NOW_WEEK}</button>`
+    : game ? `<div class="fin proj" data-tip="Virtual Measurement's predicted score: the average score of the similar matchups below">PREDICTED</div><div class="wk">Week ${game.week} · ${fmtDay(game.day)}</div>
+        <div class="ln">Line: ${line(game.spread, B, A)}${game.total ? ` · O/U ${game.total}` : ''}</div><div class="wk">${game.stadium || ''}${game.div ? ' · division game' : ''}</div>`
+    : (() => { const nx = (D.remaining || []).find(([, h, a]) => h === B && a === A), bye = [A, B].some(t => !D.upcoming.some(u => u.home === t || u.away === t));
+        return `<div class="fin proj">PREDICTED</div><div class="wk">${nx ? `Week ${nx[0]} game${bye ? ' (bye this week)' : ''}` : 'Not on this week\'s schedule'}</div>`; })();
+  $('hero').innerHTML = `<div class="scoreboard2" style="grid-column:1 / -1">${side(A, pg ? pa0 : ta, sa, aWon, false)}<div class="sbm">${mid}</div>${side(B, pg ? pb0 : tb, sb, bWon, true)}</div>`;
+  $('strip').innerHTML = stripHtml(A, B, hist);
+  document.body.classList.toggle('pastview', !!P);
+  renderBox(P);
+  $('tape').closest('.panel').querySelector('h2 .tipped').textContent = pg ? 'Tale of the tape · as of kickoff' : 'Tale of the tape';
+  $('board').innerHTML = boardHtml(A, B, ta, tb);
+  const [tA, tB] = [pa0, pb0]; // the stats table: as of kickoff for a finished game
+
+  // What each stat measures, for the hover on its name (lower-is-better ones say so)
+  const STAT_TIPS = {
+    pf: 'Points scored per game.', pa: 'Points allowed per game.', pass: 'Passing yards per game.', rush: 'Rushing yards per game.',
+    pass_alw: 'Passing yards allowed per game.', rush_alw: 'Rushing yards allowed per game.',
+    to_diff: 'Turnover margin per game: takeaways minus giveaways.',
+    pass_epa: 'Expected points added per pass play (sacks included): how much the average dropback helped the offense. Above 0 is better than an average play.',
+    rush_epa: 'Expected points added per run: how much the average carry helped the offense. Most teams are below 0; closer to 0 or above is good.',
+    def_pass_epa: 'Expected points added that the defense gives up per opponent pass play.', def_rush_epa: 'Expected points added that the defense gives up per opponent run.',
+    big_pass: 'Share of dropbacks that turn into completions of 20+ yards.', big_run: 'Share of carries that go for 10+ yards.',
+    big_alw: 'Share of opponent plays that become big plays (20+ yard catches or 10+ yard runs).',
+    sack_def: 'Sacks per opponent dropback.', sack_off: 'Sacks taken per dropback.',
+    cpoe: 'Completion % over expected: how much more often the team’s passes are caught than average passers would manage on the same throws.',
+    fd_off: 'First downs gained per play.', fd_def: 'First downs allowed per play.', pen_yds: 'Penalty yards per game.', fg_pct: 'Field goals made per attempt.',
+    pressure: 'Share of opponent dropbacks where the defense pressured the QB (hurried, hit or sacked). Pro Football Reference, 2018 on.',
+    pressure_alw: 'Share of the team’s own dropbacks where the QB was pressured.',
+    blitz: 'Share of opponent dropbacks where the defense sent 5+ rushers. A style, not good or bad.',
+  };
+  const statTip = s => `<b>${s.label}</b>${STAT_TIPS[s.key] || ''}${s.better === 'low' ? '<br><i>Lower is better.</i>' : ''}`.replace(/"/g, '&quot;');
+  // Tale of the tape: every stat, the number colored by its league rank (green = good, red = bad), rank beside it
+  const cells = (s, p, j, side, best) => {
+    const rank = p.ranks[j], v = fmtStat(s, p.avg[j]);
+    const cls = rank === null || rank === undefined ? 'avg' : s.tag?.descriptive ? 'style' : TIERS[tierIndex(rank)].cls;
+    const medal = rank === 1 ? '<span data-tip="Ranked 1st in the league">🥇</span>' : rank === 32 ? '<span data-tip="Ranked dead last (32nd) in the league">💩</span>' : '';
+    const list = [`<td class="c">${tierChip(s, j, p)}</td>`, `<td class="m">${medal}</td>`, `<td class="k">${rank ? ord(rank) : ''}</td>`, `<td class="n nv-${cls} ${best ? 'best' : ''}">${v}</td>`];
+    return (side === 'a' ? list : list.reverse()).join('');
+  };
+  let lastGroup = null;
+  // fixed, mirrored column widths so both sides line up no matter what's in them
+  $('tape').innerHTML = '<colgroup><col class="c"><col class="m"><col class="k"><col class="n"><col><col class="n"><col class="k"><col class="m"><col class="c"></colgroup>' + S.map((s, j) => {
+    const hidden = (allHistory && s.group === 'pfr') || !openGroups.has(s.group);
+    if (hidden && s.group === lastGroup) return '';
+    const head = s.group !== lastGroup ? `<tr class="grp" data-group="${s.group}"><td colspan="9">${openGroups.has(s.group) ? '▾' : '▸'} ${GROUPS[s.group]}${allHistory && s.group === 'pfr' ? ' · not used with all history' : ''}</td></tr>` : '';
+    lastGroup = s.group;
+    if (hidden) return head;
+    const ra = tA.ranks[j], rb = tB.ranks[j];
+    return head + `<tr class="${idx.includes(j) ? '' : 'off'}">
+      ${cells(s, tA, j, 'a', ra < rb)}<td class="stat" data-tip="${statTip(s)}"><span class="tipped">${s.label}</span></td>${cells(s, tB, j, 'b', rb < ra)}</tr>`;
+  }).join('');
+
+  $('counters').innerHTML = counterHtml(A, B);
+  renderMap();
+  runBacktest(); // scores every finished game in the background (skipped when nothing relevant changed)
+}
+
+// ---------- the prediction card (similar matchups) — the same card for upcoming and finished games ----------
+function renderMatchups(A, B, ta, tb, idx, past = null, game = null) {
+  const { since, minSim } = settings();
+  const hide = msg => { $('summary').innerHTML = `<p class="muted" style="text-align:center">${msg}</p>`; $('results').innerHTML = ''; $('showGames').hidden = true; $('gamesWrap').hidden = true; return null; };
+  if (A === B) return hide('Pick two different teams.');
+  if (!idx.length) return hide('Select at least one stat in Settings.');
+  if (past && !(past.agp > 0 && past.hgp > 0)) return hide(`No prediction for week ${past.week}: nobody had played a game yet.`);
+  const pr = predict(ta, tb, idx); if (!pr) return hide('No similar matchups found.');
+  const { list, fallback, n, aW, bW, avgA, avgB, pa, pb } = pr;
+  const lead = (x, y) => (x > y ? `${A} by ${fmtNum(x - y, 0)}` : y > x ? `${B} by ${fmtNum(y - x, 0)}` : 'even');
+  const spread = past ? past.spread : game?.spread, total = past ? null : game?.total;
+  const { pick, atsHome } = picksOf(pr, A, B, spread);
+  const pct = pick === A ? pa : pb, atsTeam = atsHome === null ? null : atsHome ? B : A, atsLine = atsHome ? -spread : spread;
+  const tt = avgA + avgB, ou = total ? (tt > total ? 'Over' : tt < total ? 'Under' : null) : null;
+  // results once the game is played
+  let winPill = '', atsPill = '';
+  if (past) {
+    const winner = past.hs > past.as ? B : past.as > past.hs ? A : null, hm = past.hs - past.as;
+    if (pick && winner) winPill = `<span class="pill ${pick === winner ? 'good' : 'bad'}">${pick === winner ? '✓ Right' : '✗ Wrong'}</span>`;
+    if (atsHome !== null) { const res = hm === spread ? 'push' : (hm > spread) === atsHome ? 'win' : 'loss'; atsPill = `<span class="pill ${res === 'win' ? 'good' : res === 'loss' ? 'bad' : 'push'}">${res === 'win' ? '✓ Covered' : res === 'loss' ? '✗ Missed' : '– Push'}</span>`; }
+  } else { winPill = atsPill = '<span class="pill push">upcoming</span>'; }
+  const what = fallback ? `fewer than 3 were ${minSim}%+ alike, so these are the ${n} closest (${list[n - 1].pct}–${list[0].pct}% alike)` : `${n} past games ${minSim}%+ alike since ${since}`;
+  const tip = past ? `<b>Picked before kickoff</b>Using only both teams' stats through their previous game, compared with past seasons: ${what}. Nothing from this game or later was used.`
+    : `<b>How Virtual Measurement predicts</b>Past games where both teams looked like these two at the same point in their season (${what}). Winner: the side whose look-alikes won more of them. Predicted score: their average score. Spread: the side that average beats the line for. Just for fun.`;
+  $('summary').innerHTML = `<div class="vmcard" data-tip="${esc(tip)}">
+    <div class="vm-h">🔮 Virtual Measurement ${past ? 'predicted (before kickoff)' : 'predicts'}</div>
+    <div class="vm-conf ${pr.conf}" data-tip="${esc(`<b>Confidence: ${pr.conf}</b>The prediction blends two reads. <b>Similar matchups</b> (${n} past games, ${Math.round(pr.quality)}% alike on average): ${A}-like teams went ${aW}-${bW}, average score ${A} ${fmtNum(pr.simA, 0)} – ${fmtNum(pr.simB, 0)} ${B}. <b>Points</b> (each offense's points per game vs the other defense's points allowed, plus home field): ${A} ${fmtNum(pr.ptsA, 0)} – ${fmtNum(pr.ptsB, 0)} ${B}.<br><br>Blended ${Math.round(100 * pr.w)}% history, ${Math.round(100 * (1 - pr.w))}% points (points alone predicted best in a 2023–25 backtest). High = the pick wins 70%+ of the time (those were right about 80% of the time in 2023–25), medium = 58–70%, toss-up = under 58%.`)}">${{ high: '🟢 High confidence', medium: '🟡 Medium confidence', low: '⚪ Toss-up' }[pr.conf]} · <span class="muted">points: ${lead(pr.ptsA, pr.ptsB)} · similar matchups: ${lead(pr.simA, pr.simB)} (${aW}-${bW})</span></div>
+    <div class="vm-row"><span class="vm-k">Winner</span><span class="vm-v"><b>${pick || '–'}</b> <small>${pct}% to win</small></span>${winPill}</div>
+    <div class="vm-row"><span class="vm-k">Spread</span><span class="vm-v">${atsTeam ? `<b>${atsTeam} ${atsLine === 0 ? 'PK' : (atsLine > 0 ? '+' : '−') + Math.abs(atsLine)}</b>` : '–'} <small>predicted ${A} ${fmtNum(avgA, 0)} – ${fmtNum(avgB, 0)} ${B}</small></span>${atsTeam ? atsPill : ''}</div>
+    ${ou ? `<div class="vm-row"><span class="vm-k">Total</span><span class="vm-v"><b>${ou} ${total}</b> <small>predicted total ${fmtNum(tt)}</small></span><span class="pill push">upcoming</span></div>` : ''}</div>`;
+  $('showGames').hidden = false; $('showGames').textContent = (showGames ? '▾ Hide' : '▸ Show') + ` the ${n} similar matchups`; $('gamesWrap').hidden = !showGames;
+  $('results').innerHTML = matchRows(list, A, B, ta, tb);
+  return { aW, bW, n, pr };
+}
+function matchRows(list, A, B, ta, tb) {
+  return `<tr><th>Match</th><th>Game</th><th class="ta" data-tip="Filled purple archetypes are ones the current ${A} also has.">${A}-like</th><th class="tb" data-tip="Filled purple archetypes are ones the current ${B} also has.">${B}-like</th><th class="num">Score</th></tr>` +
+    list.map(m => {
+      const res = m.margin > 0 ? 'W' : m.margin < 0 ? 'L' : 'T';
+      return `<tr><td><span class="sim"><div style="width:${m.pct}%"></div></span><span class="muted">${m.pct}%</span></td>
+        <td>${m.season}${preStar(m.season)} <span class="muted">${typeof m.week === 'number' ? 'wk ' + m.week : m.week}</span></td>
+        <td>${m.aHome ? '' : '@'}${m.aP.name} <span class="rec">${m.aP.rec}</span><div class="tags">${archHtml(m.aP, ta)}</div></td>
+        <td>${m.aHome ? '@' : ''}${m.bP.name} <span class="rec">${m.bP.rec}</span><div class="tags">${archHtml(m.bP, tb)}</div></td>
+        <td class="num"><span class="${res}">${res}</span> ${m.aPts}–${m.bPts}</td></tr>`;
+    }).join('');
+}
+
+// ---------- archetype map ----------
+let mapFilter = 'all';
+$('archCount').textContent = GLT.ARCHETYPES.length;
+function renderMap() {
+  if ($('drawer').hidden) return;
+  const A = $('teamA').value, B = $('teamB').value;
+  const has = T => new Set(GLT.archetypesOf(current[T]).map(a => a.key));
+  const hasA = has(A), hasB = has(B);
+  const holders = Object.fromEntries(GLT.ARCHETYPES.map(a => [a.key, D.teams.filter(T => GLT.archetypesOf(current[T]).some(x => x.key === a.key))]));
+  const gp = Math.max(current[A].gp, 4), out = GLT.archetypeOutcomes(gp);
+  const active = GLT.ARCHETYPES.filter(a => holders[a.key].length).length;
+  $('mapSub').textContent = `${GLT.ARCHETYPES.length} archetypes · ${active} active across the league right now · ${A} has ${hasA.size}, ${B} has ${hasB.size}`;
+  const groups = [...new Set(GLT.ARCHETYPES.map(a => a.group))];
+  $('mapBody').innerHTML = groups.map(g => {
+    const list = GLT.ARCHETYPES.filter(a => a.group === g).filter(a =>
+      mapFilter === 'all' || (mapFilter === 'match' ? hasA.has(a.key) || hasB.has(a.key) : holders[a.key].length));
+    if (!list.length) return '';
+    return `<h4>${g}</h4>` + list.map(a => {
+      const o = out[a.key], who = holders[a.key];
+      const tip = `<b>${a.icon} ${a.name}</b>${a.desc}.` + (o.n ? `<br><br>Since ${GLT.ARCH_FIRST}, ${o.n} teams looked like this after ${gp} games: ${pct(o.playoffs, o.n)}% made the playoffs, ${fmtNum(o.wins / o.n)} wins on average, ${o.sb} won the Super Bowl.` + (o.examples.length ? `<br>Examples: ${o.examples.join(', ')}` : '') : '');
+      return `<div class="arow ${hasA.has(a.key) || hasB.has(a.key) ? 'hit' : ''}" data-tip="${esc(tip)}">
+        <div class="top"><span>${a.icon} ${a.name}</span><span>${hasA.has(a.key) ? `<span class="mark a">${A}</span>` : ''}${hasB.has(a.key) ? `<span class="mark b">${B}</span>` : ''}</span></div>
+        <div class="desc">${a.desc}</div>
+        <div class="now">${who.length ? `Now: ${who.map(T => logo(T, 'slogo') + T).join(' ')}` : 'No team right now'}${o.n ? ` · history: ${pct(o.playoffs, o.n)}% made playoffs` : ''}</div>
+      </div>`;
+    }).join('');
+  }).join('') || '<p class="muted">Nothing to show for this filter.</p>';
+}
+$('mapBtn').addEventListener('click', () => { $('drawer').hidden = !$('drawer').hidden; renderMap(); });
+$('mapClose').addEventListener('click', () => { $('drawer').hidden = true; });
+$('mapFilter').addEventListener('click', e => {
+  const f = e.target.closest('button')?.dataset.f; if (!f) return;
+  mapFilter = f; document.querySelectorAll('#mapFilter button').forEach(b => b.classList.toggle('on', b.dataset.f === f)); renderMap();
+});
+
+// ---------- team look-alikes popup ----------
+function openLookalikes(T) {
+  const q = current[T];
+  $('laTitle').innerHTML = `${logo(T, 'mlogo')}Who does <span class="${T === $('teamA').value ? 'ta' : 'tb'}">${T}</span> look like?`;
+  $('laSub').textContent = `${D.currentSeason} ${T} is ${q.rec} after ${q.gp} games. Closest teams since ${settings().since} at the same point in their season. Filled purple archetypes are ones ${T} has right now.`;
+  const list = activeIdx().length ? findLookalikes(T, LOOKALIKES) : [];
+  const done = list.filter(x => !/In progress/.test(x.h.fin));
+  const made = done.filter(x => !/Missed/.test(x.h.fin)).length, wins = done.map(x => +x.h.fin.split('-')[0]);
+  $('laSummary').innerHTML = `<div class="tiles">
+    <div class="tile"><div class="k">Made the playoffs</div><div class="v">${made} of ${done.length}</div></div>
+    <div class="tile"><div class="k">Avg final wins</div><div class="v">${fmtNum(wins.reduce((a, b) => a + b, 0) / (wins.length || 1))}</div></div>
+    <div class="tile"><div class="k">Won the Super Bowl</div><div class="v">${done.filter(x => /Won SB/.test(x.h.fin)).length}</div></div></div>`;
+  $('laTable').innerHTML = `<tr><th>Match</th><th>Team</th><th>At that point</th><th>Finished</th></tr>` +
+    list.map(x => `<tr><td><span class="sim"><div style="width:${x.pct}%"></div></span><span class="muted">${x.pct}%</span></td>
+      <td><b>${x.h.season} ${x.h.name}</b>${preStar(x.h.season)} <span class="muted" style="font-size:12px">· ${sharedCount(x.h, q)} shared archetype${sharedCount(x.h, q) === 1 ? '' : 's'}</span><div class="tags">${archHtml(x.h, q)}</div></td><td>${x.h.rec}</td>
+      <td>${x.h.fin.replace(' · ', '<br><span class="muted">')}</span></td></tr>`).join('');
+  $('overlay').hidden = false;
+}
+document.addEventListener('click', e => { const b = e.target.closest('.closest[data-team], .closelink[data-team]'); if (b) openLookalikes(b.dataset.team); });
+$('laClose').addEventListener('click', () => { $('overlay').hidden = true; });
+$('overlay').addEventListener('click', e => { if (e.target === $('overlay')) $('overlay').hidden = true; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('overlay').hidden = true; $('drawer').hidden = true; } });
+
+// ⭐ Favorite team: the page opens on its game (this week's, or its next one during a bye week). It belongs to the
+// signed-in profile; without one, this browser remembers it.
+const favOf = () => { const p = window.VM?.profile() ? window.VM.pref('fav') : (() => { try { return localStorage.getItem('vm.fav'); } catch { return ''; } })(); return p && current[p] ? p : ''; };
+let FAV = favOf();
+$('favTeam').innerHTML = '<option value="">None</option>' + D.teams.slice().sort((a, b) => (D.teamInfo?.[a]?.name || a).localeCompare(D.teamInfo?.[b]?.name || b)).map(t => `<option value="${t}">${D.teamInfo?.[t]?.name || t}</option>`).join('');
+$('favTeam').value = FAV;
+function favGame(T) {
+  const g = D.upcoming.find(x => x.home === T || x.away === T); if (g) return [g.away, g.home];
+  const n = (D.remaining || []).filter(([, h, a]) => h === T || a === T).sort((x, y) => x[0] - y[0])[0];
+  return n ? [n[2], n[1]] : null;
+}
+const goToGame = ([a, b]) => { viewWeek = NOW_WEEK; pastGame = null; $('teamA').value = a; $('teamB').value = b; render(); };
+$('favTeam').addEventListener('change', () => {
+  FAV = $('favTeam').value;
+  if (!window.VM?.setPref('fav', FAV)) try { localStorage.setItem('vm.fav', FAV); } catch {}
+  if (FAV) window.VM && VM.unlock('fav_team');
+  const g = FAV && favGame(FAV); if (g) goToGame(g); else render();
+});
+// signing in or out (or the profile's settings arriving from the server) brings that profile's ⭐ team and ⚙ Settings
+window.addEventListener('vm:prefs', () => {
+  const s = savedStats(); selected.clear(); s.forEach(k => selected.add(k)); drawStatChecks(); applyMatchPrefs();
+  const f = favOf();
+  if (f !== FAV) { FAV = f; $('favTeam').value = FAV; const g = FAV && favGame(FAV); if (g && !pastGame) return goToGame(g); }
+  render();
+});
+document.addEventListener('click', e => {
+  if (e.target.id !== 'backNow') return;
+  goToGame((FAV && favGame(FAV)) || (D.upcoming.length ? [D.upcoming[0].away, D.upcoming[0].home] : D.teams.slice(0, 2)));
+});
+
+// Restore the matchup after a refresh, otherwise start on the favorite team's game, otherwise the first game of the week
+const saved = sessionStorage.getItem('matchup')?.split('@');
+sessionStorage.removeItem('matchup');
+const [startA, startB] = saved && current[saved[0]] && current[saved[1]] ? saved
+  : (FAV && favGame(FAV)) || (D.upcoming.length ? [D.upcoming[0].away, D.upcoming[0].home] : D.teams.slice(0, 2));
+$('teamA').value = startA; $('teamB').value = startB;
+render();
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

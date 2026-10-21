@@ -1,0 +1,29 @@
+# Everyone's profiles: PIN hashes, sign-in tokens, cards and points. Back these up separately; never commit them.
+testnfl profiles/
+
+# NFL data downloaded from nflverse (fetch.js) and the tables built from it (build.js)
+testnfl/data/
+
+# Page data generated from that download on every ↻ Refresh. Rebuild with:
+#   node fetch.js && node build.js && node build_app.js && node build_perfect.js && node build_charts.js && node build_box.js
+testnfl/app/data.js
+testnfl/app/players.js
+testnfl/app/careers.js
+testnfl/app/chartdata.js
+testnfl/app/ngs.js
+testnfl/app/perfect.js
+testnfl/app/boxscores.js
+
+# Old copies waiting to be deleted
+testnfl/_tobedeleted/
+
+# Claude's local preview settings (they point at a temp folder on this machine)
+testnfl/.claude/
+
+# Editors, OS and Node
+node_modules/
+*.tmp
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

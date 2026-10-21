@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Achievements · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="achievements.js"></script>
+<script src="profile.js"></script>
+<style>
+  [hidden] { display: none !important; }
+  .sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  .tile { background: var(--soft); border-radius: 10px; padding: 10px 14px; }
+  .tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .tile .v { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .tile .v.gold { color: var(--gold); }
+  .grp h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  .achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+  .ach { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+  .ach .ic { font-size: 22px; text-align: center; }
+  .ach .n { font-weight: 750; } .ach .d { font-size: 12px; color: var(--muted); }
+  .ach .p { font-size: 12px; font-weight: 750; color: var(--gold); white-space: nowrap; }
+  .ach.locked { opacity: .55; } .ach.locked .ic { filter: grayscale(1); }
+  .ach.got { border-color: color-mix(in srgb, var(--gold) 60%, transparent); background: color-mix(in srgb, var(--gold) 6%, transparent); }
+  .bar { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; } .bar > div { height: 100%; background: var(--accent); }
+  .ledger, .board { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ledger td, .ledger th, .board td, .board th { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: left; }
+  .ledger th, .board th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .ledger td.num, .board td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .plus { color: var(--win); font-weight: 700; } .minus { color: var(--loss); font-weight: 700; }
+  .board tr.me td { font-weight: 800; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } @media (max-width: 900px) { .cols2 { grid-template-columns: 1fr; } }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html" class="on">🏆 Achievements</a></span></span></nav>
+  </header>
+
+  <div class="panel" id="who"></div>
+  <div class="panel" id="list"></div>
+  <div class="cols2">
+    <div class="panel"><h2>💰 Points history</h2><div id="ledger"></div></div>
+    <div class="panel"><h2>📈 Leaderboard</h2><div id="board"></div></div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const A = window.VM_ACHIEVEMENTS;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const when = iso => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+async function draw() {
+  if (!location.protocol.startsWith('http')) { $('who').innerHTML = '<p class="empty">Achievements need the server: open the site with start.bat.</p>'; return; }
+  const id = VM.profile();
+  const [list, mine] = await Promise.all([
+    fetch('/api/profiles').then(r => r.json()).then(r => r.profiles || []).catch(() => []),
+    id ? fetch('/api/profiles/' + id).then(r => r.json()).then(r => (r.ok ? r.profile : null)).catch(() => null) : null,
+  ]);
+  const total = A.LIST.reduce((a, x) => a + x.pts, 0);
+  // the leaderboard (points earned, so spending on packs doesn't drop you down)
+  $('board').innerHTML = list.length ? `<table class="board"><tr><th>#</th><th>Profile</th><th class="num">Achievements</th><th class="num">Earned</th></tr>` +
+    list.map((p, i) => `<tr class="${p.id === id ? 'me' : ''}"><td>${i + 1}</td><td>${esc(p.name)}</td><td class="num">${p.unlocked} / ${A.LIST.length}</td><td class="num">${p.earned.toLocaleString()}</td></tr>`).join('') + '</table>'
+    : '<p class="empty">No profiles yet.</p>';
+  if (!mine) {
+    $('who').innerHTML = '<p class="empty">Sign in or create a profile with the 👤 button at the top right to start earning achievements and points.</p>';
+    $('ledger').innerHTML = '<p class="empty">Sign in to see your points.</p>';
+    drawList(null); return;
+  }
+  const earned = mine.ledger.filter(l => l.pts > 0 && !l.sale).reduce((a, l) => a + l.pts, 0);
+  $('who').innerHTML = `<h2>👤 ${esc(mine.name)}</h2><div class="sum">
+    <div class="tile"><div class="k">Points to spend</div><div class="v gold">${mine.balance.toLocaleString()}</div></div>
+    <div class="tile"><div class="k">Points earned</div><div class="v">${earned.toLocaleString()}</div></div>
+    <div class="tile"><div class="k">Achievements</div><div class="v">${Object.keys(mine.achievements).length} / ${A.LIST.length}</div></div>
+    <div class="tile"><div class="k">Profile since</div><div class="v" style="font-size:18px">${when(mine.created)}</div></div></div>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">Spend points on packs in <a href="ultimate.html">🃏 Ultimate Team</a>, which also gives 300 free points a day. ${total.toLocaleString()} points are up for grabs in achievements.</p>`;
+  $('ledger').innerHTML = mine.ledger.length ? `<table class="ledger"><tr><th>When</th><th>What</th><th class="num">Points</th></tr>` +
+    [...mine.ledger].reverse().slice(0, 60).map(l => `<tr><td>${when(l.at)}</td><td>${esc(l.reason)}</td><td class="num ${l.pts >= 0 ? 'plus' : 'minus'}">${l.pts >= 0 ? '+' : '−'}${Math.abs(l.pts).toLocaleString()}</td></tr>`).join('') + '</table>'
+    : '<p class="empty">No points yet.</p>';
+  drawList(mine);
+}
+function drawList(mine) {
+  const groups = [...new Set(A.LIST.map(a => a.group))];
+  const prog = a => { if (!mine) return null; const v = a.counter ? mine.counters[a.counter] || 0 : a.set ? (mine.sets[a.set] || []).length : null; return v === null ? null : Math.min(v, a.goal); };
+  $('list').innerHTML = `<h2>🏆 Achievements</h2>` + groups.map(g => `<div class="grp"><h3>${g}</h3><div class="achs">${A.LIST.filter(a => a.group === g).map(a => {
+    const got = mine?.achievements[a.key], secret = a.hidden && !got, p = prog(a);
+    return `<div class="ach ${got ? 'got' : 'locked'}" data-tip="${esc(`<b>${a.icon} ${a.tier[0].toUpperCase() + a.tier.slice(1)} · ${a.pts} points</b>${secret ? 'A hidden achievement: find it by playing.' : a.desc}${got ? `<br><br>Unlocked ${when(got)}` : ''}`)}">
+      <span class="ic">${secret ? '❔' : a.icon}</span><span><div class="n">${secret ? '???' : esc(a.name)}</div><div class="d">${secret ? 'Hidden achievement' : esc(a.desc)}</div>
+      ${!got && p !== null && !secret ? `<div class="bar"><div style="width:${100 * p / a.goal}%"></div></div><div class="d">${p} / ${a.goal}</div>` : ''}</span>
+      <span class="p">${got ? '✓ ' : ''}${a.pts}</span></div>`;
+  }).join('')}</div></div>`).join('');
+}
+draw();
+// refresh when the profile changes (signing in or out in the 👤 menu)
+let last = VM.profile(); setInterval(() => { if (VM.profile() !== last) { last = VM.profile(); draw(); } }, 800);
+window.addEventListener("vm:update", draw); // progress or unlocks from this page
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t || !t.dataset.tip) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17-0 · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="profile.js"></script>
+<style>
+  .modes { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .modes button { border: 0; background: none; color: var(--muted); padding: 5px 12px; cursor: pointer; font-size: 13px; }
+  .modes button.on { background: var(--accent); color: #fff; }
+  .rollcard { display: flex; align-items: center; gap: 14px; margin-top: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); flex-wrap: wrap; }
+  .rollcard[hidden] { display: none; }
+  .roll-logo img { height: 52px; width: 52px; object-fit: contain; }
+  .roll-main { flex: 1; min-width: 220px; }
+  .roll-k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .roll-t { font-size: 20px; font-weight: 800; }
+  .roll-btns { display: flex; gap: 8px; }
+  .slotc.locked { cursor: default; } .slotc.locked:hover { border-color: var(--border); }
+  .slotc.rollable { border-color: var(--accent); border-style: solid; color: var(--text); }
+  .intro { font-size: 14px; color: var(--muted); margin: 0 0 12px; max-width: 900px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; font-size: 13px; }
+  .controls label { display: inline-flex; align-items: center; gap: 6px; }
+  .btn2 { font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--soft); color: var(--text); cursor: pointer; }
+  .btn2:hover { border-color: var(--accent); }
+  .go { font-size: 16px; font-weight: 700; padding: 10px 22px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+  .go.alt { background: var(--soft); color: var(--text); border: 1px solid var(--border); font-size: 14px; }
+
+  /* cap + ratings + odds */
+  .meters { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr; gap: 10px; margin-top: 14px; }
+  @media (max-width: 900px) { .meters { grid-template-columns: 1fr 1fr; } }
+  .meter { background: var(--soft); border-radius: 10px; padding: 9px 12px; }
+  .meter .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .meter .v { font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .meter .s { font-size: 12px; color: var(--muted); }
+  .capbar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 5px; }
+  .capbar > div { height: 100%; background: var(--win); border-radius: 4px; }
+  .capbar.over > div { background: var(--loss); }
+
+  /* roster */
+  .roster { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .roster { grid-template-columns: 1fr; } }
+  .unit h2 { display: flex; justify-content: space-between; }
+  .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+  .slotc { position: relative; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px 7px 46px; cursor: pointer; min-height: 58px; background: var(--panel); }
+  .slotc:hover { border-color: var(--accent); }
+  .slotc.empty { border-style: dashed; color: var(--muted); display: flex; align-items: center; }
+  .slotc .pos { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 700; color: var(--muted); width: 30px; text-align: center; }
+  .slotc .gr { position: absolute; left: 8px; top: 25px; width: 30px; text-align: center; font-weight: 800; font-size: 14px; border-radius: 6px; padding: 1px 0; }
+  .slotc .nm { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 16px; }
+  .slotc .sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slotc .cost { font-size: 11.5px; font-weight: 650; }
+  .slotc .x { position: absolute; top: 4px; right: 6px; border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 13px; }
+  .slotc .x:hover { color: var(--loss); }
+  .slotc img, .row img { height: 16px; width: 16px; object-fit: contain; vertical-align: -3px; }
+  .g-elite { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #422006; }
+  .g-good { background: color-mix(in srgb, var(--win) 22%, transparent); color: var(--win); }
+  .g-mid { background: var(--soft); color: var(--text); }
+  .g-low { background: color-mix(in srgb, var(--loss) 18%, transparent); color: var(--loss); }
+
+  /* picker */
+  .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px; z-index: 25; overflow-y: auto; }
+  .modal[hidden] { display: none; }
+  .mbox { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; max-width: 900px; width: 100%; padding: 16px 18px; position: relative; }
+  .mbox .x { position: absolute; top: 10px; right: 12px; border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .pfilters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; margin: 8px 0 10px; }
+  .pfilters input[type=search] { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); min-width: 180px; }
+  .plist { max-height: 60vh; overflow-y: auto; border-top: 1px solid var(--border); }
+  .row { display: grid; grid-template-columns: 34px minmax(0, 1.4fr) minmax(0, 1.6fr) 64px 64px; gap: 8px; align-items: center; padding: 6px 2px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .row .gr { text-align: center; font-weight: 800; border-radius: 6px; padding: 1px 0; }
+  .row .line { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .cost { text-align: right; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .row button { font-size: 12px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--soft); color: var(--text); cursor: pointer; }
+  .row button:disabled { opacity: .45; cursor: default; }
+  .row.taken { opacity: .5; }
+
+  /* results */
+  .simbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .banner { text-align: center; margin: 6px 0 14px; }
+  .banner .t { font-size: 26px; font-weight: 850; }
+  .banner .s { font-size: 13px; color: var(--muted); }
+  .banner.perfect .t { background: linear-gradient(90deg, #f59e0b, #eab308, #f59e0b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+  .wk { border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; font-size: 12px; }
+  .wk .r { font-weight: 800; }
+  .wk.W .r { color: var(--win); } .wk.T { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 8%, transparent); } .wk.T .r { color: var(--gold); } .wk.L { border-color: var(--loss); background: color-mix(in srgb, var(--loss) 8%, transparent); } .wk.L .r { color: var(--loss); }
+  .wk .o { display: flex; align-items: center; gap: 4px; }
+  .wk .o img { height: 16px; width: 16px; object-fit: contain; }
+  .wk .k { color: var(--faint); font-size: 11px; }
+  .playoffs { margin-top: 10px; }
+  .playoffs h3, .links h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 12px 0 6px; }
+  .links { font-size: 13px; }
+  .links div { padding: 3px 0; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-top: 10px; }
+  .fact { background: var(--soft); border-radius: 10px; padding: 8px 12px; }
+  .fact .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .fact .v { font-size: 16px; font-weight: 700; }
+  .fact img, .hist img, .banner img, .links img { height: 20px; width: 20px; object-fit: contain; vertical-align: -4px; } /* team logos inside text */
+  .hist { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html" class="on">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <span class="muted" id="meta" style="font-size:13px"></span>
+  </header>
+
+  <div class="panel">
+    <h2>🏆 Can you build a team that goes 17-0?</h2>
+    <p class="intro" id="intro"></p>
+    <div class="controls">
+      <label data-tip="<b>Salary cap</b>Every player-season costs more the better it was (and QBs and pass rushers cost the most). Lower caps make you choose: an elite QB or an elite defense?">Cap
+        <select id="cap"><option value="170">Rookie ($170M)</option><option value="145" selected>Pro ($145M)</option><option value="130">All-Madden ($130M)</option></select></label>
+      <label data-tip="<b>Schedule</b>Your team takes over this franchise's real schedule this season: same opponents, same home and away games.">Play the schedule of <select id="sched"></select></label>
+    </div>
+    <div class="rollcard" id="rollcard" hidden></div>
+    <div class="meters">
+      <div class="meter"><div class="k">Salary cap</div><div class="v" id="capv"></div><div class="capbar" id="capbar"><div></div></div></div>
+      <div class="meter" data-tip="<b>Offense grade</b>A weighted average of your offensive grades: QB 36%, O-line 22%, receivers 24%, running back 10%, TE 8%. Empty slots play like a backup (grade 25)."><div class="k">Offense</div><div class="v" id="offv"></div><div class="s" id="offs"></div></div>
+      <div class="meter" data-tip="<b>Defense grade</b>A weighted average of your defensive grades: pass rush 50%, linebacker 18%, secondary 32%. Empty slots play like a backup (grade 25)."><div class="k">Defense</div><div class="v" id="defv"></div><div class="s" id="defs"></div></div>
+      <div class="meter" data-tip="<b>Perfect-season odds</b>Each game's win chance from your points for and against vs that opponent's offense and defense this season (with home field and normal game-to-game randomness), multiplied across all 17 games, then the playoffs (Divisional, Conference title, Super Bowl as the 1 seed)."><div class="k">Odds</div><div class="v" id="oddv"></div><div class="s" id="odds"></div></div>
+    </div>
+  </div>
+
+  <div class="panel roster" id="roster"></div>
+
+  <div class="panel">
+    <div class="simbar">
+      <button class="go" id="play">🏈 Play the season</button>
+      <button class="go alt" id="many" data-tip="Plays this roster's season 1,000 times: how often it goes 17-0 and wins it all, average wins, and who beats you most.">📊 Play 1,000 seasons</button>
+      <span class="hist" id="hist"></span>
+    </div>
+    <div id="result"><p class="muted">Fill your roster, then play the season.</p></div>
+  </div>
+
+  <div class="modal" id="picker" hidden><div class="mbox"><button class="x" aria-label="Close">✕</button>
+    <h2 id="ptitle" style="margin-bottom:2px"></h2><div class="hist" id="psub"></div>
+    <div class="pfilters">
+      <input type="search" id="q" placeholder="Search a name or team…">
+      <label>From <select id="from"></select></label><label>to <select id="to"></select></label>
+      <label>Sort <select id="sort"><option value="grade">Best first</option><option value="cost">Cheapest first</option><option value="value">Best value</option><option value="season">Newest first</option></select></label>
+      <label><input type="checkbox" id="afford" checked> Only what I can afford</label>
+    </div>
+    <div class="plist" id="plist"></div>
+  </div></div>
+</main>
+
+<script src="data.js"></script>
+<script src="perfect.js"></script>
+<script>
+const D = window.NFL_DATA, P = window.NFL_PERFECT;
+const $ = id => document.getElementById(id);
+const info = t => D.teamInfo?.[t] || {};
+const logo = t => (info(t).logo ? `<img src="${info(t).logo}" alt="" loading="lazy" onerror="this.remove()">` : '');
+const attr = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+const money = v => '$' + v.toFixed(1) + 'M';
+$('meta').textContent = `${D.currentSeason} schedule · players from ${P.first}–${P.last}`;
+$('intro').innerHTML = `Like 82-0: every pick rolls a random franchise and five-year era (say, the 2005–09 Colts), and you take one of their player-seasons for an open spot. Eleven picks, stay under the salary cap, then take over a real ${D.currentSeason} schedule. Perfect means 17-0 and the whole playoff run.`;
+
+// ---------- roster slots, prices and weights ----------
+// Grade (1–99) = how good that player-season was vs every full-time season at the position since 1999 (era-adjusted).
+const SLOTS = [
+  // eleven picks: the spots that move the needle most (an O-line is picked as a whole team-season)
+  ['QB', 'QB'], ['RB', 'RB'], ['WR1', 'WR'], ['WR2', 'WR'], ['TE', 'TE'], ['OL', 'OL'],
+  ['DL1', 'DL'], ['DL2', 'DL'], ['LB', 'LB'], ['DB1', 'DB'], ['DB2', 'DB'],
+];
+const NAMES = { QB: 'Quarterback', RB: 'Running back', WR: 'Wide receiver', TE: 'Tight end', OL: 'Offensive line', K: 'Kicker', DL: 'Pass rusher (DL/edge)', LB: 'Linebacker', DB: 'Defensive back' };
+const PRICE = { QB: 55, RB: 16, WR: 26, TE: 16, OL: 45, K: 4, DL: 28, LB: 15, DB: 20 }; // what a grade-100 season costs ($M)
+const cost = (grp, grade) => Math.round(PRICE[grp] * (grade / 100) ** 2.5 * 10) / 10;
+// Each group's slots in order of importance (the best player at a position gets the biggest share)
+const OFF_W = { QB: [0.36], OL: [0.22], WR: [0.14, 0.10], RB: [0.10], TE: [0.08] };
+const DEF_W = { DL: [0.28, 0.22], LB: [0.18], DB: [0.18, 0.14] };
+const BACKUP = 25; // an empty slot plays like a backup
+const POOL = Object.fromEntries(Object.entries(P.groups).map(([g, rows]) => [g, rows.map(r => {
+  const x = Object.fromEntries(P.cols.map((c, i) => [c, r[i]])); x.group = g; x.key = `${x.id}|${x.season}`; x.cost = cost(g, x.grade); return x;
+})]));
+const BYKEY = Object.fromEntries(Object.values(POOL).flat().map(x => [x.key, x]));
+
+// ---------- state (remembered in this browser): one roster per mode ----------
+const saved = (() => { try { return JSON.parse(localStorage.getItem('vm.perfect') || '{}'); } catch { return {}; } })();
+const load = obj => { const r = {}; for (const [s, k] of Object.entries(obj || {})) if (BYKEY[k]) r[s] = BYKEY[k]; return r; };
+const ROSTERS = { free: load(saved.roster), roll: load(saved.rollRoster) };
+const mode = 'roll'; let roster = ROSTERS.roll;
+if (Object.keys(saved.rollRoster || {}).some(k => !SLOTS.some(([s]) => s === k))) { for (const k of Object.keys(roster)) delete roster[k]; saved.roll = null; }
+// 🎲 Roll mode (82-0 style): every pick, a random franchise and five-year era is rolled, and you fill one open spot with
+// one of that team's player-seasons from those years. Picks are final. Two free rerolls a draft; after that each
+// reroll costs $5M of cap space (dead money, like cutting a player).
+const ERAS = [[1999, 2004], [2005, 2009], [2010, 2014], [2015, 2019], [2020, P.last]];
+const FREE_REROLLS = 2, REROLL_COST = 5;
+let ROLL = saved.roll || null; // { team, era: [from, to], rerolls, dead }
+const keys = r => Object.fromEntries(Object.entries(r).map(([s, x]) => [s, x.key]));
+const save = () => { try { localStorage.setItem('vm.perfect', JSON.stringify({ roster: keys(ROSTERS.free), rollRoster: keys(ROSTERS.roll), mode, roll: ROLL, cap: $('cap').value, team: $('sched').value })); } catch {} };
+const capOf = () => +$('cap').value - (mode === 'roll' ? ROLL?.dead || 0 : 0);
+const spent = () => Object.values(roster).reduce((a, x) => a + x.cost, 0);
+
+// ---------- ratings ----------
+function unitGrade(W) {
+  let tot = 0;
+  for (const [g, ws] of Object.entries(W)) {
+    const gr = SLOTS.filter(([, grp]) => grp === g).map(([s]) => roster[s]?.grade ?? BACKUP).sort((a, b) => b - a);
+    ws.forEach((w, i) => (tot += w * gr[i]));
+  }
+  return tot;
+}
+// Grade 50 = an average NFL unit (22 points a game); every grade point is worth ~0.42 points scored / 0.38 allowed
+const ratings = () => { const o = unitGrade(OFF_W), d = unitGrade(DEF_W); return { o, d, ppg: 22 + (o - 50) * 0.42, pa: Math.max(7, 22 - (d - 50) * 0.38) }; };
+
+// ---------- this season's opponents: offense and defense from points scored/allowed, pulled 30% toward average ----------
+const base = Object.fromEntries(D.teams.map(t => [t, { pf: 0, pa: 0, gp: 0 }]));
+const sched = Object.fromEntries(D.teams.map(t => [t, []]));
+for (const [season, week, , home, away, hs, as] of D.results) {
+  if (season !== D.currentSeason || typeof week !== 'number') continue;
+  for (const [t, pf, pa] of [[home, hs, as], [away, as, hs]]) if (base[t]) { base[t].gp++; base[t].pf += pf; base[t].pa += pa; }
+  sched[home]?.push({ week, opp: away, home: true }); sched[away]?.push({ week, opp: home, home: false });
+}
+for (const [week, home, away] of D.remaining || []) { sched[home]?.push({ week, opp: away, home: true }); sched[away]?.push({ week, opp: home, home: false }); }
+D.teams.forEach(t => sched[t].sort((a, b) => a.week - b.week));
+const lg = D.teams.reduce((a, t) => a + base[t].pf, 0) / Math.max(1, D.teams.reduce((a, t) => a + base[t].gp, 0));
+const off = Object.fromEntries(D.teams.map(t => [t, base[t].gp ? lg + 0.7 * (base[t].pf / base[t].gp - lg) : lg]));
+const def = Object.fromEntries(D.teams.map(t => [t, base[t].gp ? lg + 0.7 * (base[t].pa / base[t].gp - lg) : lg]));
+const HFA = 1.5, SD = 9.5; // home field, one team's game-to-game swing in points
+const erf = x => { const t = 1 / (1 + 0.3275911 * Math.abs(x)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
+const winP = margin => 0.5 * (1 + erf(margin / (SD * Math.SQRT2) / Math.SQRT2));
+// Your points = your offense, nudged by half of how good or bad their defense is (and the same the other way), plus home field
+const expected = (R, opp, where) => { const h = where === 'home' ? HFA / 2 : where === 'away' ? -HFA / 2 : 0; return [R.ppg + (def[opp] - lg) / 2 + h, R.pa + (off[opp] - lg) / 2 - h]; };
+// Playoffs as the 1 seed: the 4th-best team in your conference, the best one, then the other conference's best (neutral field)
+function playoffPath(F) {
+  const net = t => off[t] - def[t], conf = info(F).conf, rank = c => D.teams.filter(t => t !== F && info(t).conf === c).sort((a, b) => net(b) - net(a));
+  const mine = rank(conf), theirs = rank(conf === 'AFC' ? 'NFC' : 'AFC');
+  return [{ round: 'Divisional', opp: mine[3], where: 'home' }, { round: `${conf} Championship`, opp: mine[0], where: 'home' }, { round: 'Super Bowl', opp: theirs[0], where: 'neutral' }];
+}
+
+// ---------- drawing ----------
+const gcls = g => (g >= 90 ? 'g-elite' : g >= 75 ? 'g-good' : g >= 45 ? 'g-mid' : 'g-low');
+function drawRoster() {
+  const card = ([s, grp]) => {
+    const x = roster[s], pos = s.replace(/\d/, '');
+    if (!x) {
+      const can = mode === 'roll' && ROLL?.team && !ROLL.stuck && slotFits(grp);
+      return `<div class="slotc empty ${can ? 'rollable' : ''}" data-slot="${s}"><span class="pos" style="top:50%;transform:translateY(-50%)">${pos}</span>${mode === 'roll' ? (can ? `+ ${ROLL.team} ${NAMES[grp].toLowerCase()}` : '<span class="hist">no fit from this roll</span>') : `+ Pick ${NAMES[grp].toLowerCase()}`}</div>`;
+    }
+    const lock = mode === 'roll';
+    return `<div class="slotc ${lock ? 'locked' : ''}" data-slot="${s}" data-tip="${attr(`<b>${x.season} ${x.name}</b>${x.team} · ${x.line}<br>Grade ${x.grade} of 99 · ${money(x.cost)}<br><br>${lock ? 'Picks are final in roll mode.' : 'Click to swap.'}`)}">
+      <span class="pos">${pos}</span><span class="gr ${gcls(x.grade)}">${x.grade}</span>${lock ? '' : `<button class="x" data-rm="${s}" aria-label="Remove">✕</button>`}
+      <div class="nm">${x.season} ${x.name}</div><div class="sub">${logo(x.team)} ${x.team} · ${x.line}</div><div class="cost">${money(x.cost)}</div></div>`;
+  };
+  const unit = (title, groups) => { const list = SLOTS.filter(([, g]) => groups.includes(g)), c = list.reduce((a, [s]) => a + (roster[s]?.cost || 0), 0);
+    return `<div class="unit"><h2><span>${title}</span><span>${money(c)}</span></h2><div class="slots">${list.map(card).join('')}</div></div>`; };
+  $('roster').innerHTML = unit('Offense', ['QB', 'RB', 'WR', 'TE', 'OL', 'K']) + unit('Defense', ['DL', 'LB', 'DB']);
+  drawRollCard();
+  drawMeters(); save();
+}
+function drawMeters() {
+  const sp = spent(), cap = capOf(), R = ratings(), F = $('sched').value;
+  $('capv').innerHTML = `${money(sp)} <span class="hist">of ${money(cap)}${sp > cap ? ' · <b style="color:var(--loss)">over the cap!</b>' : ` · ${money(cap - sp)} left`}</span>`;
+  $('capbar').classList.toggle('over', sp > cap); $('capbar').firstElementChild.style.width = Math.min(100, 100 * sp / cap) + '%';
+  $('offv').textContent = Math.round(R.o); $('offs').textContent = `≈ ${R.ppg.toFixed(1)} pts/game`;
+  $('defv').textContent = Math.round(R.d); $('defs').textContent = `≈ ${R.pa.toFixed(1)} allowed/game`;
+  const ps = sched[F].map(g => winP((([a, b]) => a - b)(expected(R, g.opp, g.home ? 'home' : 'away'))));
+  const p17 = ps.reduce((a, p) => a * p, 1), po = playoffPath(F).reduce((a, g) => a * winP((([x, y]) => x - y)(expected(R, g.opp, g.where))), 1);
+  const pct = v => (v >= 0.1 ? (100 * v).toFixed(0) : v >= 0.001 ? (100 * v).toFixed(1) : (100 * v).toFixed(2)) + '%';
+  $('oddv').innerHTML = `${pct(p17)} <span class="hist">to go 17-0</span>`;
+  $('odds').textContent = `${pct(p17 * po)} for the perfect season · ${ps.reduce((a, p) => a + p, 0).toFixed(1)} expected wins`;
+}
+
+// ---------- picker ----------
+let pickSlot = null;
+const seasons = Array.from({ length: P.last - P.first + 1 }, (_, i) => P.first + i);
+$('from').innerHTML = seasons.map(s => `<option>${s}</option>`).join(''); $('to').innerHTML = seasons.map(s => `<option>${s}</option>`).join('');
+$('from').value = P.first; $('to').value = P.last;
+function openPicker(s) {
+  pickSlot = s; const grp = SLOTS.find(x => x[0] === s)[1];
+  $('ptitle').textContent = mode === 'roll' ? `Pick your ${NAMES[grp].toLowerCase()} from the ${eraLabel(ROLL.era)} ${info(ROLL.team).nick || ROLL.team}` : `Pick your ${NAMES[grp].toLowerCase()} (${s})`;
+  document.querySelectorAll('#from, #to').forEach(el => (el.closest('label').hidden = mode === 'roll'));
+  $('psub').innerHTML = `${POOL[grp].length} seasons since ${P.first}. Grade = how good that season was vs every full-time ${NAMES[grp].toLowerCase()} season (era-adjusted). A grade-${grp === 'QB' ? '99 QB' : '99 ' + grp} costs ${money(cost(grp, 99))}.`;
+  $('picker').hidden = false; $('q').value = ''; drawPicker(); $('q').focus();
+}
+function drawPicker() {
+  const grp = SLOTS.find(x => x[0] === pickSlot)[1], q = $('q').value.trim().toLowerCase(), lo = +$('from').value, hi = +$('to').value;
+  const room = mode === 'roll' ? pickBudget() : capOf() - spent() + (roster[pickSlot]?.cost || 0), used = new Set(Object.entries(roster).filter(([s]) => s !== pickSlot).map(([, x]) => x.id));
+  let list = (mode === 'roll' ? rollPool(grp) : POOL[grp].filter(x => x.season >= lo && x.season <= hi)).filter(x => !q || `${x.name} ${x.team} ${x.season}`.toLowerCase().includes(q));
+  if ($('afford').checked || mode === 'roll') list = list.filter(x => x.cost <= room + 1e-9); // roll mode always keeps the draft finishable
+  const sorts = { grade: (a, b) => b.grade - a.grade, cost: (a, b) => a.cost - b.cost, value: (a, b) => b.grade / (b.cost + 1) - a.grade / (a.cost + 1), season: (a, b) => b.season - a.season || b.grade - a.grade };
+  list.sort(sorts[$('sort').value]);
+  $('plist').innerHTML = list.slice(0, 200).map(x => {
+    const taken = used.has(x.id);
+    return `<div class="row ${taken ? 'taken' : ''}"><span class="gr ${gcls(x.grade)}">${x.grade}</span><span><b>${x.season} ${x.name}</b> <span class="hist">${logo(x.team)} ${x.team}</span></span>
+      <span class="line">${x.line}</span><span class="cost">${money(x.cost)}</span><button data-take="${attr(x.key)}" ${taken ? 'disabled title="Already on your team (one season per player)"' : ''}>${taken ? 'On team' : 'Pick'}</button></div>`;
+  }).join('') + (list.length > 200 ? `<p class="hist" style="padding:8px">Showing 200 of ${list.length}. Search or narrow the years to see more.</p>` : '') + (list.length ? '' : `<p class="hist" style="padding:8px">Nobody fits. ${$('afford').checked ? `You have ${money(room)} for this spot; uncheck "Only what I can afford" to see everyone.` : ''}</p>`);
+}
+for (const id of ['q', 'from', 'to', 'sort', 'afford']) $(id).addEventListener('input', drawPicker);
+const closePicker = () => ($('picker').hidden = true);
+
+
+// ---------- 🎲 roll mode ----------
+const eraLabel = ([a, b]) => `${a}–${String(b).slice(2)}`;
+const rollPool = (grp, R = ROLL) => (R ? POOL[grp].filter(x => x.team === R.team && x.season >= R.era[0] && x.season <= R.era[1]) : []);
+// Every pick has to leave $0.5M for each other open spot, so a draft can always be finished
+const RESERVE = 0.5;
+const openSpots = () => SLOTS.filter(([s]) => !roster[s]).length;
+const pickBudget = () => capOf() - spent() - RESERVE * Math.max(0, openSpots() - 1);
+// can this roll fill any open spot with someone not already on the team who fits the budget?
+function rollFits(R) {
+  const room = pickBudget(), used = new Set(Object.values(roster).map(x => x.id));
+  return SLOTS.some(([s, g]) => !roster[s] && rollPool(g, R).some(x => x.cost <= room + 1e-9 && !used.has(x.id)));
+}
+// does the current roll have someone for this spot that fits the budget?
+const slotFits = g => { const room = pickBudget(), used = new Set(Object.values(roster).map(x => x.id)); return rollPool(g).some(x => x.cost <= room + 1e-9 && !used.has(x.id)); };
+const canPayReroll = () => pickBudget() - REROLL_COST >= 0;
+function newRoll() {
+  if (SLOTS.every(([s]) => roster[s])) { ROLL = { ...ROLL, team: null }; window.VM && VM.unlock('draft_1'); return; } // draft complete
+  for (let i = 0; i < 200; i++) { // a roll that can't fill any spot is rerolled for free
+    const R = { ...ROLL, team: D.teams[Math.floor(Math.random() * D.teams.length)], era: ERAS[Math.floor(Math.random() * ERAS.length)] };
+    if (rollFits(R)) { ROLL = { ...R, stuck: false }; return; }
+  }
+  ROLL = { ...ROLL, stuck: true }; // nothing fits what's left of the cap
+}
+function startDraft() {
+  for (const s of Object.keys(roster)) delete roster[s];
+  ROLL = { rerolls: 0, dead: 0 }; newRoll(); drawRoster();
+}
+function reroll() {
+  if (!ROLL?.team) return;
+  if (ROLL.rerolls >= FREE_REROLLS) { if (!canPayReroll()) return; ROLL.dead = (ROLL.dead || 0) + REROLL_COST; }
+  ROLL.rerolls++; newRoll(); drawRoster();
+}
+function drawRollCard() {
+  const box = $('rollcard'); box.hidden = mode !== 'roll'; if (mode !== 'roll') return;
+  const filled = SLOTS.filter(([s]) => roster[s]).length, left = FREE_REROLLS - (ROLL?.rerolls || 0);
+  const rr = left > 0 ? `🔁 Reroll (${left} free left)` : canPayReroll() ? `🔁 Reroll (−$${REROLL_COST}M cap)` : '🔁 No cap left for rerolls';
+  const dead = ROLL?.dead ? ` · <span style="color:var(--loss)">${money(ROLL.dead)} dead money from rerolls</span>` : '';
+  if (ROLL?.stuck) { box.innerHTML = `<div class="roll-t">💸 No team you could roll fits what's left of your cap.</div><div class="hist" style="flex:1">Finish the draft with backups (grade 25) in the ${openSpots()} open spot${openSpots() === 1 ? '' : 's'}${dead}.</div><button class="btn2" id="finish">⏭ Finish with backups</button><button class="btn2" id="newdraft">🆕 New draft</button>`; return; }
+  if (!ROLL?.team) { box.innerHTML = `<div class="roll-t">✅ Draft complete: ${filled} of ${SLOTS.length} spots filled${dead}. Play the season below.</div><button class="btn2" id="newdraft">🆕 New draft</button>`; return; }
+  const t = ROLL.team, n = SLOTS.filter(([s, g]) => !roster[s] && slotFits(g)).length;
+  box.innerHTML = `<div class="roll-logo">${info(t).logo ? `<img src="${info(t).logo}" alt="">` : ''}</div>
+    <div class="roll-main"><div class="roll-k">Pick ${filled + 1} of ${SLOTS.length} · your roll</div>
+      <div class="roll-t">${eraLabel(ROLL.era)} ${info(t).name || t}</div>
+      <div class="hist">Click any open spot and take one of their players from ${ROLL.era[0]}–${ROLL.era[1]} (${n} open spot${n === 1 ? '' : 's'} they can fill). Picks are final. Budget for this pick: ${money(Math.max(0, pickBudget()))}${dead}.</div></div>
+    <div class="roll-btns"><button class="btn2" id="reroll" ${left > 0 || canPayReroll() ? '' : 'disabled'}>${rr}</button><button class="btn2" id="finish" data-tip="End the draft now: open spots play like backups (grade 25).">⏭ Finish</button><button class="btn2" id="newdraft">🆕 New draft</button></div>`;
+}
+
+// ---------- playing a season ----------
+const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const realScore = x => { x = Math.max(0, Math.round(x)); return x === 1 ? (Math.random() < 0.5 ? 0 : 3) : x; };
+// Regular-season overtime can end in a tie (about 1 in 12 overtime games, roughly 1 in 250 games overall); playoff games can't
+const OT_TIE = 0.08;
+function playOne(R, opp, where, canTie = false) {
+  const [me, them] = expected(R, opp, where);
+  let a = realScore(me + randn() * SD), b = realScore(them + randn() * SD), ot = false, tie = false;
+  if (a === b) {
+    ot = true;
+    if (canTie && Math.random() < OT_TIE) { tie = true; if (Math.random() < 0.5) { a += 3; b += 3; } } // both kick a FG, or nobody scores
+    else Math.random() < winP(me - them) ? (a += 3) : (b += 3);
+  }
+  return { opp, where, us: a, them: b, w: a > b, tie, ot };
+}
+const recStr = s => `${s.wins}-${s.losses}${s.ties ? '-' + s.ties : ''}`;
+function playSeason(F, R) {
+  const games = sched[F].map(g => ({ week: g.week, ...playOne(R, g.opp, g.home ? 'home' : 'away', true) }));
+  const wins = games.filter(g => g.w).length, ties = games.filter(g => g.tie).length, post = [];
+  // Playoff path by record: 13+ wins = bye as a top seed, 10–12 = wild card at a good team, fewer = home for January
+  if (wins >= 10) {
+    const path = playoffPath(F);
+    // a lower seed plays an extra game first, on the road at the conference's 3rd-best team
+    if (wins < 13) path.unshift({ round: 'Wild Card', opp: D.teams.filter(t => t !== F && info(t).conf === info(F).conf).sort((x, y) => (off[y] - def[y]) - (off[x] - def[x]))[2], where: 'away' });
+    for (const g of path) { const r = { round: g.round, ...playOne(R, g.opp, g.where) }; post.push(r); if (!r.w) break; }
+  }
+  const champ = post.length && post[post.length - 1].round === 'Super Bowl' && post[post.length - 1].w;
+  return { games, wins, ties, losses: 17 - wins - ties, post, champ, perfect: wins === 17 && champ };
+}
+// The roster's weakest spots, in plain (mean) English
+const WEAK = { QB: 'Your quarterback was a game manager. The bad kind.', OL: 'Your QB spent the season on his back.', RB: 'No run game to speak of.', WR: 'Nobody could get open.',
+  TE: 'Your tight end was a glorified sixth lineman.', K: 'Your kicker missed the big ones.', DL: 'No pass rush: opposing QBs had all day.', LB: 'Running backs ran right through your linebackers.', DB: 'Your secondary got torched.' };
+function weakLinks() {
+  const all = { ...OFF_W, ...DEF_W };
+  return Object.entries(all).map(([g, ws]) => {
+    const gr = SLOTS.filter(([, x]) => x === g).map(([s]) => roster[s]?.grade ?? BACKUP).sort((a, b) => b - a);
+    return { g, hurt: ws.reduce((a, w, i) => a + w * (80 - gr[i]), 0), avg: Math.round(gr.reduce((a, b) => a + b, 0) / gr.length) };
+  }).filter(x => x.hurt > 1.2).sort((a, b) => b.hurt - a.hurt).slice(0, 2);
+}
+const histRaw = (() => { try { return JSON.parse(sessionStorage.getItem('vm.perfectHist') || '{}'); } catch { return {}; } })();
+function drawHist() {
+  const h = histRaw; if (!h.n) { $('hist').textContent = ''; return; }
+  $('hist').innerHTML = `This session: ${h.n} season${h.n > 1 ? 's' : ''} · best ${h.best} · 17-0 ×${h.p17 || 0} · perfect ×${h.perfect || 0} · titles ×${h.titles || 0}`;
+}
+drawHist();
+function showSeason(F, s) {
+  if (window.VM) { // 🏆 achievements from this season
+    VM.count('p17_seasons');
+    if (s.wins === 17) VM.unlock('went_17_0');
+    if (s.perfect) VM.unlock('perfect');
+    if (s.perfect && +$('cap').value <= 130) VM.unlock('perfect_madden');
+    if (s.champ && !(ROLL?.rerolls)) VM.unlock('no_reroll');
+    if (!s.losses && s.ties) VM.unlock('tie_heartbreak');
+  }
+  const lossG = s.games.find(g => !g.w), lostPost = s.post.find(g => !g.w);
+  const unbeatenTie = !s.losses && s.ties; // undefeated, not perfect
+  const t = s.perfect ? `🏆 PERFECT SEASON. ${17 + s.post.length}-0.` : s.wins === 17 ? `17-0… then lost the ${lostPost.round} 😭` : s.champ ? `🏆 ${recStr(s)} and Super Bowl champs` : unbeatenTie ? `${recStr(s)}. Undefeated, not perfect 😐` : recStr(s);
+  const sub = s.perfect ? 'Pop the champagne. The 1972 Dolphins are calling to complain.'
+    : s.wins === 17 ? `Lost ${lostPost.us}–${lostPost.them} to the ${info(lostPost.opp).nick || lostPost.opp}. The 2007 Patriots send their condolences.`
+    : `The dream died in week ${lossG.week}: ${lossG.tie ? `a ${lossG.us}–${lossG.them} tie (yes, really)` : `${lossG.us}–${lossG.them}`} ${lossG.where === 'home' ? 'vs' : 'at'} the ${info(lossG.opp).nick || lossG.opp}.${unbeatenTie ? ' Nobody beat you, and it still does not count.' : ''}${s.wins < 10 ? ' Missed the playoffs.' : lostPost ? ` Out in the ${lostPost.round}.` : ''}`;
+  const tile = (g, label) => `<div class="wk ${g.w ? 'W' : g.tie ? 'T' : 'L'}"><div class="k">${label}</div><div class="o">${g.where === 'away' ? '@' : g.where === 'neutral' ? 'vs' : ''}${logo(g.opp)}<b>${g.opp}</b></div><div><span class="r">${g.w ? 'W' : g.tie ? 'T' : 'L'}</span> ${g.us}–${g.them}${g.ot ? ' OT' : ''}</div></div>`;
+  const weak = weakLinks();
+  $('result').innerHTML = `<div class="banner ${s.perfect ? 'perfect' : ''}"><div class="t">${t}</div><div class="s">${sub}</div></div>
+    <div class="weeks">${s.games.map(g => tile(g, `Week ${g.week}`)).join('')}</div>
+    ${s.post.length ? `<div class="playoffs"><h3>Playoffs</h3><div class="weeks">${s.post.map(g => tile(g, g.round)).join('')}</div></div>` : ''}
+    ${!s.perfect && weak.length ? `<div class="links"><h3>🔍 Weakest links</h3>${weak.map(w => `<div><b>${NAMES[w.g]} (avg grade ${w.avg}):</b> ${WEAK[w.g]}</div>`).join('')}</div>` : ''}`;
+  const pts = s.wins + s.ties / 2, better = pts > (histRaw.bestPts ?? -1);
+  Object.assign(histRaw, { n: (histRaw.n || 0) + 1, best: better ? recStr(s) : histRaw.best, bestPts: better ? pts : histRaw.bestPts, p17: (histRaw.p17 || 0) + (s.wins === 17), perfect: (histRaw.perfect || 0) + s.perfect, titles: (histRaw.titles || 0) + s.champ });
+  try { sessionStorage.setItem('vm.perfectHist', JSON.stringify(histRaw)); } catch {}
+  drawHist();
+}
+function overCap() {
+  if (spent() <= capOf() + 1e-9) return false;
+  $('result').innerHTML = `<p style="color:var(--loss);font-weight:650">You're ${money(spent() - capOf())} over the cap. Cut someone first: the league office is watching.</p>`;
+  return true;
+}
+$('play').addEventListener('click', () => { if (!overCap()) showSeason($('sched').value, playSeason($('sched').value, ratings())); });
+$('many').addEventListener('click', () => {
+  if (overCap()) return;
+  const F = $('sched').value, R = ratings(), N = 1000, beatBy = {}, wins = [];
+  let p17 = 0, perfect = 0, champ = 0, tieUnbeaten = 0, anyTie = 0;
+  for (let i = 0; i < N; i++) {
+    const s = playSeason(F, R); wins.push(s.wins); p17 += s.wins === 17; perfect += s.perfect; champ += s.champ; tieUnbeaten += !s.losses && s.ties > 0; anyTie += s.ties > 0;
+    for (const g of [...s.games, ...s.post]) if (!g.w && !g.tie) beatBy[g.opp] = (beatBy[g.opp] || 0) + 1;
+  }
+  const nem = Object.entries(beatBy).sort((a, b) => b[1] - a[1])[0], pc = v => (100 * v / N).toFixed(1) + '%';
+  const dist = [17, 16, 15, 14].map(w => `${w}-${17 - w}: ${pc(wins.filter(x => x === w).length)}`).join(' · ');
+  $('result').innerHTML = `<div class="banner"><div class="t">📊 1,000 seasons</div><div class="s">${dist}</div></div>
+    <div class="facts">
+      <div class="fact"><div class="k">Went 17-0</div><div class="v">${pc(p17)}</div></div>
+      <div class="fact"><div class="k">Perfect season</div><div class="v">${pc(perfect)}</div></div>
+      <div class="fact" data-tip="<b>Undefeated, not perfect</b>Seasons with no losses but at least one tie. Tied seasons overall: ${pc(anyTie)}."><div class="k">Unbeaten with a tie</div><div class="v">${pc(tieUnbeaten)}</div></div>
+      <div class="fact"><div class="k">Won the Super Bowl</div><div class="v">${pc(champ)}</div></div>
+      <div class="fact"><div class="k">Average record</div><div class="v">${(wins.reduce((a, b) => a + b, 0) / N).toFixed(1)}-${(17 - wins.reduce((a, b) => a + b, 0) / N).toFixed(1)}</div></div>
+      ${nem ? `<div class="fact"><div class="k">Your nemesis</div><div class="v">${logo(nem[0])} ${info(nem[0]).nick || nem[0]} (beat you ${nem[1]}×)</div></div>` : ''}
+    </div>`;
+});
+
+// ---------- wiring ----------
+$('sched').innerHTML = D.teams.slice().sort((a, b) => (info(a).name || a).localeCompare(info(b).name || b)).map(t => `<option value="${t}">${info(t).name || t} (${sched[t].length} games)</option>`).join('');
+$('sched').value = saved.team && sched[saved.team] ? saved.team : 'KC';
+if (saved.cap) $('cap').value = saved.cap;
+$('cap').addEventListener('change', drawRoster); $('sched').addEventListener('change', drawRoster);
+document.addEventListener('click', e => {
+  const rm = e.target.closest('[data-rm]'); if (rm) { delete roster[rm.dataset.rm]; drawRoster(); return; }
+  const take = e.target.closest('[data-take]'); if (take) { roster[pickSlot] = BYKEY[take.dataset.take]; closePicker(); if (mode === 'roll') newRoll(); drawRoster(); return; }
+  if (e.target.id === 'reroll') return reroll();
+  if (e.target.id === 'finish') { ROLL = { ...ROLL, team: null, stuck: false }; window.VM && VM.unlock('draft_1'); return drawRoster(); }
+  if (e.target.id === 'newdraft') return startDraft();
+  const sl = e.target.closest('.slotc');
+  if (sl) { if (mode === 'roll' && (roster[sl.dataset.slot] || !ROLL?.team || ROLL.stuck)) return; return openPicker(sl.dataset.slot); }
+  if (e.target.id === 'picker' || e.target.closest('#picker .x')) closePicker();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
+if (mode === 'roll' && !ROLL) startDraft(); else drawRoster();
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

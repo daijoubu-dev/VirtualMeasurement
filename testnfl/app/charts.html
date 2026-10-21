@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Charts · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="profile.js"></script>
+<style>
+  [hidden] { display: none !important; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+  /* 📈 Charts */
+  .cfilters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .cfilters label { display: inline-flex; align-items: center; gap: 6px; }
+  .cfilters input[type=number] { width: 64px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+  .ctitle { font-size: 26px; font-weight: 850; letter-spacing: -.01em; text-transform: uppercase; margin: 6px 0 0; font-style: italic; }
+  .csub { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  #chart svg { width: 100%; height: auto; display: block; }
+  #chart .grid { stroke: var(--border); stroke-width: 1; }
+  #chart .axis { stroke: var(--muted); stroke-width: 1.2; }
+  #chart .tick, #chart .lbl { fill: var(--muted); font-size: 11px; }
+  #chart .axt { fill: var(--text); font-size: 13px; font-weight: 800; font-style: italic; text-transform: uppercase; }
+  #chart .avg { stroke: #e0786b; stroke-width: 1.2; stroke-dasharray: 5 4; }
+  #chart .avgt { fill: #e0786b; font-size: 11px; }
+  #chart .trend { stroke: var(--faint); stroke-width: 1.3; }
+  #chart .quad rect { fill: color-mix(in srgb, #e0786b 12%, var(--panel)); stroke: #e0786b; stroke-width: 1; }
+  #chart .quad text { fill: #c2493b; font-size: 11px; font-weight: 600; }
+  #chart .pt { cursor: pointer; }
+  #chart .pt circle { stroke: color-mix(in srgb, var(--text) 55%, transparent); stroke-width: 1.2; }
+  #chart .pt text { fill: var(--text); font-size: 11px; font-weight: 650; }
+  #chart .pt:hover circle { stroke: var(--text); stroke-width: 2; }
+  #chart .pt.dim { opacity: .18; }
+  #chart .pt.hi text { font-weight: 850; }
+  .cnote { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .btn2 { margin-left: auto; font-size: 13px; font-weight: 650; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--soft); color: var(--text); cursor: pointer; }
+  .btn2:hover { border-color: var(--accent); } .btn2:disabled { opacity: .6; cursor: default; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="charts.html" class="on">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <span class="muted" id="meta" style="font-size:13px"></span>
+  </header>
+  <div class="panel">
+    <div id="chartView">
+      <div class="cfilters">
+        <label>Chart <select id="cPreset"></select></label>
+        <label>Group <select id="cKind"></select></label>
+        <label>X <select id="cX"></select></label>
+        <label>Y <select id="cY"></select></label>
+      </div>
+      <div class="cfilters">
+        <label>Season <select id="cSeason"></select></label>
+        <label>Week <select id="cWeek"></select></label>
+        <label id="cPosWrap">Position <select id="cPos"></select></label>
+        <label id="cMinWrap" data-tip="Leave out players with too little volume to mean much (like the &quot;min. 15 routes&quot; on charts you see online)."><span class="tipped">Min.</span> <input type="number" id="cMin" min="0" step="1"> <span id="cMinLbl"></span></label>
+        <label>Highlight <select id="cTeam"><option value="">No team</option></select></label>
+        <button class="btn2" id="saveImg" data-tip="Download this chart as a PNG image (title, chart and the Virtual Measurement name), ready to share.">⬇ Save image</button>
+      </div>
+      <div class="ctitle" id="cTitle"></div>
+      <div class="csub" id="cSub"></div>
+      <div id="chart"></div>
+      <div class="cnote">Data: nflverse player stats, NFL Next Gen Stats (player tracking), Pro Football Reference advanced stats and snap counts. Dots are team colors; hover a dot for the numbers, click it for career stats. Dashed lines are the average of the players shown; the gray line is the trend.</div>
+    </div>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script src="players.js"></script>
+<script>
+const D = window.NFL_DATA, P = window.NFL_PLAYERS;
+const $ = id => document.getElementById(id);
+const info = t => D.teamInfo?.[t] || {};
+$('meta').textContent = `${P.season} season`;
+// players on the Players page (clicking a dot opens their career stats there)
+const players = P.rows.map(r => Object.fromEntries(P.cols.map((c, i) => [c, r[i]]))).filter(p => p.id && p.name);
+
+// ---------- 📈 Charts (chartdata.js: nflverse stats + Next Gen Stats + PFR advanced stats + snap counts, built by build_charts.js) ----------
+// Metric catalog per group: [key, label, short (title / quadrant words), tooltip, decimals, flip]. flip = lower is better,
+// so that axis is drawn reversed and "up / right" always means better for it.
+const METRICS = {
+  receiving: [
+    ['separation', 'Avg separation (yds)', 'separation', 'Average distance from the nearest defender when the ball arrives (Next Gen Stats)', 2],
+    ['tshare', 'Target share %', 'target share', "Share of the team's targets", 1],
+    ['targets_per_snap', 'Targets per 100 snaps', 'targets per snap', 'Targets per 100 offensive snaps: the closest free stand-in for targets per route run', 1],
+    ['wopr', 'WOPR (weighted opportunity)', 'WOPR', '1.5 × target share + 0.7 × air yards share: how much of the passing game runs through him', 2],
+    ['fpts_per_game', 'Fantasy pts per game (PPR)', 'fantasy points', 'PPR fantasy points per game', 1],
+    ['adot', 'aDOT (air yards per target)', 'aDOT', 'Average depth of target: how far downfield his targets travel in the air', 1],
+    ['yacoe', 'YAC over expected', 'YAC over expected', 'Yards after catch beyond what the tracking model expected, per catch (Next Gen Stats)', 2],
+    ['epa_per_target', 'EPA per target', 'EPA per target', 'Expected points added per target: how much the average pass his way helped the offense', 2],
+    ['airshare', 'Air yards share %', 'air yards share', "Share of the team's air yards thrown at him", 1],
+    ['racr', 'RACR (yards per air yard)', 'RACR', 'Receiving yards per air yard thrown his way: above 1 means he adds yards after the catch', 2],
+    ['catch_pct', 'Catch %', 'catch rate', 'Receptions per target', 1],
+    ['drop_pct', 'Drop %', 'drop rate', 'Drops per catchable pass (Pro Football Reference)', 1],
+    ['drops', 'Drops', 'drops', 'Dropped passes (Pro Football Reference)', 0],
+    ['broken_tackles', 'Broken tackles', 'broken tackles', 'Tackles broken after the catch (Pro Football Reference)', 0],
+    ['rating_when_targeted', 'Passer rating when targeted', 'rating when targeted', 'NFL passer rating on throws to him', 1],
+    ['yac_per_rec', 'YAC per catch', 'YAC', 'Yards after the catch per reception', 1],
+    ['fd_per_target', 'First downs per target', 'first downs per target', 'Share of targets that went for a first down', 2],
+    ['snap_pct', 'Snap share %', 'snap share', "Share of the team's offensive snaps he played", 1],
+    ['cushion', 'Avg cushion (yds)', 'cushion', 'Distance to the nearest defender at the snap (Next Gen Stats)', 2],
+    ['epa', 'Receiving EPA (total)', 'receiving EPA', 'Total expected points added on targets', 1],
+    ['targets', 'Targets', 'targets', 'Times targeted', 0], ['receptions', 'Receptions', 'catches', 'Receptions', 0], ['rec_yards', 'Receiving yards', 'yards', 'Receiving yards', 0],
+    ['rec_td', 'Receiving TDs', 'TDs', 'Receiving touchdowns', 0],
+  ],
+  passing: [
+    ['epa_per_db', 'EPA per dropback', 'EPA per dropback', 'Expected points added per pass play (sacks included): the best single measure of QB play', 2],
+    ['cpoe', 'CPOE (completion % over expected)', 'CPOE', 'Completion % over expected, given how hard each throw was (Next Gen Stats)', 1],
+    ['epa_per_play', 'EPA per play (pass + run)', 'EPA per play', 'Expected points added per dropback or QB run', 2],
+    ['aggressiveness', 'Aggressiveness %', 'aggressiveness', 'Share of throws into tight windows (a defender within a yard)', 1],
+    ['ttt', 'Time to throw (sec)', 'time to throw', 'Average time from snap to throw', 2],
+    ['pressure_pct', 'Pressured %', 'pressure', 'Share of dropbacks under pressure: hurried, hit or sacked (Pro Football Reference)', 1],
+    ['bad_throw_pct', 'Bad throw %', 'bad throws', 'Share of passes that were off target or uncatchable (Pro Football Reference)', 1],
+    ['air_to_sticks', 'Air yards to the sticks', 'air yards to sticks', 'How far past (or short of) the first-down line the average pass goes', 1],
+    ['iay', 'Intended air yards', 'air yards', 'Average air yards per attempt', 1],
+    ['cay', 'Completed air yards', 'completed air yards', 'Average air yards per completion', 1],
+    ['ypa', 'Yards per attempt', 'yards per attempt', 'Passing yards per attempt', 1],
+    ['cmp_pct', 'Completion %', 'completion %', 'Completions per attempt', 1],
+    ['sack_pct', 'Sack %', 'sack rate', 'Sacks per dropback', 1], ['td_pct', 'TD %', 'TD rate', 'Touchdown passes per attempt', 1], ['int_pct', 'INT %', 'INT rate', 'Interceptions per attempt', 1],
+    ['epa', 'Passing EPA (total)', 'passing EPA', 'Total expected points added on dropbacks', 1],
+    ['rush_yards', 'QB rushing yards', 'rushing yards', 'Rushing yards (scrambles and designed runs)', 0],
+    ['fpts_per_game', 'Fantasy pts per game', 'fantasy points', 'Fantasy points per game', 1],
+    ['dropbacks', 'Dropbacks', 'dropbacks', 'Pass attempts plus sacks', 0], ['attempts', 'Attempts', 'attempts', 'Pass attempts', 0], ['pass_yards', 'Passing yards', 'yards', 'Passing yards', 0],
+    ['pass_td', 'Passing TDs', 'TDs', 'Touchdown passes', 0], ['ints', 'Interceptions', 'INTs', 'Interceptions thrown', 0], ['sacks', 'Sacks taken', 'sacks', 'Times sacked', 0],
+  ],
+  rushing: [
+    ['ryoe_per_att', 'Rush yds over expected / carry', 'RYOE', 'Rushing yards beyond what the tracking model expected from the blocking and defenders, per carry (Next Gen Stats)', 2],
+    ['carries', 'Carries', 'carries', 'Rushing attempts', 0],
+    ['ybc_per_att', 'Yards before contact / carry', 'yards before contact', 'Yards gained before the first defender touches him: mostly the blocking (Pro Football Reference)', 2],
+    ['yac_per_att', 'Yards after contact / carry', 'yards after contact', 'Yards gained after first contact: mostly the runner (Pro Football Reference)', 2],
+    ['epa_per_carry', 'EPA per carry', 'EPA per carry', 'Expected points added per run', 2],
+    ['stacked_pct', 'Stacked boxes %', 'stacked boxes', 'Share of carries against 8+ defenders in the box (Next Gen Stats)', 1],
+    ['bt_per_touch', 'Broken tackles per 100 touches', 'broken tackles', 'Broken tackles per 100 carries + catches (Pro Football Reference)', 1],
+    ['snap_pct', 'Snap share %', 'snap share', "Share of the team's offensive snaps he played", 1],
+    ['touches_per_snap', 'Touches per 100 snaps', 'touches per snap', 'Carries + catches per 100 offensive snaps', 1],
+    ['fpts_per_game', 'Fantasy pts per game (PPR)', 'fantasy points', 'PPR fantasy points per game', 1],
+    ['ypc', 'Yards per carry', 'YPC', 'Rushing yards per carry', 1],
+    ['fd_per_carry', 'First downs per carry', 'first downs per carry', 'Share of carries that went for a first down', 2],
+    ['efficiency', 'Efficiency (lower = more downhill)', 'efficiency', 'Distance run per yard gained (Next Gen Stats): lower means more north-south', 2],
+    ['ttlos', 'Time to line of scrimmage (sec)', 'time to LOS', 'Average time to reach the line of scrimmage (Next Gen Stats)', 2],
+    ['ryoe', 'Rush yds over expected (total)', 'RYOE (total)', 'Total rushing yards over expected', 0],
+    ['epa', 'Rushing EPA (total)', 'rushing EPA', 'Total expected points added on runs', 1],
+    ['broken_tackles', 'Broken tackles', 'broken tackles', 'Broken tackles on carries and catches (Pro Football Reference)', 0],
+    ['rush_yards', 'Rushing yards', 'yards', 'Rushing yards', 0], ['rush_td', 'Rushing TDs', 'TDs', 'Rushing touchdowns', 0],
+    ['targets', 'Targets', 'targets', 'Times targeted', 0], ['receptions', 'Receptions', 'catches', 'Receptions', 0],
+  ],
+  defense: [
+    ['rating_allowed', 'Passer rating allowed', 'rating allowed', 'NFL passer rating on throws into his coverage (Pro Football Reference)', 1, 1],
+    ['targets', 'Targets in coverage', 'targets', 'Times thrown at in coverage', 0],
+    ['pressures', 'Pressures', 'pressures', 'Hurries + QB hits + sacks (Pro Football Reference)', 0],
+    ['sacks', 'Sacks', 'sacks', 'Sacks', 1],
+    ['pressures_per_snap', 'Pressures per 100 snaps', 'pressure rate', 'Pressures per 100 defensive snaps', 1],
+    ['missed_tackle_pct', 'Missed tackle %', 'missed tackles', 'Missed tackles per tackle attempt', 1, 1],
+    ['tackles', 'Tackles', 'tackles', 'Combined tackles', 0],
+    ['cmp_pct_allowed', 'Completion % allowed', 'completion % allowed', 'Completions per target in his coverage', 1, 1],
+    ['yds_per_target', 'Yards allowed per target', 'yards per target', 'Yards allowed per target in his coverage', 1, 1],
+    ['adot_against', 'aDOT against', 'aDOT against', 'How far downfield the throws at him travel', 1],
+    ['yac_allowed', 'YAC allowed', 'YAC allowed', 'Yards after catch allowed', 0],
+    ['ints', 'Interceptions', 'INTs', 'Interceptions', 0], ['td_allowed', 'TDs allowed', 'TDs allowed', 'Receiving touchdowns allowed in his coverage', 0],
+    ['hurries', 'Hurries', 'hurries', 'QB hurries', 0], ['qb_hits', 'QB hits', 'QB hits', 'Hits on the quarterback', 0], ['blitzes', 'Blitzes', 'blitzes', 'Times he blitzed', 0],
+    ['missed_tackles', 'Missed tackles', 'missed tackles', 'Missed tackles', 0],
+    ['snap_pct', 'Snap share %', 'snap share', "Share of the team's defensive snaps he played", 1], ['def_snaps', 'Defensive snaps', 'snaps', 'Defensive snaps played', 0],
+  ],
+  teams: [
+    ['off_epa_play', 'Offense EPA per play', 'offense', 'Expected points added per play on offense: the best single measure of an offense', 3],
+    ['def_epa_play', 'Defense EPA per play allowed', 'defense', 'Expected points added per play the defense gives up (lower is better)', 3, 1],
+    ['pass_epa_db', 'Pass offense EPA / dropback', 'passing', 'Expected points added per dropback', 3],
+    ['rush_epa_carry', 'Run offense EPA / carry', 'running', 'Expected points added per run', 3],
+    ['def_pass_epa_db', 'Pass defense EPA / dropback allowed', 'pass defense', 'Expected points added per opponent dropback (lower is better)', 3, 1],
+    ['def_rush_epa_carry', 'Run defense EPA / carry allowed', 'run defense', 'Expected points added per opponent run (lower is better)', 3, 1],
+    ['ppg', 'Points per game', 'points scored', 'Points scored per game', 1], ['papg', 'Points allowed per game', 'points allowed', 'Points allowed per game (lower is better)', 1, 1],
+    ['diff_pg', 'Point differential per game', 'point differential', 'Points scored minus allowed, per game', 1],
+    ['yds_play', 'Yards per play', 'yards per play', 'Offensive yards per play', 2], ['def_yds_play', 'Yards per play allowed', 'yards allowed', 'Yards per play allowed (lower is better)', 2, 1],
+    ['pass_rate', 'Pass rate %', 'pass rate', 'Share of plays that are dropbacks', 1],
+  ],
+};
+// [volume key, label, season minimum, one-week minimum]; teams have no minimum
+const VOLUME = { receiving: ['targets', 'targets', 15, 4], passing: ['dropbacks', 'dropbacks', 60, 15], rushing: ['carries', 'carries', 25, 8], defense: ['def_snaps', 'snaps', 150, 30], teams: null };
+// position groups for the Position filter
+const POS = { receiving: { WR: ['WR'], TE: ['TE'], RB: ['RB', 'FB'] }, defense: { 'DB (corners + safeties)': ['CB', 'S', 'SS', 'FS', 'SAF', 'DB'], LB: ['LB', 'ILB', 'MLB', 'OLB'], 'DL (edge + interior)': ['DE', 'DT', 'NT', 'DL', 'EDGE'] } };
+// [name, group, x, y, position group, minimum]
+const PRESETS = [
+  ['Receivers: separation vs target share', 'receiving', 'separation', 'tshare'],
+  ['Receivers: separation vs targets per snap (TPRR stand-in)', 'receiving', 'separation', 'targets_per_snap'],
+  ['Receivers: WOPR vs fantasy points', 'receiving', 'wopr', 'fpts_per_game'],
+  ['Receivers: aDOT vs YAC over expected', 'receiving', 'adot', 'yacoe'],
+  ['Receivers: EPA per target vs targets', 'receiving', 'targets', 'epa_per_target'],
+  ['Receivers: snap share vs target share', 'receiving', 'snap_pct', 'tshare'],
+  ['QBs: EPA per dropback vs CPOE', 'passing', 'cpoe', 'epa_per_db'],
+  ['QBs: aggressiveness vs CPOE', 'passing', 'aggressiveness', 'cpoe'],
+  ['QBs: time to throw vs pressure', 'passing', 'ttt', 'pressure_pct'],
+  ['QBs: bad throw % vs EPA per dropback', 'passing', 'bad_throw_pct', 'epa_per_db'],
+  ['RBs: yards over expected vs carries', 'rushing', 'carries', 'ryoe_per_att'],
+  ['RBs: yards before vs after contact', 'rushing', 'ybc_per_att', 'yac_per_att'],
+  ['RBs: stacked boxes vs yards over expected', 'rushing', 'stacked_pct', 'ryoe_per_att'],
+  ['RBs: snap share vs touches per snap', 'rushing', 'snap_pct', 'touches_per_snap'],
+  ['Defense: passer rating allowed vs targets (DBs)', 'defense', 'targets', 'rating_allowed', 'DB (corners + safeties)'],
+  ['Defense: pressures vs sacks (pass rushers)', 'defense', 'pressures', 'sacks', 'DL (edge + interior)'],
+  ['Defense: pressure rate vs snap share (pass rushers)', 'defense', 'snap_pct', 'pressures_per_snap', 'DL (edge + interior)'],
+  ['Defense: tackles vs missed tackle %', 'defense', 'tackles', 'missed_tackle_pct'],
+  ['Teams: offense vs defense (EPA per play)', 'teams', 'off_epa_play', 'def_epa_play'],
+  ['Teams: pass offense vs run offense', 'teams', 'pass_epa_db', 'rush_epa_carry'],
+  ['Teams: pass defense vs run defense', 'teams', 'def_pass_epa_db', 'def_rush_epa_carry'],
+  ['Teams: points scored vs allowed', 'teams', 'ppg', 'papg'],
+  ['Teams: pass rate vs offense EPA', 'teams', 'pass_rate', 'off_epa_play'],
+];
+const GROUP_NAMES = { receiving: 'Receivers', passing: 'Quarterbacks', rushing: 'Running backs', defense: 'Defenders', teams: 'Teams' };
+let dataLoad = null;
+const loadData = () => dataLoad ||= new Promise((resolve, reject) => {
+  const s = Object.assign(document.createElement('script'), { src: 'chartdata.js' });
+  s.onload = () => resolve(window.NFL_CHARTS); s.onerror = () => { dataLoad = null; reject(new Error('chartdata.js not found')); };
+  document.head.appendChild(s);
+});
+const metric = (kind, k) => METRICS[kind].find(m => m[0] === k);
+const shortName = n => { const w = n.replace(/ (Jr\.|Sr\.|II|III|IV)$/, '').split(' '); return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : n; };
+const teamColor = t => (info(t).colors || []).find(c => /^#[0-9a-f]{6}$/i.test(c)) || '#888';
+function setupCharts(C) {
+  $('cPreset').innerHTML = [...new Set(PRESETS.map(p => p[1]))].map(g => `<optgroup label="${GROUP_NAMES[g]}">${PRESETS.map((p, i) => [p, i]).filter(([p]) => p[1] === g).map(([p, i]) => `<option value="${i}">${p[0].replace(/^[^:]+: /, '')}</option>`).join('')}</optgroup>`).join('') + '<option value="custom">Custom (pick X and Y)</option>';
+  $('cKind').innerHTML = Object.entries(GROUP_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('cSeason').innerHTML = [...C.seasons].reverse().map(s => `<option>${s}</option>`).join('');
+  $('cTeam').innerHTML += D.teams.slice().sort((a, b) => (info(a).name || a).localeCompare(info(b).name || b)).map(t => `<option value="${t}">${info(t).name || t}</option>`).join('');
+  // the signed-in profile's ⭐ team (or this browser's, without a profile)
+  const favOf = () => { if (window.VM?.profile()) return VM.pref('fav') || ''; try { return localStorage.getItem('vm.fav') || ''; } catch { return ''; } };
+  const fav = favOf();
+  if (D.teams.includes(fav)) $('cTeam').value = fav;
+  window.addEventListener('vm:prefs', () => { const f = favOf(); if (D.teams.includes(f) && $('cTeam').value !== f) { $('cTeam').value = f; drawChart(); } });
+  applyPreset(0);
+  $('cPreset').addEventListener('change', () => { if ($('cPreset').value !== 'custom') applyPreset(+$('cPreset').value); });
+  $('cKind').addEventListener('change', () => { $('cPreset').value = 'custom'; window.VM && VM.unlock('chart_custom'); fillAxes($('cKind').value); fillPos($('cKind').value); setMinDefault(); drawChart(); });
+  for (const id of ['cX', 'cY']) $(id).addEventListener('change', () => { $('cPreset').value = 'custom'; window.VM && VM.unlock('chart_custom'); drawChart(); });
+  $('cSeason').addEventListener('change', () => { fillWeeks(); setMinDefault(); drawChart(); });
+  $('cWeek').addEventListener('change', () => { setMinDefault(); drawChart(); });
+  for (const id of ['cPos', 'cTeam']) $(id).addEventListener('change', drawChart);
+  $('cMin').addEventListener('input', drawChart);
+}
+function fillAxes(kind, x, y) {
+  const opts = METRICS[kind].map(m => `<option value="${m[0]}">${m[1]}</option>`).join('');
+  $('cX').innerHTML = opts; $('cY').innerHTML = opts;
+  $('cX').value = x || METRICS[kind][0][0]; $('cY').value = y || METRICS[kind][1][0];
+}
+function fillPos(kind, pos = '') {
+  const groups = POS[kind];
+  $('cPosWrap').hidden = !groups;
+  $('cPos').innerHTML = '<option value="">All</option>' + Object.keys(groups || {}).map(g => `<option>${g}</option>`).join('');
+  $('cPos').value = pos;
+  $('cMinWrap').hidden = !VOLUME[kind];
+}
+function fillWeeks() {
+  const C = window.NFL_CHARTS, season = +$('cSeason').value, keep = $('cWeek').value;
+  const weeks = season === C.current ? C.weeks[season] || [] : [];
+  $('cWeek').innerHTML = `<option value="0">${season === C.current ? 'Season to date' : 'Full season'}</option>` + weeks.map(w => `<option value="${w}">Week ${w}</option>`).join('');
+  if ([...$('cWeek').options].some(o => o.value === keep)) $('cWeek').value = keep;
+}
+function setMinDefault() { const v = VOLUME[$('cKind').value]; if (!v) return; const [, label, season, week] = v; $('cMin').value = +$('cWeek').value ? week : season; $('cMinLbl').textContent = label; }
+function applyPreset(i) {
+  const [, kind, x, y, pos] = PRESETS[i];
+  $('cKind').value = kind; fillAxes(kind, x, y); fillPos(kind, pos || ''); fillWeeks(); setMinDefault(); drawChart();
+}
+// the rows to plot for the season / week / position / minimum
+function chartPoints(kind, xk, yk) {
+  const K = window.NFL_CHARTS.kinds[kind], ix = k => K.cols.indexOf(k) + 6, season = +$('cSeason').value, week = +$('cWeek').value;
+  const posList = POS[kind]?.[$('cPos').value], vol = VOLUME[kind], min = vol ? +$('cMin').value || 0 : 0;
+  return K.rows.filter(r => r[0] === season && r[1] === week && (!posList || posList.includes(r[5])) && (!vol || (r[ix(vol[0])] ?? 0) >= min))
+    .map(r => ({ id: r[2], name: r[3], team: r[4], pos: r[5], x: r[ix(xk)], y: r[ix(yk)], vol: vol ? r[ix(vol[0])] : null }))
+    .filter(p => p.x !== null && p.y !== null && isFinite(p.x) && isFinite(p.y));
+}
+const niceStep = span => { const raw = span / 6, mag = 10 ** Math.floor(Math.log10(raw)), f = raw / mag; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag; };
+function drawChart() {
+  const kind = $('cKind').value, xk = $('cX').value, yk = $('cY').value, mx = metric(kind, xk), my = metric(kind, yk);
+  const season = +$('cSeason').value, week = +$('cWeek').value, team = $('cTeam').value, vol = VOLUME[kind], volLabel = vol ? vol[1] : '';
+  const pts = chartPoints(kind, xk, yk);
+  $('cTitle').textContent = `${mx[2]} vs. ${my[2]}`;
+  const C = window.NFL_CHARTS, wks = C.weeks[season] || [], lastWk = wks.length ? wks[wks.length - 1] : 18;
+  $('cSub').textContent = `${season} season | ${week ? `week ${week}` : `weeks 1–${lastWk}`}${vol ? ` | min. ${$('cMin').value || 0} ${volLabel}` : ''}${$('cPos').value && POS[kind] ? ` | ${$('cPos').value.split(' (')[0]}` : ''} | ${pts.length} ${kind === 'teams' ? 'teams' : 'players'}`;
+  if (pts.length < 2) { $('chart').innerHTML = '<p class="empty">Not enough players with both stats for this chart. Try a lower minimum, the full season, or other stats (some only exist for some players, e.g. Next Gen Stats need enough volume).</p>'; return; }
+  const W = 1000, H = 640, L = 70, R = 24, T = 20, B = 64, iw = W - L - R, ih = H - T - B;
+  const ext = (k) => { const v = pts.map(p => p[k]), lo = Math.min(...v), hi = Math.max(...v), pad = (hi - lo || 1) * 0.07; return [lo - pad, hi + pad]; };
+  const [x0, x1] = ext('x'), [y0, y1] = ext('y'), fx = !!mx[5], fy = !!my[5];
+  const sx = v => L + (fx ? (x1 - v) : (v - x0)) / (x1 - x0) * iw, sy = v => T + ih - (fy ? (y1 - v) : (v - y0)) / (y1 - y0) * ih;
+  const fmt = (m, v) => (m[4] ? v.toFixed(m[4]) : Math.round(v).toLocaleString());
+  const ticks = (a, b) => { const st = niceStep(b - a), out = []; for (let v = Math.ceil(a / st) * st; v <= b; v += st) out.push(+v.toFixed(6)); return out; };
+  const tf = (v, d) => (Math.abs(v) < 1e-9 ? '0' : d >= 2 ? v.toFixed(2) : d === 1 ? v.toFixed(Math.abs(v) < 10 ? 2 : 1).replace(/\.?0+$/, '') || '0' : Math.round(v).toLocaleString());
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${mx[1]} vs ${my[1]}">`;
+  for (const v of ticks(x0, x1)) svg += `<line class="grid" x1="${sx(v)}" x2="${sx(v)}" y1="${T}" y2="${T + ih}"/><text class="tick" x="${sx(v)}" y="${T + ih + 18}" text-anchor="middle">${tf(v, mx[4])}</text>`;
+  for (const v of ticks(y0, y1)) svg += `<line class="grid" x1="${L}" x2="${L + iw}" y1="${sy(v)}" y2="${sy(v)}"/><text class="tick" x="${L - 8}" y="${sy(v) + 4}" text-anchor="end">${tf(v, my[4])}</text>`;
+  svg += `<line class="axis" x1="${L}" x2="${L}" y1="${T}" y2="${T + ih}"/><line class="axis" x1="${L}" x2="${L + iw}" y1="${T + ih}" y2="${T + ih}"/>`;
+  svg += `<text class="axt" x="${L + iw / 2}" y="${H - 14}" text-anchor="middle">${mx[1]}${fx ? ' (reversed: better →)' : ''}</text><text class="axt" transform="translate(18 ${T + ih / 2}) rotate(-90)" text-anchor="middle">${my[1]}${fy ? ' (reversed: better ↑)' : ''}</text>`;
+  // averages (dashed) and the trend line (least squares)
+  const mean = k => pts.reduce((a, p) => a + p[k], 0) / pts.length, ax = mean('x'), ay = mean('y');
+  svg += `<line class="avg" x1="${sx(ax)}" x2="${sx(ax)}" y1="${T}" y2="${T + ih}"/><line class="avg" x1="${L}" x2="${L + iw}" y1="${sy(ay)}" y2="${sy(ay)}"/>`;
+  svg += `<text class="avgt" x="${sx(ax)}" y="${T + ih + 32}" text-anchor="middle">Avg</text><text class="avgt" x="${L - 8}" y="${sy(ay) + 16}" text-anchor="end">Avg</text>`;
+  const sxx = pts.reduce((a, p) => a + (p.x - ax) ** 2, 0), slope = sxx ? pts.reduce((a, p) => a + (p.x - ax) * (p.y - ay), 0) / sxx : 0;
+  const clipY = v => Math.max(y0, Math.min(y1, v)); // (the trend uses data values; sx / sy handle any flipped axis)
+  svg += `<line class="trend" x1="${sx(x0)}" y1="${sy(clipY(ay + slope * (x0 - ax)))}" x2="${sx(x1)}" y2="${sy(clipY(ay + slope * (x1 - ax)))}"/>`;
+  // quadrant labels in the corners
+  const q = (x, y, anchor, text) => { const w = text.length * 6.2 + 16; const rx = anchor === 'start' ? x : x - w; return `<g class="quad"><rect x="${rx}" y="${y}" width="${w}" height="20" rx="3"/><text x="${rx + 8}" y="${y + 14}">${text}</text></g>`; };
+  // corner labels follow the axes; a reversed (lower-is-better) axis says good / bad instead of high / low
+  const lo = (f, s) => (f ? 'bad' : 'low') + ' ' + s, hi = (f, s) => (f ? 'good' : 'high') + ' ' + s, cap = s => s[0].toUpperCase() + s.slice(1);
+  svg += q(L + 8, T + 8, 'start', cap(`${lo(fx, mx[2])}, ${hi(fy, my[2])}`)) + q(L + iw - 8, T + 8, 'end', cap(`${hi(fx, mx[2])}, ${hi(fy, my[2])}`))
+    + q(L + 8, T + ih - 28, 'start', cap(`${lo(fx, mx[2])}, ${lo(fy, my[2])}`)) + q(L + iw - 8, T + ih - 28, 'end', cap(`${hi(fx, mx[2])}, ${lo(fy, my[2])}`));
+  // dots in team colors, names next to them where they fit (a label that would overlap another is left off; hover shows it)
+  // every dot is reserved first, so no name gets drawn under another player's dot
+  const order = [...pts].sort((a, b) => (b.team === team) - (a.team === team) || b.vol - a.vol);
+  const placed = pts.map(p => ({ x: sx(p.x) - 8, y: sy(p.y) - 8, w: 16, h: 16 }));
+  const hits = (r) => placed.some(o => r.x < o.x + o.w && r.x + r.w > o.x && r.y < o.y + o.h && r.y + r.h > o.y);
+  const dots = order.map(p => {
+    const cx = sx(p.x), cy = sy(p.y), label = shortName(p.name), w = label.length * 7 + 6; // bold 11px text runs about 7 units a character
+    let lx = null;
+    for (const [x, anchorRight] of [[cx + 10, true], [cx - 10 - w, false]]) { const r = { x, y: cy - 8, w, h: 16 }; if (x > L && x + w < L + iw && !hits(r)) { placed.push(r); lx = anchorRight ? x : x + w; break; } }
+    const tip = `<b>${kind === 'teams' ? info(p.team).name || p.team : p.name}</b>${kind === 'teams' ? '' : `${info(p.team).name || p.team} · ${p.pos}<br>`}${mx[1]}: ${fmt(mx, p.x)}<br>${my[1]}: ${fmt(my, p.y)}${vol ? `<br>${p.vol} ${volLabel}` : ''}`;
+    return { p, html: `<g class="pt ${team ? (p.team === team ? 'hi' : 'dim') : ''}" data-pid="${p.id}" data-tip="${tip.replace(/"/g, '&quot;')}"><circle cx="${cx}" cy="${cy}" r="${p.team === team ? 7.5 : 6}" fill="${teamColor(p.team)}"/>${lx !== null ? `<text x="${lx}" y="${cy + 4}" text-anchor="${lx > cx ? 'start' : 'end'}">${label}</text>` : ''}</g>` };
+  });
+  // dimmed dots first, highlighted team on top
+  svg += dots.filter(d => !(team && d.p.team === team)).map(d => d.html).join('') + dots.filter(d => team && d.p.team === team).map(d => d.html).join('');
+  $('chart').innerHTML = svg + '</svg>';
+}
+$('chart').addEventListener('click', e => { const g = e.target.closest('[data-pid]'); if (g && players.some(p => p.id === g.dataset.pid)) location.href = 'players.html?player=' + encodeURIComponent(g.dataset.pid); });
+
+$('chart').innerHTML = '<p class="empty">Loading chart data…</p>';
+loadData().then(setupCharts).catch(() => { $('chart').innerHTML = '<p class="empty">Chart data is not built yet: click ↻ Refresh data on the Matchups page (or run node fetch.js, then node build_charts.js).</p>'; });
+
+// ---------- ⬇ Save image: the chart as a PNG, no libraries ----------
+// The chart is SVG styled by the page's CSS, which a stand-alone image can't see, so each element's computed colors and
+// fonts are copied onto it. Then the title, subtitle and a footer are added, the SVG is drawn onto a canvas at 2× for
+// sharpness, and the canvas is saved as a PNG. Dots are plain colored circles, so nothing from another site blocks saving.
+const STYLE_PROPS = ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'opacity', 'font-size', 'font-weight', 'font-style', 'font-family'];
+function inlineStyles(src, dst) {
+  const cs = getComputedStyle(src);
+  dst.setAttribute('style', STYLE_PROPS.map(p => `${p}:${cs.getPropertyValue(p)}`).join(';'));
+  if (src.tagName === 'text' && cs.textTransform === 'uppercase') dst.textContent = src.textContent.toUpperCase(); // SVG images ignore text-transform
+  for (let i = 0; i < src.children.length; i++) inlineStyles(src.children[i], dst.children[i]);
+}
+const xmlEsc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+async function saveChartImage() {
+  const svg = $('chart').querySelector('svg'); if (!svg) return;
+  const btn = $('saveImg'); btn.disabled = true; btn.textContent = '⏳ Saving…';
+  try {
+    const page = getComputedStyle(document.body), panel = getComputedStyle($('chartView').closest('.panel'));
+    const bg = panel.backgroundColor, fg = page.color, muted = getComputedStyle($('cSub')).color, font = page.fontFamily.replace(/"/g, "'");
+    const clone = svg.cloneNode(true); inlineStyles(svg, clone);
+    const [, , W, H] = svg.getAttribute('viewBox').split(' ').map(Number), top = 96, bottom = 50, TW = W, TH = H + top + bottom;
+    // the pylon logo, embedded so the image is self-contained (skipped if it can't be read)
+    let pylon = '';
+    try { const b = await (await fetch('pylon.png')).blob(); pylon = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); }); } catch {}
+    const out = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${TW}" height="${TH}" viewBox="0 0 ${TW} ${TH}">
+      <rect width="${TW}" height="${TH}" fill="${bg}"/>
+      <text x="28" y="50" style="font-family:${font};font-size:34px;font-weight:900;font-style:italic;fill:${fg}">${xmlEsc($('cTitle').textContent.toUpperCase())}</text>
+      <text x="30" y="78" style="font-family:${font};font-size:13px;letter-spacing:1px;fill:${muted}">${xmlEsc($('cSub').textContent.toUpperCase())}</text>
+      <g transform="translate(0 ${top})">${new XMLSerializer().serializeToString(clone).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')}</g>
+      <text x="30" y="${TH - 18}" style="font-family:${font};font-size:11px;fill:${muted}">Data: nflverse, NFL Next Gen Stats, Pro Football Reference</text>
+      ${pylon ? `<image href="${pylon}" xlink:href="${pylon}" x="${TW / 2 - 152}" y="${TH - 40}" width="22" height="22"/>` : ''}
+      <text x="${TW / 2 + 12}" y="${TH - 22}" text-anchor="middle" style="font-family:${font};font-size:20px;font-weight:900;font-style:italic;fill:${fg}">VIRTUAL MEASUREMENT</text>
+    </svg>`;
+    const img = new Image(), scale = 2;
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(out); });
+    const canvas = Object.assign(document.createElement('canvas'), { width: TW * scale, height: TH * scale });
+    const ctx = canvas.getContext('2d'); ctx.scale(scale, scale); ctx.drawImage(img, 0, 0);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    const name = `${$('cTitle').textContent} ${$('cSeason').value}${+$('cWeek').value ? ' week ' + $('cWeek').value : ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${name}.png` });
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    window.VM && VM.count('charts_saved'); // 🏆
+    window.lastChartPng = { blob, width: canvas.width, height: canvas.height, name: a.download }; // for checking
+  } catch (e) {
+    alert('Could not save the image: ' + e.message);
+  } finally { btn.disabled = false; btn.textContent = '⬇ Save image'; }
+}
+$('saveImg').addEventListener('click', saveChartImage);
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t || !t.dataset.tip) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+document.addEventListener('scroll', () => { tipEl.style.display = 'none'; }, true);
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

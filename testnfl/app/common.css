@@ -1,0 +1,58 @@
+/* Shared look for the Standings and Players pages (the Matchups page keeps its own copy of these basics). */
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6f8; --panel: #ffffff; --text: #1b1f24; --muted: #6b7482; --faint: #9aa3b0; --border: #e3e6eb;
+  --accent: #2563eb; --win: #15803d; --loss: #b91c1c; --soft: #f0f2f5; --gold: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --panel: #171b21; --text: #e6e9ee; --muted: #8b95a5; --faint: #5d6675; --border: #262c35;
+    --accent: #60a5fa; --win: #4ade80; --loss: #f87171; --soft: #1e232b; --gold: #fbbf24;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1240px; margin: 0 auto; padding: 18px 16px 48px; }
+button, select, input { font: inherit; color: inherit; }
+select { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); }
+a { color: inherit; }
+.muted { color: var(--muted); }
+.W { color: var(--win); } .L { color: var(--loss); }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+[data-tip] { cursor: help; }
+.tipped { border-bottom: 1px dotted var(--faint); }
+
+/* Header + page nav */
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+h1 { font-size: 19px; margin: 0; display: flex; align-items: center; gap: 8px; }
+h1 img { height: 24px; }
+.nav { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 13px; }
+.nav a { padding: 5px 14px; text-decoration: none; color: var(--muted); }
+.nav a:hover { color: var(--text); background: var(--soft); }
+.nav a.on { background: var(--accent); color: #fff; }
+/* two groups: the stats pages and the simulators */
+.navs { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ngrp { display: inline-flex; align-items: center; gap: 6px; }
+.nlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 13px; }
+.seg button { border: 0; background: none; padding: 5px 14px; cursor: pointer; }
+.seg button.on { background: var(--accent); color: #fff; }
+
+/* Tables */
+.scroll { overflow-x: auto; }
+table.stat { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.stat th, .stat td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.stat th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.stat th.sort { cursor: pointer; } .stat th.sort:hover { color: var(--text); } .stat th.on { color: var(--accent); }
+.stat td.l, .stat th.l { text-align: left; }
+.stat tr:hover td { background: var(--soft); }
+.logo { height: 22px; width: 22px; object-fit: contain; vertical-align: -6px; margin-right: 6px; }
+.slogo { height: 16px; width: 16px; object-fit: contain; vertical-align: -3px; margin-right: 4px; }
+.head { height: 32px; width: 32px; border-radius: 50%; object-fit: cover; background: var(--soft); vertical-align: middle; margin-right: 8px; }
+.teamlink { text-decoration: none; font-weight: 600; cursor: pointer; }
+.teamlink:hover { text-decoration: underline; }
+
+#tip { position: fixed; z-index: 30; max-width: 320px; background: var(--text); color: var(--bg); padding: 8px 10px;
+  border-radius: 6px; font-size: 12px; line-height: 1.45; pointer-events: none; display: none; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+#tip b { display: block; margin-bottom: 2px; }
