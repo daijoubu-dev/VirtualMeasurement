@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Virtual Measurement</title>
 <script src="profile.js"></script>
+<script src="ticker.js" defer></script>
 <link rel="icon" type="image/png" href="pylon.png">
 <link rel="apple-touch-icon" href="pylon.png">
 <style>
@@ -44,6 +45,7 @@
   .navs { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .ngrp { display: inline-flex; align-items: center; gap: 6px; }
   .nlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; }
+  @media (max-width: 520px) { .navs, .ngrp { max-width: 100%; flex-wrap: wrap; } .nav { flex-wrap: wrap; max-width: 100%; } .nav a { padding: 5px 9px; } }
   .status { display: flex; align-items: center; gap: 10px; font-size: 13px; }
   .btn { border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 6px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
   .btn:hover:not(:disabled) { border-color: var(--accent); }
@@ -70,6 +72,7 @@
   /* Layout + sidebar */
   .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
   @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { position: static !important; max-height: none !important; } }
+  body.vt-on aside { max-height: calc(100vh - 68px); } /* room for the stat ticker */
   aside { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: thin; padding: 14px 10px 12px; }
   aside h2 { padding: 0 6px; margin-bottom: 8px; }
   .gitem { display: block; width: 100%; text-align: left; background: none; border: 1px solid transparent; border-radius: 8px; padding: 7px 8px; cursor: pointer; }
@@ -357,7 +360,7 @@
 <main>
   <header>
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
-    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html" class="on">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html" class="on">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
     <div class="status">
       <span class="muted" id="meta"></span>
       <span id="refreshMsg"></span>

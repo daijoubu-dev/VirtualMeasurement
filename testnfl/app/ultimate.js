@@ -61,10 +61,11 @@
   // coaches, stadiums, O-lines and players with neither (h = "espnId|nfl", see build_perfect.js; logos: today's team
   // code → logo, from the server). The page moves to the next one if a picture doesn't load.
   const TODAY = { STL: 'LA', SD: 'LAC', OAK: 'LV' };
-  function photos(c, logos = {}) {
+  const teamKey = t => TODAY[t] || t;
+  function photos(c, logos = {}, big = false) { // big: for the full-art Mythic cards
     const [espn, nfl] = String(c.h || '').includes('|') ? c.h.split('|') : ['', c.h || ''], out = [];
-    if (espn) out.push(`https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espn}.png&w=160&h=116&scale=crop&cquality=70`);
-    if (nfl) out.push(`https://static.www.nfl.com/image/${nfl[0] === 'p' ? 'private' : 'upload'}/f_auto,q_auto,w_144,h_144,c_thumb,g_face/league/${nfl.slice(2)}`);
+    if (espn) out.push(`https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espn}.png&${big ? 'w=600&h=436' : 'w=320&h=232'}&scale=crop&cquality=${big ? 85 : 75}`);
+    if (nfl) out.push(`https://static.www.nfl.com/image/${nfl[0] === 'p' ? 'private' : 'upload'}/f_auto,q_auto,${big ? 'w_560,h_560' : 'w_260,h_260'},c_thumb,g_face/league/${nfl.slice(2)}`);
     const logo = logos[TODAY[c.t] || c.t]; if (logo) out.push(logo);
     return out;
   }
@@ -529,7 +530,7 @@
     return { F, season: L.season, games, wins, ties, losses: games.length - wins - ties, post, playoffs: wins >= 10, champ, perfect, reward, ovr: R.ovr };
   }
 
-  const out = { SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, BOT_CAP, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
+  const out = { SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, BOT_CAP, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
     planOf, randomPlan, makePools, openPack, ratings, expected, simGame, makeBot, simSeason };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_UT = out;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -243,6 +243,7 @@ const espnId = Object.fromEntries(read('raw', 'players.csv').filter(p => used.ha
 const heads = Object.fromEntries([...used].filter(id => espnId[id] || nflHead[id]).map(id => [id, `${espnId[id] || ''}|${nflHead[id] || ''}`]));
 const logos = Object.fromEntries(Object.values(TEAMS).map(t => [t.team_abbr, t.team_logo_espn]).filter(([, l]) => l));
 
-const data = { first: FIRST, last: LAST, cols: ['id', 'name', 'season', 'team', 'grade', 'line', 'x'], groups: out, staff, extra, collections, heads, logos };
+const colors = Object.fromEntries(Object.values(TEAMS).map(t => [t.team_abbr, t.team_color]).filter(([, c]) => /^#[0-9a-f]{6}$/i.test(c))); // the Ultimate Team cards' backgrounds
+const data = { first: FIRST, last: LAST, cols: ['id', 'name', 'season', 'team', 'grade', 'line', 'x'], groups: out, staff, extra, collections, heads, logos, colors };
 fs.writeFileSync(path.join(__dirname, 'app', 'perfect.js'), 'window.NFL_PERFECT = ' + JSON.stringify(data) + ';\n');
 console.log(`app/perfect.js: ${Object.entries({ ...out, ...staff }).map(([k, v]) => `${k} ${v.length}`).join(', ')}, ${collections.length} collections (+${Object.values(extra).flat().length} roster cards) (${FIRST}–${LAST})`);

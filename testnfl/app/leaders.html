@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stat Leaders · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="profile.js"></script>
+<script src="ticker.js" defer></script>
+<style>
+  [hidden] { display: none !important; }
+  .lhero { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px 24px; flex-wrap: wrap; }
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+  .lhero h2 { font-size: 30px; line-height: 1.1; letter-spacing: -.01em; text-transform: none; color: var(--text); font-weight: 850; margin: 2px 0 3px; }
+  .lhero .sub { color: var(--muted); font-size: 13px; }
+  .lctl { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+  .step { display: inline-flex; align-items: center; gap: 4px; }
+  .step button { width: 32px; height: 32px; border: 1px solid var(--border); background: var(--soft); border-radius: 8px; cursor: pointer; }
+  .step button:hover:not(:disabled) { border-color: var(--accent); } .step button:disabled { opacity: .4; cursor: default; }
+  .step select { height: 32px; }
+  .tick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .filters { display: flex; justify-content: center; margin: 0 0 16px; } .filters .seg { flex-wrap: wrap; justify-content: center; }
+
+  /* 🔴 games on right now */
+  .livebox h2 { display: flex; align-items: center; gap: 7px; color: #e11d2e; font-weight: 800; }
+  .livedot { width: 8px; height: 8px; border-radius: 50%; background: #e11d2e; animation: pulse 1.3s ease-in-out infinite; } @keyframes pulse { 50% { opacity: .25; } }
+  .lgames { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .lg { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-variant-numeric: tabular-nums; }
+  .lg .tm { display: flex; align-items: center; gap: 6px; font-weight: 700; } .lg .tm b { margin-left: auto; font-size: 17px; } .lg .tm.lose { color: var(--muted); font-weight: 550; }
+  .lg .tm img { width: 20px; height: 20px; object-fit: contain; }
+  .lg .st { font-size: 11.5px; color: #e11d2e; font-weight: 750; margin-top: 3px; } .lg .st.fin { color: var(--muted); }
+  .lg .who { font-size: 11.5px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* category cards */
+  .lgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 14px; align-items: start; }
+  .lc { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; scroll-margin-top: 14px; }
+  .lc.flash { animation: flash 1.8s ease; } @keyframes flash { 25% { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); } }
+  .lc h3 { margin: 0; padding: 10px 14px 0; font-size: 12px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .top1 { --tc: var(--accent); position: relative; display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 14px 12px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--tc) 17%, transparent), transparent 72%); }
+  .top1 .ph { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; background: var(--soft); border: 2px solid var(--tc); }
+  .top1 .nm, .row .nm { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; color: inherit; font-weight: 750; }
+  .top1 .nm { font-size: 16px; line-height: 1.2; display: block; } .nm:hover { color: var(--accent); text-decoration: underline; }
+  .top1 .tm { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 1px; } .top1 .tm img { width: 16px; height: 16px; object-fit: contain; }
+  .top1 .ln { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .top1 .val { font-size: 34px; font-weight: 850; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .row { display: grid; grid-template-columns: 22px 26px minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 5px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .row:last-of-type { border-bottom: 0; } .row:hover { background: var(--soft); }
+  .row .rk { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .row .ph { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; background: var(--soft); }
+  .row .who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .row .who small { color: var(--muted); font-size: 11.5px; margin-left: 4px; }
+  .row .val { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .more { width: 100%; border: 0; border-top: 1px solid var(--border); background: none; color: var(--accent); cursor: pointer; font-size: 12px; font-weight: 650; padding: 6px; } .more:hover { background: var(--soft); }
+  .none { padding: 34px 18px; text-align: center; color: var(--muted); }
+  @media (max-width: 520px) { .lhero h2 { font-size: 25px; } .top1 { grid-template-columns: 58px minmax(0, 1fr) auto; } .top1 .ph { width: 58px; height: 58px; } .top1 .val { font-size: 28px; } }
+  @media (prefers-reduced-motion: reduce) { .livedot, .lc.flash { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html" class="on">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+  </header>
+
+  <div class="panel lhero">
+    <div><div class="eyebrow" id="eyebrow"></div><h2 id="title">Stat leaders</h2><div class="sub" id="sub"></div></div>
+    <div class="lctl">
+      <div class="step"><button type="button" id="prev" aria-label="Previous week">◀</button><select id="week" aria-label="Week"></select><button type="button" id="next" aria-label="Next week">▶</button></div>
+      <label class="tick"><input type="checkbox" id="tickOn"> 📺 Stat ticker</label>
+    </div>
+  </div>
+  <div class="panel livebox" id="livebox" hidden><h2><span class="livedot"></span>Live now</h2><div class="lgames" id="lgames"></div></div>
+  <div class="filters"><div class="seg" id="groups"></div></div>
+  <div class="lgrid" id="grid"></div>
+</main>
+
+<script src="leaders.js"></script>
+<script src="career.js"></script>
+<script>
+// 🏅 The week's stat leaders (leaders.js, built by build_leaders.js). It opens on the same week as the ticker; ?week=9 opens another.
+const L = window.NFL_LEADERS || { weeks: [], cats: [], people: {}, teams: {} };
+window.NFL_DATA ||= { teamInfo: L.teams }; // the career pop-up's team names and logos
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const GROUPS = [['all', 'All'], ['offense', 'Offense'], ['defense', 'Defense'], ['special', 'Special teams'], ['fantasy', 'Fantasy']];
+const CAREER_TAB = { pyd: 'passing', ptd: 'passing', rating: 'passing', ryd: 'rushing', rtd: 'rushing', recyd: 'receiving', rec: 'receiving', rectd: 'receiving', sk: 'defense', tkl: 'defense', tfl: 'defense', dint: 'defense', pd: 'defense', ff: 'defense', fgm: 'kicking', ret: 'returns', fpts: 'fantasy' };
+const qWeek = +new URLSearchParams(location.search).get('week');
+let week = L.weeks.some(w => w.week === qWeek) ? qWeek : L.show ?? L.weeks[L.weeks.length - 1]?.week, group = 'all';
+const open = new Set();
+
+const head = (h, size) => { // 'p:id' or 'u:id' → the NFL.com headshot, cropped to the face
+  if (!h) return '';
+  return `https://static.www.nfl.com/image/${h[0] === 'p' ? 'private' : 'upload'}/f_auto,q_auto,w_${size},h_${size},c_thumb,g_face/league/${h.slice(2)}`;
+};
+const photo = (h, size, cls) => (h ? `<img class="${cls}" src="${head(h, size)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
+const logo = t => (L.teams[t]?.logo ? `<img src="${esc(L.teams[t].logo.replace('/i/teamlogos/', '/combiner/i?img=/i/teamlogos/').replace(/\.png$/, '.png&w=48&h=48'))}" alt="" loading="lazy" onerror="this.remove()">` : '');
+const fmt = (c, v) => (c.dec && (v % 1 || c.key === 'rating') ? v.toFixed(c.dec) : String(v));
+
+function card(c, W) {
+  const rows = W.cats[c.key] || []; if (!rows.length) return '';
+  const nameBtn = (id, cls = 'nm') => `<button type="button" class="${cls}" data-p="${esc(id)}" data-c="${CAREER_TAB[c.key] || ''}" data-tip="Career stats">${esc(L.people[id][0])}</button>`;
+  const [id, team, v, line] = rows[0], P = L.people[id], many = open.has(c.key), rest = rows.slice(1, many ? 10 : 5);
+  // ties share a rank
+  const rank = i => rows.findIndex(r => r[2] === rows[i][2]) + 1;
+  return `<article class="lc" id="c-${c.key}"><h3>${esc(c.name)}</h3>
+    <div class="top1" style="--tc:${esc(L.teams[team]?.color || 'var(--accent)')}">${photo(P[3], 152, 'ph')}<div style="min-width:0">${nameBtn(id)}<div class="tm">${logo(team)}${esc(team)} · ${esc(P[2])}</div><div class="ln">${esc(line)}</div></div><div class="val">${fmt(c, v)}</div></div>
+    ${rest.map((r, i) => `<div class="row" title="${esc(r[3])}"><span class="rk">${rank(i + 1)}</span>${photo(L.people[r[0]][3], 52, 'ph')}<span class="who">${nameBtn(r[0])}<small>${esc(r[1])}</small></span><span class="val">${fmt(c, r[2])}</span></div>`).join('')}
+    ${rows.length > 5 ? `<button type="button" class="more" data-more="${c.key}">${many ? 'Show top 5' : `Show top ${rows.length}`}</button>` : ''}</article>`;
+}
+function draw() {
+  const i = L.weeks.findIndex(w => w.week === week), W = L.weeks[i];
+  $('prev').disabled = i <= 0; $('next').disabled = i < 0 || i >= L.weeks.length - 1;
+  $('groups').innerHTML = GROUPS.map(([k, t]) => `<button type="button" data-g="${k}" class="${k === group ? 'on' : ''}">${t}</button>`).join('');
+  if (!W) { $('title').textContent = 'Stat leaders'; $('sub').textContent = ''; $('grid').innerHTML = `<div class="panel none" style="grid-column:1/-1">No games with stats yet this season. Leaders show up after the first Sunday of games.</div>`; return; }
+  $('week').value = week;
+  const onShow = W.week === L.show;
+  $('eyebrow').textContent = onShow ? (W.done ? 'Last week' : 'This week') : `${L.season} season`;
+  $('title').textContent = `${W.label} leaders`;
+  $('sub').textContent = W.done ? `Final · ${W.games} games` : `${W.played} of ${W.games} games so far`;
+  $('grid').innerHTML = L.cats.filter(c => group === 'all' || c.group === group).map(c => card(c, W)).join('');
+}
+$('week').innerHTML = L.weeks.map(w => `<option value="${w.week}">${esc(w.label)}</option>`).join('');
+const go = d => { const i = L.weeks.findIndex(w => w.week === week) + d; if (L.weeks[i]) { week = L.weeks[i].week; draw(); } };
+$('prev').onclick = () => go(-1); $('next').onclick = () => go(1);
+$('week').onchange = () => { week = +$('week').value; draw(); };
+$('groups').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { group = b.dataset.g; draw(); } };
+$('grid').onclick = e => {
+  const p = e.target.closest('[data-p]'); if (p) return VMCareer.open(p.dataset.p, { cat: p.dataset.c, name: p.textContent });
+  const m = e.target.closest('[data-more]'); if (m) { open.has(m.dataset.more) ? open.delete(m.dataset.more) : open.add(m.dataset.more); draw(); }
+};
+draw();
+// a ticker item links here with #pyd: jump to that category
+if (location.hash) { const c = document.getElementById('c-' + location.hash.slice(1)); if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('flash'); } }
+
+// the 📺 ticker switch
+function syncTick() { if (window.VMTicker) $('tickOn').checked = VMTicker.isOn(); }
+$('tickOn').onchange = () => window.VMTicker?.set($('tickOn').checked);
+['vm:ticker', 'vm:prefs', 'vm:profile'].forEach(ev => window.addEventListener(ev, syncTick));
+window.addEventListener('DOMContentLoaded', syncTick); syncTick();
+
+// 🔴 games on right now
+async function pollLive() {
+  let d = null;
+  if (location.protocol.startsWith('http') && !document.hidden) { try { d = await (await fetch('/api/live')).json(); } catch {} }
+  if (d?.ok) {
+    $('livebox').hidden = !d.anyLive;
+    if (d.anyLive) $('lgames').innerHTML = d.games.filter(g => g.state === 'in').concat(d.games.filter(g => g.state === 'post')).map(g => {
+      const side = (t, o) => `<div class="tm ${t.score < o.score ? 'lose' : ''}">${t.logo ? `<img src="${esc(t.logo)}" alt="">` : ''}${esc(t.abbr)}<b>${t.score ?? 0}</b></div>`;
+      const top = g.leaders.find(l => l.cat === 'pass');
+      return `<div class="lg">${side(g.away, g.home)}${side(g.home, g.away)}<div class="st ${g.state === 'in' ? '' : 'fin'}">${esc(g.detail)}${g.down ? ` · ${esc(g.down)}` : ''}</div>${top ? `<div class="who">${esc(top.name)}: ${esc(top.line)}</div>` : ''}</div>`;
+    }).join('');
+  }
+  setTimeout(pollLive, d?.anyLive ? 30e3 : 5 * 60e3);
+}
+pollLive();
+
+// ---------- tooltip ----------
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip' });
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t || !t.dataset.tip) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip; tipEl.style.display = 'block';
+  const r = t.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8)) + 'px';
+  tipEl.style.top = (r.bottom + 6 + tipEl.offsetHeight > innerHeight ? r.top - tipEl.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

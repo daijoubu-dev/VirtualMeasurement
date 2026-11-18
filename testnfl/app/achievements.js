@@ -9,7 +9,7 @@
     // ---- getting around ----
     { key: 'welcome', group: 'Getting started', name: 'Welcome to Virtual Measurement', desc: 'Create a profile.', tier: 'bronze' },
     { key: 'fav_team', group: 'Getting started', name: 'Ride or die', desc: 'Pick your ⭐ favorite team on the Matchups page.', tier: 'bronze' },
-    { key: 'tourist', group: 'Getting started', name: 'Tourist', desc: 'Visit every page of the site.', tier: 'bronze', set: 'pages', goal: 8 },
+    { key: 'tourist', group: 'Getting started', name: 'Tourist', desc: 'Visit every page of the site.', tier: 'bronze', set: 'pages', goal: 9 },
     // ---- matchups & stats ----
     { key: 'scout_25', group: 'Stats', name: 'Film room', desc: 'Look at 25 different matchups.', tier: 'bronze', set: 'matchups', goal: 25 },
     { key: 'scout_100', group: 'Stats', name: 'Advance scout', desc: 'Look at 100 different matchups.', tier: 'silver', set: 'matchups', goal: 100 },

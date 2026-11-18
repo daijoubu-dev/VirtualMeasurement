@@ -9,7 +9,7 @@
 // 🔑 Each profile has a PIN (4 digits and 1 letter, e.g. 4821K), stored only as a salted scrypt hash. Signing in with it
 // gives the browser a token (kept as a SHA-256 hash in the profile's "tokens"), and every change to a profile needs that
 // token. Profiles made before PINs existed get theirs the first time someone signs in to them.
-// "prefs" holds per-profile settings the pages share: { fav: 'KC', stats: [stat keys], tactics: {...} }.
+// "prefs" holds per-profile settings the pages share: { fav: 'KC', stats: [stat keys], tactics: {...}, ticker: true or false }.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -120,6 +120,7 @@ function setPrefs(id, token, prefs) {
   const p = authorize(id, token), cur = p.prefs ||= {};
   if (prefs && typeof prefs === 'object') {
     if ('fav' in prefs) cur.fav = /^[A-Z]{2,3}$/.test(prefs.fav) ? prefs.fav : '';
+    if ('ticker' in prefs) cur.ticker = !!prefs.ticker; // the scrolling stat ticker (app/ticker.js)
     if ('stats' in prefs && Array.isArray(prefs.stats)) cur.stats = prefs.stats.filter(k => typeof k === 'string' && /^[a-z0-9_]{1,30}$/.test(k)).slice(0, 100);
     if ('match' in prefs && prefs.match && typeof prefs.match === 'object') { // the rest of the matchup page's ⚙ Settings
       const m = prefs.match, num = (v, lo, hi) => (Number.isFinite(+v) ? Math.max(lo, Math.min(hi, Math.round(+v))) : undefined);

@@ -5,7 +5,7 @@ testnfl profiles/
 testnfl/data/
 
 # Page data generated from that download on every ↻ Refresh. Rebuild with:
-#   node fetch.js && node build.js && node build_app.js && node build_perfect.js && node build_charts.js && node build_box.js
+#   node fetch.js && node build.js && node build_app.js && node build_perfect.js && node build_charts.js && node build_box.js && node build_leaders.js
 testnfl/app/data.js
 testnfl/app/players.js
 testnfl/app/careers.js
@@ -13,6 +13,8 @@ testnfl/app/chartdata.js
 testnfl/app/ngs.js
 testnfl/app/perfect.js
 testnfl/app/boxscores.js
+testnfl/app/leaders.js
+testnfl/app/ticker-data.js
 
 # Old copies waiting to be deleted
 testnfl/_tobedeleted/

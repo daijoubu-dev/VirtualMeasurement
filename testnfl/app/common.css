@@ -35,6 +35,7 @@ h1 img { height: 24px; }
 .navs { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .ngrp { display: inline-flex; align-items: center; gap: 6px; }
 .nlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; }
+@media (max-width: 520px) { .navs, .ngrp { max-width: 100%; flex-wrap: wrap; } .nav { flex-wrap: wrap; max-width: 100%; } .nav a { padding: 5px 9px; } }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 13px; }
 .seg button { border: 0; background: none; padding: 5px 14px; cursor: pointer; }
 .seg button.on { background: var(--accent); color: #fff; }

@@ -21,12 +21,12 @@ const QUEUE = path.join(UDIR, 'queue.json'), GAMES = path.join(UDIR, 'games.json
 const KEEP_GAMES = 500; // results listed (every game file is kept)
 
 // the card pool comes from the 17-0 data, re-read after a refresh rebuilds it
-let POOLS = null, COLLECTIONS = [], HEADS = {}, LOGOS = {}, poolStamp = 0;
+let POOLS = null, COLLECTIONS = [], HEADS = {}, LOGOS = {}, COLORS = {}, poolStamp = 0;
 function pools() {
   const f = path.join(__dirname, 'app', 'perfect.js'), m = fs.statSync(f).mtimeMs;
   if (m !== poolStamp) {
     const s = fs.readFileSync(f, 'utf8'), P = JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1));
-    POOLS = UT.makePools(P); COLLECTIONS = UT.makeCollections(P, POOLS); HEADS = P.heads || {}; LOGOS = P.logos || {}; poolStamp = m;
+    POOLS = UT.makePools(P); COLLECTIONS = UT.makeCollections(P, POOLS); HEADS = P.heads || {}; LOGOS = P.logos || {}; COLORS = P.colors || {}; poolStamp = m;
   }
   return POOLS;
 }
@@ -50,7 +50,7 @@ function state(p) {
   const ut = utOf(p);
   return { team: ut.team, cards: ut.cards, lineup: ut.lineup, starter: ut.starter, dailyReady: ut.daily !== today(), rec: ut.rec, unseen: ut.unseen, balance: p.balance,
     bot: { rec: ut.bot.rec, ptsToday: ut.bot.day === today() ? ut.bot.pts : 0 }, seasonReady: ut.seasonDay !== today(), seasons: ut.seasons.slice(0, 10), titles: ut.titles,
-    staff: ut.staff, collected: ut.collected, tactics: UT.planOf(p.prefs?.tactics) };
+    staff: ut.staff, collected: ut.collected, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced };
 }
 
 // ---------- this season's league for 📅 season mode, from the Matchups data (app/data.js), like the 17-0 page ----------
@@ -226,7 +226,10 @@ const ACTIONS = {
     const q = readJson(QUEUE, []).filter(e => e.pid !== p.id);
     if (!b.cancel) {
       if (!full(p.ut)) throw new Error('Fill every spot in your lineup first.');
-      q.push({ qid: uid(), at: new Date().toISOString(), ...side(p, p.ut), tactics: planFrom(p, b) }); // the game plan stays secret until the game
+      // ⚖️ a balanced game: no game plans for either side (marked on the queue, so the challenger skips the plan screen too)
+      const balanced = !!b.balanced;
+      (p.prefs ||= {}).balanced = balanced;
+      q.push({ qid: uid(), at: new Date().toISOString(), ...side(p, p.ut), balanced, tactics: balanced ? { ...UT.DEFAULT_PLAN } : planFrom(p, b) }); // the game plan stays secret until the game
     }
     writeJson(QUEUE, q);
   },
@@ -236,9 +239,9 @@ const ACTIONS = {
     if (e.pid === p.id) throw new Error('You can\'t challenge your own team.');
     if (!full(p.ut)) throw new Error('Fill every spot in your lineup first.');
     const host = profiles.load(e.pid);
-    const seed = Math.floor(Math.random() * 2 ** 31), home = { ...e }, away = { ...side(p, p.ut), tactics: planFrom(p, b) };
+    const seed = Math.floor(Math.random() * 2 ** 31), home = { ...e }, away = { ...side(p, p.ut), tactics: e.balanced ? { ...UT.DEFAULT_PLAN } : planFrom(p, b) };
     delete home.qid;
-    const sim = UT.simGame(home, away, seed);
+    const sim = { ...UT.simGame(home, away, seed), ...(e.balanced ? { balanced: true } : {}) };
     // 🎁 a card for each side (better odds for the winner); the host's shows up in the replay
     const reward = { home: { u: uid(), ...UT.gameCard(pools(), sim.winner === 'home') }, away: { u: uid(), ...UT.gameCard(pools(), sim.winner === 'away') } };
     const game = { gid: uid() + uid(), at: new Date().toISOString(), seed, home, away, ...sim, reward };
@@ -297,7 +300,7 @@ const ACTIONS = {
     out.season = ut.seasons[0];
   },
 };
-const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, winner: g.winner,
+const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, winner: g.winner, ...(g.balanced ? { balanced: true } : {}),
   home: { pid: g.home.pid, name: g.home.name, team: g.home.team, abbr: g.home.abbr, ovr: g.home.ovr },
   away: { pid: g.away.pid, name: g.away.name, team: g.away.team, abbr: g.away.abbr, ovr: g.away.ovr } });
 
@@ -305,7 +308,7 @@ const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, wi
 //   GET  /api/ut/<id>                the same, plus that profile's team, cards and lineup
 //   GET  /api/ut/game/<game id>      one game in full (to replay it)
 //   POST /api/ut/<id>/<action>       team {name, abbr} · daily · open {pack} · lineup {lineup | 'best'} · sell {uids} · tradeup {uids}
-//                                    queue {cancel?, tactics} · challenge {qid, tactics} · seen {gid} · bot {level, tactics} · season {team}
+//                                    queue {cancel?, tactics, balanced?} · challenge {qid, tactics} · seen {gid} · bot {level, tactics} · season {team}
 //                                    teampack {id} · collect {id}        (tactics = { off, def, tempo }, see UT.TACTICS)
 function handle(req, url, body) {
   const [, , , a, b] = url.split('/'); // '', 'api', 'ut', a, b
@@ -316,7 +319,7 @@ function handle(req, url, body) {
     // (a queued team's game plan is never sent: the challenger picks theirs blind)
     const out = { queue: readJson(QUEUE, []).map(({ cards, tactics, ...e }) => ({ ...e, lineup: UT.SLOTS.map(([s]) => cards[s] && [s, cards[s].n, cards[s].gr]).filter(Boolean) })), games: readJson(GAMES, []).slice(0, 60),
       // the collections, logos and team list only change with a data refresh: the page's 10-second check skips them (?lite)
-      ...(new URL(req.url, 'http://x').searchParams.has('lite') ? {} : { collections: collections().map(({ star, ...c }) => c), logos: (pools(), LOGOS) }),
+      ...(new URL(req.url, 'http://x').searchParams.has('lite') ? {} : { collections: collections().map(({ star, ...c }) => c), logos: (pools(), LOGOS), colors: COLORS }),
       boards: boards(), pulls: P.slice(0, 40), pullers: Object.values(who).sort((a, b) => b.n - a.n || b.best.gr - a.best.gr),
       ...(new URL(req.url, 'http://x').searchParams.has('lite') ? {} : { teams: league().teams.map(({ t, name }) => ({ t, name })).sort((a, b) => a.name.localeCompare(b.name)) }) };
     if (a) out.me = state(need(a));

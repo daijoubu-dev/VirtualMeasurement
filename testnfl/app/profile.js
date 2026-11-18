@@ -79,6 +79,7 @@
     .vmpanel form button, .vmpanel .lnk { border: 1px solid var(--border); background: var(--soft); color: var(--text); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; text-decoration: none; }
     .vmpanel .pinbox { border: 1px solid var(--accent); border-radius: 8px; padding: 8px; margin: 6px 0; font-size: 12px; }
     .vmpanel .hint { font-size: 11.5px; color: var(--muted); }
+    .vmpanel .vmtick { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 8px; cursor: pointer; }
     .vmpanel .err { color: var(--loss); font-size: 12px; min-height: 0; } .vmpanel .row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
     .vmtoasts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }
     .vmtoast { background: var(--panel); border: 1px solid var(--gold); border-radius: 12px; padding: 10px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); min-width: 260px; animation: vmin .35s ease; }
@@ -106,6 +107,7 @@
         <h4>Profiles</h4>${profilesCache.map(p => `<button type="button" class="who ${p.id === me ? 'on' : ''}" data-vmid="${p.id}">${esc(p.name)}${p.pin ? '' : ' <small class="hint">(no PIN)</small>'}<span>${p.balance.toLocaleString()} pts</span></button>${pinFor === p.id ? pinBox(p) : ''}`).join('') || '<div class="d" style="font-size:12px;color:var(--muted)">No profiles yet.</div>'}
         <form id="vmNew"><input id="vmName" maxlength="24" placeholder="New profile name"><input class="pin" id="vmNewPin" maxlength="5" autocomplete="off" placeholder="PIN"><button type="submit">Create</button></form>
         <div class="hint">New profiles need a PIN: ${PIN_HINT}.</div><div class="err" id="vmErr"></div>
+        ${window.VMTicker ? `<label class="vmtick"><input type="checkbox" id="vmTick" ${window.VMTicker.isOn() ? 'checked' : ''}> 📺 Show the stat ticker</label>` : ''}
         <div class="row"><a class="lnk" href="achievements.html">🏆 Achievements</a>${me ? '<button type="button" class="lnk" id="vmOut">Sign out</button>' : ''}</div></div>` : '');
     if (focusPin || pinFor) document.getElementById('vmPinIn')?.focus();
   }
@@ -149,6 +151,7 @@
       if (w) { if (w.dataset.vmid === me) { panelOpen = false; return draw(); } pinFor = pinFor === w.dataset.vmid ? null : w.dataset.vmid; pinErr = ''; return draw(); }
       if (e.target.id === 'vmOut') { const [id, tok] = [me, token]; signedOut(); panelOpen = false; draw(); post(`${API}/${id}/logout`, { token: tok }).catch(() => {}); }
     });
+    box.addEventListener('change', e => { if (e.target.id === 'vmTick') window.VMTicker?.set(e.target.checked); });
     box.addEventListener('submit', async e => {
       e.preventDefault();
       if (e.target.id === 'vmPin') {

@@ -12,12 +12,14 @@ const { execFile, exec } = require('child_process');
 const { fetchData, currentSeason } = require('./fetch');
 const profiles = require('./profiles');
 const ultimate = require('./ultimate_api');
+const live = require('./live');
 
 const PORT = Number(process.env.PORT) || 8765;
 // Listen on every network interface, but only answer local-network addresses (see isLocalNetwork)
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC = /^(1|true|yes)$/i.test(process.env.PUBLIC || '');
 const REFRESH_MS = (Number(process.env.REFRESH_MINUTES) || 10) * 60 * 1000;
+const AUTO_REFRESH = !/^(0|false|no|off)$/i.test(process.env.AUTO_REFRESH || ''); // AUTO_REFRESH=0 turns the schedule below off
 
 // This machine, or a private local-network address (RFC 1918 IPv4, IPv6 link-local / unique-local).
 // Everything else (the public internet) gets 403, which also keeps strangers off the Refresh button.
@@ -54,7 +56,43 @@ async function refresh() {
   log.push((await runNode('build_perfect.js')).trim()); // the 17-0 page's player pool (completed seasons)
   log.push((await runNode('build_charts.js')).trim()); // the Charts page's data
   log.push((await runNode('build_box.js')).trim()); // this season's box scores (matchup page, finished games)
+  log.push((await runNode('build_leaders.js')).trim()); // the weekly stat leaders (the ticker and the Leaders page)
   return log.join('\n');
+}
+const REFRESH_STAMP = path.join(__dirname, 'data', 'last_refresh.txt'); // written when a refresh finishes
+async function runRefresh() {
+  refreshing = true;
+  try {
+    const log = await refresh(); lastRefresh = Date.now(); console.log(log);
+    fs.writeFileSync(REFRESH_STAMP, new Date().toISOString());
+    return log;
+  }
+  finally { refreshing = false; }
+}
+
+// ⏰ Automatic refresh during the season (September to February), at these times US Eastern: after Thursday's game (Friday),
+// after Saturday's (Sunday), after Sunday's (Monday), after Monday's (Tuesday), and again later in case nflverse was slow to
+// post the stats. If the server was off at one of these times, it catches up when it starts.
+const AUTO_SLOTS = [[5, 6], [5, 14], [0, 6], [1, 6], [1, 14], [2, 6], [2, 14], [3, 6]]; // [weekday (0 = Sunday), hour]
+const SEASON_MONTHS = [9, 10, 11, 12, 1, 2], DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const eastern = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', hourCycle: 'h23', month: 'numeric' });
+// the most recent scheduled time, up to a week back
+function lastAutoSlot(now = Date.now()) {
+  const hour = 3600e3, start = Math.floor(now / hour) * hour;
+  for (let h = 0; h < 24 * 8; h++) {
+    const t = start - h * hour, p = Object.fromEntries(eastern.formatToParts(t).map(x => [x.type, x.value]));
+    if (SEASON_MONTHS.includes(+p.month) && AUTO_SLOTS.some(([d, hr]) => DAYS[d] === p.weekday && hr === +p.hour)) return t;
+  }
+  return 0;
+}
+let autoRetryAt = 0;
+async function autoRefresh() {
+  if (refreshing || Date.now() < autoRetryAt) return;
+  const slot = lastAutoSlot();
+  let built = 0; try { built = fs.statSync(REFRESH_STAMP).mtimeMs; } catch { /* never built */ }
+  if (!slot || built >= slot) return;
+  console.log('Automatic data refresh starting…');
+  try { await runRefresh(); } catch (e) { console.error('Automatic refresh failed, trying again in an hour:', e.message); autoRetryAt = Date.now() + 3600e3; }
 }
 
 //   GET  /api/profiles               every profile (name, points, achievements unlocked, whether it has a PIN)
@@ -64,7 +102,7 @@ async function refresh() {
 //   POST /api/profiles/<id>/logout   forget this browser's token
 //   POST /api/profiles/<id>/track    {events: [...]} from the pages; answers with anything that unlocked
 //   POST /api/profiles/<id>/spend    {amount, reason} (for the Ultimate Team packs)
-//   POST /api/profiles/<id>/prefs    {fav?, stats?, tactics?} per-profile settings
+//   POST /api/profiles/<id>/prefs    {fav?, stats?, tactics?, ticker?} per-profile settings
 // Everything that changes a profile needs its token, in an X-VM-Token header (or "token" in the body, for sendBeacon).
 const tokenOf = (req, body) => req.headers['x-vm-token'] || body?.token || '';
 const readBody = req => new Promise((resolve, reject) => {
@@ -114,17 +152,19 @@ async function handle(req, res) {
       const wait = Math.ceil((lastRefresh + REFRESH_MS - Date.now()) / 60000);
       if (wait > 0) { res.writeHead(429); return res.end(JSON.stringify({ ok: false, error: `The data was just refreshed. Try again in ${wait} min.` })); }
     }
-    refreshing = true;
     try {
-      const log = await refresh();
-      lastRefresh = Date.now();
-      console.log(log);
+      const log = await runRefresh();
       res.end(JSON.stringify({ ok: true, log }));
     } catch (e) {
       console.error('Refresh failed:', e.message);
       res.writeHead(500); res.end(JSON.stringify({ ok: false, error: e.message }));
-    } finally { refreshing = false; }
+    }
     return;
+  }
+  // 🔴 live scores for the ticker and the Leaders page (see live.js)
+  if (url === '/api/live' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify(await live.get()));
   }
   // 👤 profiles, achievements and points (stored in the "testnfl profiles" folder next to the app, see profiles.js)
   if (url.startsWith('/api/profiles')) return profileApi(req, res, url);
@@ -144,6 +184,7 @@ async function handle(req, res) {
   fs.createReadStream(file).pipe(res);
 }
 function started() {
+  if (AUTO_REFRESH) { setTimeout(autoRefresh, 60e3); setInterval(autoRefresh, 10 * 60e3); }
   console.log(`Virtual Measurement running at http://localhost:${PORT}  (Ctrl+C to stop)${PUBLIC ? '  · PUBLIC: answering every address' : ''}`);
   console.log(`Profiles are saved in ${profiles.DIR}`);
   if (!PUBLIC && HOST !== '127.0.0.1' && HOST !== 'localhost') {
