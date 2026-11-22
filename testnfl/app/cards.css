@@ -1,0 +1,76 @@
+/* 🃏 Ultimate Team cards, shared by the Ultimate Team and profile pages (cards.js draws them). Everything is sized from the
+   card's own width (cqw), so one design works from the pack reveal down to a phone's lineup. */
+@property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.card { --rc: #9aa3b0; --tc: #334; position: relative; container-type: inline-size; aspect-ratio: 5 / 7; min-width: 0; border-radius: 14px; color: #f3f6fb; isolation: isolate; font-family: Bahnschrift, "DIN Alternate", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif; }
+.cface { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; border: 2px solid var(--rc); background: #0b0f18; box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
+  transform: perspective(620px) rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg)); transition: transform .16s ease-out, border-color .15s; }
+.cbg { position: absolute; inset: 0; background: radial-gradient(115% 72% at 72% 24%, color-mix(in srgb, var(--tc) 72%, transparent), transparent 72%), linear-gradient(168deg, color-mix(in srgb, var(--rc) 30%, #111725), #090d15 74%); }
+.cbg::after { content: ""; position: absolute; inset: 0; -webkit-mask-image: linear-gradient(200deg, #000, transparent 72%); mask-image: linear-gradient(200deg, #000, transparent 72%); }
+.card .ph { position: absolute; left: 20%; right: -7%; top: 5%; height: 62%; }
+.card .ph img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 10%; -webkit-mask-image: linear-gradient(#000 74%, transparent 99%); mask-image: linear-gradient(#000 74%, transparent 99%); filter: drop-shadow(0 3px 7px rgba(0, 0, 0, .55)); }
+.card .ph.tlogo { left: 26%; right: 4%; top: 12%; height: 48%; } .card .ph.tlogo img { object-fit: contain; object-position: center; -webkit-mask-image: none; mask-image: none; }
+.cbadge { position: absolute; z-index: 2; left: 7cqw; top: 6cqw; display: flex; flex-direction: column; align-items: flex-start; gap: 1.5cqw; }
+.card .gr { font-size: 25cqw; font-weight: 800; line-height: .86; letter-spacing: -.03em; font-variant-numeric: tabular-nums; text-shadow: 0 2px 6px rgba(0, 0, 0, .65); }
+.card .pos { font-size: 7cqw; font-weight: 800; letter-spacing: .06em; line-height: 1; color: #0a0e16; background: var(--rc); border-radius: 3px; padding: 1.2cqw 2.6cqw; white-space: nowrap; }
+.cbadge .tm { width: 15cqw; height: 15cqw; object-fit: contain; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .7)); }
+.plate { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; padding: 15cqw 7cqw 5.5cqw; display: flex; flex-direction: column; gap: 1cqw; background: linear-gradient(transparent, rgba(7, 10, 17, .9) 34%, #070a11); }
+.card .nm { font-size: 11.6cqw; font-weight: 800; line-height: 1; text-transform: uppercase; letter-spacing: .005em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.card .nm.long { font-size: 9.6cqw; } .fullart .nm.long { font-size: 11.4cqw; }
+.card .yr { font-size: 7.2cqw; font-weight: 650; color: #c6cfdd; }
+.card .ed { font-size: 6.2cqw; font-weight: 800; color: #ffc53d; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .ed.set { color: #aab6c8; }
+.card .ln { font-size: 6.8cqw; line-height: 1.15; color: #aab6c8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .ft { display: flex; justify-content: space-between; align-items: center; gap: 4px; min-height: 12cqw; margin-top: 1.5cqw; padding-top: 2cqw; border-top: 1px solid rgba(255, 255, 255, .16); font-size: 6.4cqw; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--rc); }
+.card .ft .btn { padding: 1px 6px; font-size: max(10px, 6.4cqw); letter-spacing: 0; text-transform: none; background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .25); color: #fff; font-family: system-ui, sans-serif; white-space: nowrap; }
+.card .cnt { position: absolute; z-index: 5; top: -7px; right: -7px; background: var(--text); color: var(--bg); border-radius: 999px; font-size: 11px; font-weight: 800; padding: 1px 7px; }
+.card.in { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card.pickable { cursor: pointer; } .card.pickable:hover { transform: translateY(-3px); }
+.slot .card:hover .cface { border-color: var(--accent); }
+
+/* each rarity has its own stock */
+.r-common .cface { --rc: #8b96a6; } .r-common .cbg { background: radial-gradient(110% 70% at 72% 24%, color-mix(in srgb, var(--tc) 34%, transparent), transparent 72%), linear-gradient(168deg, #2a3140, #0d1119 74%); }
+.r-common .cbg::after { background: repeating-linear-gradient(112deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 5cqw); }
+.r-rare .cbg::after { background: repeating-linear-gradient(135deg, rgba(92, 165, 255, .2) 0 7cqw, transparent 7cqw 16cqw); }
+.r-epic .cface { border-color: #b56cff; box-shadow: 0 0 0 1px rgba(181, 108, 255, .3), 0 6px 18px rgba(120, 50, 220, .35); }
+.r-epic .cbg::after { background: repeating-conic-gradient(from 45deg, rgba(204, 140, 255, .2) 0 25%, transparent 0 50%) 0 0 / 15cqw 15cqw; }
+.r-legendary .cface { border-color: #f6c343; box-shadow: inset 0 0 0 1px rgba(255, 226, 140, .55), 0 0 16px rgba(234, 179, 8, .42); }
+.r-legendary .cbg { background: radial-gradient(90% 60% at 62% 28%, rgba(255, 196, 60, .42), transparent 72%), linear-gradient(168deg, #3b2a08, #0c0a06 76%); }
+.r-legendary .cbg::after { inset: -30%; background: repeating-conic-gradient(from 0deg at 58% 38%, rgba(255, 210, 90, .2) 0 6deg, transparent 6deg 15deg); }
+.r-legendary .gr, .r-legendary .nm { background: linear-gradient(180deg, #fff3c4, #f6c343 55%, #c98a12); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7)); }
+.r-legendary .cface::after { content: ""; position: absolute; z-index: 3; inset: -20% -60%; pointer-events: none; background: linear-gradient(105deg, transparent 42%, rgba(255, 240, 190, .34) 50%, transparent 58%); transform: translateX(-60%); animation: foil 5.5s ease-in-out infinite; }
+@keyframes foil { 55%, 100% { transform: translateX(60%); } }
+
+/* 🌈 Mythic: full art. The player fills the card, on a moving aurora with holographic foil that follows the pointer */
+.fullart::before { content: ""; position: absolute; z-index: -1; inset: -2px; border-radius: 16px; background: conic-gradient(from var(--ang), #ff2d6f, #ffb800, #2cf5c8, #2f8cff, #b44dff, #ff2d6f); animation: spin 5s linear infinite; }
+.fullart::after { content: ""; position: absolute; z-index: -2; inset: 2px; border-radius: 16px; background: conic-gradient(from var(--ang), #ff2d6f, #ffb800, #2cf5c8, #2f8cff, #b44dff, #ff2d6f); filter: blur(11px); opacity: .62; animation: spin 5s linear infinite; }
+@keyframes spin { to { --ang: 360deg; } }
+.fullart .cface { border: 0; inset: 1px; border-radius: 13px; background: #05070d; box-shadow: none; }
+.fullart .cbg { background: radial-gradient(90% 62% at 50% 30%, color-mix(in srgb, var(--tc) 78%, transparent), transparent 76%), conic-gradient(from var(--ang) at 50% 36%, #5c1038, #6a4300, #07544a, #0d3a78, #47197a, #5c1038); animation: spin 14s linear infinite; }
+.fullart .cbg::after { content: "99"; inset: auto -4% 24% auto; font-size: 82cqw; font-weight: 900; font-style: italic; line-height: 1; letter-spacing: -.06em; color: rgba(255, 255, 255, .1); -webkit-mask-image: none; mask-image: none; }
+.fullart .ph { left: 0; right: 0; top: 0; height: 84%; }
+.fullart .ph img { object-position: 50% 0; -webkit-mask-image: linear-gradient(#000 70%, transparent 98%); mask-image: linear-gradient(#000 70%, transparent 98%); filter: drop-shadow(0 6px 16px rgba(0, 0, 0, .6)); }
+.fullart .ph.tlogo { left: 10%; right: 10%; top: 14%; height: 56%; }
+.holo { position: absolute; z-index: 3; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: .42;
+  background: linear-gradient(115deg, transparent 18%, rgba(255, 45, 111, .55) 32%, rgba(255, 196, 0, .55) 42%, rgba(44, 245, 200, .55) 52%, rgba(47, 140, 255, .55) 62%, rgba(180, 77, 255, .55) 72%, transparent 86%) var(--mx, 30%) var(--my, 30%) / 260% 260%; animation: holo 7s ease-in-out infinite alternate; }
+@keyframes holo { to { background-position: 90% 70%; } }
+.card:hover .holo { animation: none; opacity: .62; }
+.spark { position: absolute; z-index: 3; inset: 0; pointer-events: none; background-image: radial-gradient(circle, #fff 0 1px, transparent 1.6px), radial-gradient(circle, #fff 0 .8px, transparent 1.4px); background-size: 37cqw 41cqw, 23cqw 29cqw; background-position: 8cqw 11cqw, 17cqw 4cqw; -webkit-mask-image: linear-gradient(#000 60%, transparent 76%); mask-image: linear-gradient(#000 60%, transparent 76%); animation: twinkle 2.6s ease-in-out infinite alternate; }
+@keyframes twinkle { from { opacity: .12; } to { opacity: .85; } }
+.fullart .cbadge { z-index: 4; }
+.fullart .gr { font-size: 29cqw; font-style: italic; background: linear-gradient(100deg, #fff, #ffe08a 30%, #7ff5dc 62%, #e3b5ff); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .75)); }
+/* gradient-filled grades only paint inside their own box, and big italic digits stick out of it: give them room */
+.fullart .gr, .r-legendary .gr { padding: .12em .16em .04em .02em; margin: -.12em -.16em -.04em -.02em; }
+.fullart .pos { background: #fff; }
+.fullart .plate { z-index: 4; padding-top: 22cqw; background: linear-gradient(transparent, rgba(5, 7, 13, .78) 40%, rgba(5, 7, 13, .96)); }
+.fullart .nm { font-size: 14.5cqw; font-style: italic; font-weight: 900; line-height: .95; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+.fullart .ft { color: transparent; background: linear-gradient(90deg, #ff6d9b, #ffd35c, #6ff5d6, #7db6ff, #d59bff) top / 100% 1px no-repeat; border-top: 0; }
+.fullart .ft > span { background: linear-gradient(90deg, #ff6d9b, #ffd35c, #6ff5d6, #d59bff); -webkit-background-clip: text; background-clip: text; }
+
+/* small cards (a lineup on a phone): just the grade, the face and the last name */
+@container (max-width: 118px) {
+  .card .ln, .card .yr, .card .ed, .card .ft, .cbadge .tm, .card .nm .fn { display: none; }
+  .card .gr, .fullart .gr { font-size: 31cqw; } .card .pos { font-size: 11cqw; padding: 1cqw 3cqw; }
+  .card .nm, .fullart .nm { font-size: 15cqw; -webkit-line-clamp: 1; line-clamp: 1; white-space: nowrap; display: block; text-overflow: ellipsis; }
+  .plate, .fullart .plate { padding: 14cqw 6cqw 6cqw; }
+}
+@media (prefers-reduced-motion: reduce) { .fullart::before, .fullart::after, .fullart .cbg, .holo, .spark, .r-legendary .cface::after { animation: none; } .cface { transition: none; transform: none; } }

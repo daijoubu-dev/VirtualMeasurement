@@ -6,10 +6,12 @@
 <title>Ultimate Team · Virtual Measurement</title>
 <link rel="icon" type="image/png" href="pylon.png">
 <link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="cards.css">
 <script src="achievements.js"></script>
 <script src="profile.js"></script>
 <script src="ticker.js" defer></script>
 <script src="ultimate.js"></script>
+<script src="cards.js"></script>
 <style>
   [hidden] { display: none !important; }
   .btn { border: 1px solid var(--border); background: var(--soft); color: var(--text); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: 650; font-size: 13px; }
@@ -53,83 +55,15 @@
 
   /* cards */
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-  /* 🃏 the cards. Everything is sized from the card's own width (cqw), so one design works from the pack reveal down to a phone's lineup */
-  @property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
-  .card { --rc: #9aa3b0; --tc: #334; position: relative; container-type: inline-size; aspect-ratio: 5 / 7; min-width: 0; border-radius: 14px; color: #f3f6fb; isolation: isolate; font-family: Bahnschrift, "DIN Alternate", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif; }
-  .cface { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; border: 2px solid var(--rc); background: #0b0f18; box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
-    transform: perspective(620px) rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg)); transition: transform .16s ease-out, border-color .15s; }
-  .cbg { position: absolute; inset: 0; background: radial-gradient(115% 72% at 72% 24%, color-mix(in srgb, var(--tc) 72%, transparent), transparent 72%), linear-gradient(168deg, color-mix(in srgb, var(--rc) 30%, #111725), #090d15 74%); }
-  .cbg::after { content: ""; position: absolute; inset: 0; -webkit-mask-image: linear-gradient(200deg, #000, transparent 72%); mask-image: linear-gradient(200deg, #000, transparent 72%); }
-  .card .ph { position: absolute; left: 20%; right: -7%; top: 5%; height: 62%; }
-  .card .ph img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 10%; -webkit-mask-image: linear-gradient(#000 74%, transparent 99%); mask-image: linear-gradient(#000 74%, transparent 99%); filter: drop-shadow(0 3px 7px rgba(0, 0, 0, .55)); }
-  .card .ph.tlogo { left: 26%; right: 4%; top: 12%; height: 48%; } .card .ph.tlogo img { object-fit: contain; object-position: center; -webkit-mask-image: none; mask-image: none; }
-  .cbadge { position: absolute; z-index: 2; left: 7cqw; top: 6cqw; display: flex; flex-direction: column; align-items: flex-start; gap: 1.5cqw; }
-  .card .gr { font-size: 25cqw; font-weight: 800; line-height: .86; letter-spacing: -.03em; font-variant-numeric: tabular-nums; text-shadow: 0 2px 6px rgba(0, 0, 0, .65); }
-  .card .pos { font-size: 7cqw; font-weight: 800; letter-spacing: .06em; line-height: 1; color: #0a0e16; background: var(--rc); border-radius: 3px; padding: 1.2cqw 2.6cqw; white-space: nowrap; }
-  .cbadge .tm { width: 15cqw; height: 15cqw; object-fit: contain; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .7)); }
-  .plate { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; padding: 15cqw 7cqw 5.5cqw; display: flex; flex-direction: column; gap: 1cqw; background: linear-gradient(transparent, rgba(7, 10, 17, .9) 34%, #070a11); }
-  .card .nm { font-size: 11.6cqw; font-weight: 800; line-height: 1; text-transform: uppercase; letter-spacing: .005em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-  .card .nm.long { font-size: 9.6cqw; } .fullart .nm.long { font-size: 11.4cqw; }
-  .card .yr { font-size: 7.2cqw; font-weight: 650; color: #c6cfdd; }
-  .card .ed { font-size: 6.2cqw; font-weight: 800; color: #ffc53d; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card .ed.set { color: #aab6c8; }
-  .card .ln { font-size: 6.8cqw; line-height: 1.15; color: #aab6c8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card .ft { display: flex; justify-content: space-between; align-items: center; gap: 4px; min-height: 12cqw; margin-top: 1.5cqw; padding-top: 2cqw; border-top: 1px solid rgba(255, 255, 255, .16); font-size: 6.4cqw; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--rc); }
-  .card .ft .btn { padding: 1px 6px; font-size: max(10px, 6.4cqw); letter-spacing: 0; text-transform: none; background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .25); color: #fff; font-family: system-ui, sans-serif; white-space: nowrap; }
-  .card .cnt { position: absolute; z-index: 5; top: -7px; right: -7px; background: var(--text); color: var(--bg); border-radius: 999px; font-size: 11px; font-weight: 800; padding: 1px 7px; }
-  .card.in { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .card.pickable { cursor: pointer; } .card.pickable:hover { transform: translateY(-3px); }
-  .slot .card:hover .cface { border-color: var(--accent); }
-
-  /* each rarity has its own stock */
-  .r-common .cface { --rc: #8b96a6; } .r-common .cbg { background: radial-gradient(110% 70% at 72% 24%, color-mix(in srgb, var(--tc) 34%, transparent), transparent 72%), linear-gradient(168deg, #2a3140, #0d1119 74%); }
-  .r-common .cbg::after { background: repeating-linear-gradient(112deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 5cqw); }
-  .r-rare .cbg::after { background: repeating-linear-gradient(135deg, rgba(92, 165, 255, .2) 0 7cqw, transparent 7cqw 16cqw); }
-  .r-epic .cface { border-color: #b56cff; box-shadow: 0 0 0 1px rgba(181, 108, 255, .3), 0 6px 18px rgba(120, 50, 220, .35); }
-  .r-epic .cbg::after { background: repeating-conic-gradient(from 45deg, rgba(204, 140, 255, .2) 0 25%, transparent 0 50%) 0 0 / 15cqw 15cqw; }
-  .r-legendary .cface { border-color: #f6c343; box-shadow: inset 0 0 0 1px rgba(255, 226, 140, .55), 0 0 16px rgba(234, 179, 8, .42); }
-  .r-legendary .cbg { background: radial-gradient(90% 60% at 62% 28%, rgba(255, 196, 60, .42), transparent 72%), linear-gradient(168deg, #3b2a08, #0c0a06 76%); }
-  .r-legendary .cbg::after { inset: -30%; background: repeating-conic-gradient(from 0deg at 58% 38%, rgba(255, 210, 90, .2) 0 6deg, transparent 6deg 15deg); }
-  .r-legendary .gr, .r-legendary .nm { background: linear-gradient(180deg, #fff3c4, #f6c343 55%, #c98a12); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7)); }
-  .r-legendary .cface::after { content: ""; position: absolute; z-index: 3; inset: -20% -60%; pointer-events: none; background: linear-gradient(105deg, transparent 42%, rgba(255, 240, 190, .34) 50%, transparent 58%); transform: translateX(-60%); animation: foil 5.5s ease-in-out infinite; }
-  @keyframes foil { 55%, 100% { transform: translateX(60%); } }
-
-  /* 🌈 Mythic: full art. The player fills the card, on a moving aurora with holographic foil that follows the pointer */
-  .fullart::before { content: ""; position: absolute; z-index: -1; inset: -2px; border-radius: 16px; background: conic-gradient(from var(--ang), #ff2d6f, #ffb800, #2cf5c8, #2f8cff, #b44dff, #ff2d6f); animation: spin 5s linear infinite; }
-  .fullart::after { content: ""; position: absolute; z-index: -2; inset: 2px; border-radius: 16px; background: conic-gradient(from var(--ang), #ff2d6f, #ffb800, #2cf5c8, #2f8cff, #b44dff, #ff2d6f); filter: blur(11px); opacity: .62; animation: spin 5s linear infinite; }
-  @keyframes spin { to { --ang: 360deg; } }
-  .fullart .cface { border: 0; inset: 1px; border-radius: 13px; background: #05070d; box-shadow: none; }
-  .fullart .cbg { background: radial-gradient(90% 62% at 50% 30%, color-mix(in srgb, var(--tc) 78%, transparent), transparent 76%), conic-gradient(from var(--ang) at 50% 36%, #5c1038, #6a4300, #07544a, #0d3a78, #47197a, #5c1038); animation: spin 14s linear infinite; }
-  .fullart .cbg::after { content: "99"; inset: auto -4% 24% auto; font-size: 82cqw; font-weight: 900; font-style: italic; line-height: 1; letter-spacing: -.06em; color: rgba(255, 255, 255, .1); -webkit-mask-image: none; mask-image: none; }
-  .fullart .ph { left: 0; right: 0; top: 0; height: 84%; }
-  .fullart .ph img { object-position: 50% 0; -webkit-mask-image: linear-gradient(#000 70%, transparent 98%); mask-image: linear-gradient(#000 70%, transparent 98%); filter: drop-shadow(0 6px 16px rgba(0, 0, 0, .6)); }
-  .fullart .ph.tlogo { left: 10%; right: 10%; top: 14%; height: 56%; }
-  .holo { position: absolute; z-index: 3; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: .42;
-    background: linear-gradient(115deg, transparent 18%, rgba(255, 45, 111, .55) 32%, rgba(255, 196, 0, .55) 42%, rgba(44, 245, 200, .55) 52%, rgba(47, 140, 255, .55) 62%, rgba(180, 77, 255, .55) 72%, transparent 86%) var(--mx, 30%) var(--my, 30%) / 260% 260%; animation: holo 7s ease-in-out infinite alternate; }
-  @keyframes holo { to { background-position: 90% 70%; } }
-  .card:hover .holo { animation: none; opacity: .62; }
-  .spark { position: absolute; z-index: 3; inset: 0; pointer-events: none; background-image: radial-gradient(circle, #fff 0 1px, transparent 1.6px), radial-gradient(circle, #fff 0 .8px, transparent 1.4px); background-size: 37cqw 41cqw, 23cqw 29cqw; background-position: 8cqw 11cqw, 17cqw 4cqw; -webkit-mask-image: linear-gradient(#000 60%, transparent 76%); mask-image: linear-gradient(#000 60%, transparent 76%); animation: twinkle 2.6s ease-in-out infinite alternate; }
-  @keyframes twinkle { from { opacity: .12; } to { opacity: .85; } }
-  .fullart .cbadge { z-index: 4; }
-  .fullart .gr { font-size: 29cqw; font-style: italic; background: linear-gradient(100deg, #fff, #ffe08a 30%, #7ff5dc 62%, #e3b5ff); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .75)); padding-right: 2cqw; }
-  .fullart .pos { background: #fff; }
-  .fullart .plate { z-index: 4; padding-top: 22cqw; background: linear-gradient(transparent, rgba(5, 7, 13, .78) 40%, rgba(5, 7, 13, .96)); }
-  .fullart .nm { font-size: 14.5cqw; font-style: italic; font-weight: 900; line-height: .95; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
-  .fullart .ft { color: transparent; background: linear-gradient(90deg, #ff6d9b, #ffd35c, #6ff5d6, #7db6ff, #d59bff) top / 100% 1px no-repeat; border-top: 0; }
-  .fullart .ft > span { background: linear-gradient(90deg, #ff6d9b, #ffd35c, #6ff5d6, #d59bff); -webkit-background-clip: text; background-clip: text; }
-
-  /* small cards (a lineup on a phone): just the grade, the face and the last name */
-  @container (max-width: 118px) {
-    .card .ln, .card .yr, .card .ed, .card .ft, .cbadge .tm, .card .nm .fn { display: none; }
-    .card .gr, .fullart .gr { font-size: 31cqw; } .card .pos { font-size: 11cqw; padding: 1cqw 3cqw; }
-    .card .nm, .fullart .nm { font-size: 15cqw; -webkit-line-clamp: 1; line-clamp: 1; white-space: nowrap; display: block; text-overflow: ellipsis; }
-    .plate, .fullart .plate { padding: 14cqw 6cqw 6cqw; }
-  }
-  @media (prefers-reduced-motion: reduce) { .fullart::before, .fullart::after, .fullart .cbg, .holo, .spark, .r-legendary .cface::after { animation: none; } .cface { transition: none; transform: none; } }
 
   /* ♻️ trade-ups */
   /* ⚖️ balanced games */
   .balchk { display: block; font-size: 12.5px; margin-top: 8px; cursor: pointer; }
+  .lmode { margin: 0 0 12px; }
+  .budget { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; font-size: 13px; } .budget .s { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .budget .bbar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 6px; } .budget .bbar > div { height: 100%; background: var(--accent); }
+  .budget.over { border-color: var(--loss); } .budget.over .bbar > div { background: var(--loss); } .budget.over b { color: var(--loss); }
+  .balbadge.comp { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
   .balbadge { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); background: var(--soft); color: var(--text); }
   .trade { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 0 0 12px; }
 
@@ -254,7 +188,7 @@
 <main>
   <header>
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
-    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html" class="on">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html" class="on">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">👥 Profiles</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
   </header>
 
   <div class="panel" id="hero"></div>
@@ -308,7 +242,9 @@ async function load() {
   const lite = !!S.collections; // after the first load, the static parts (collections, logos, teams) are kept
   const r = await fetch((me ? `${API}/${me}` : API) + (lite ? '?lite=1' : '')).then(r => r.json()).catch(() => null);
   if (!r?.ok) { if (me) { S = { ...S, me: null, queue: [], games: [] }; drawAll(); } return; }
-  S = lite ? { ...r, collections: S.collections, logos: S.logos, colors: S.colors, teams: S.teams } : r; drawAll();
+  S = lite ? { ...r, collections: S.collections, logos: S.logos, colors: S.colors, teams: S.teams } : r;
+  VMCards.logos = S.logos || {}; VMCards.colors = S.colors || {}; // team logos and colors for the cards
+  drawAll();
 }
 // defer: hold the new record, points and unlocks back (a game being watched live mustn't give its result away)
 async function act(action, body, errEl, defer = false) {
@@ -336,6 +272,11 @@ function shown(me) {
 // ---------- drawing: your team ----------
 const lineupCards = me => Object.fromEntries(Object.entries(me.lineup).map(([s, u]) => [s, me.cards.find(c => c.u === u)]).filter(([, c]) => c));
 const isFull = me => UT.REQUIRED.every(([s]) => me.lineup[s]); // the eleven players (coach and stadium are optional)
+// ⚔ the competitive lineup (double-point games): the eleven players within a rarity budget
+const compCards = me => Object.fromEntries(Object.entries(me.comp || {}).map(([s, u]) => [s, me.cards.find(c => c.u === u)]).filter(([, c]) => c));
+const heldIds = me => new Set([...Object.values(me.lineup), ...Object.values(me.comp || {})]); // cards in either lineup
+const COMP_BADGE = '<span class="balbadge comp" data-tip="<b>⚔ Competitive</b>Competitive lineups: the eleven players within a rarity budget, no coach or stadium. Double points for both teams.">⚔ Competitive</span>';
+let LMODE = 'main'; // which lineup the Lineup tab shows
 function drawHero() {
   const me = S.me;
   if (!me) { $('hero').innerHTML = '<p class="empty">Sign in or create a profile with the 👤 button at the top right to get your free starter pack and build a team. You can still watch the games below.</p>'; return; }
@@ -346,7 +287,8 @@ function drawHero() {
     <div class="tile" data-tip="<b>Record</b>Games against other players (+${UT.REWARD.win} points a win, +${UT.REWARD.loss} a loss). Bot games and seasons are kept apart."><div class="k">Record</div><div class="v">${V.w}-${V.l}</div><div class="s">Bots ${botRec(me)} · 🏆 ${me.titles} season title${me.titles === 1 ? '' : 's'}</div></div>
     <div class="tile" data-tip="<b>Team rating</b>Your lineup's grades rolled up like the 17-0 page: offense (QB 36%, O-line 22%, receivers 24%, RB 10%, TE 8%) and defense (pass rush 50%, secondary 32%, linebacker 18%). Empty spots play like a grade-25 backup."><div class="k">Overall</div><div class="v">${R.ovr}</div><div class="s">Offense ${Math.round(R.o)} · Defense ${Math.round(R.d)}</div></div>
     <div class="tile"><div class="k">Points</div><div class="v gold">${V.balance.toLocaleString()}</div>
-      <div class="s">${me.dailyReady ? `<button class="btn sm go" id="daily">🎁 Claim ${UT.DAILY} free points</button>` : '✓ Daily points claimed. More tomorrow.'}</div></div></div>`;
+      <div class="s">${me.dailyReady ? `<button class="btn sm go" id="daily">🎁 Claim ${UT.DAILY} free points</button>` : '✓ Daily points claimed. More tomorrow.'}</div>
+      ${me.rookie && me.rookie.earned < me.rookie.until ? `<div class="s" data-tip="<b>🐣 Rookie boost</b>Game, daily, bot, season and pick'em points pay double until you've earned ${me.rookie.until.toLocaleString()}.">🐣 2× points · ${(me.rookie.until - me.rookie.earned).toLocaleString()} to go</div>` : ''}</div></div>`;
   $('editTeam').onclick = () => {
     $('teamTile').innerHTML = `<div class="k">Team name and abbreviation</div><form class="teamform" id="teamForm"><input name="name" maxlength="24" value="${esc(me.team.name)}"><input name="abbr" maxlength="4" value="${esc(me.team.abbr)}"><button class="btn sm go">Save</button></form><div class="err" id="teamErr" style="text-align:left"></div>`;
     $('teamForm').onsubmit = async e => { e.preventDefault(); const f = e.target; if (await act('team', { name: f.name.value, abbr: f.abbr.value }, $('teamErr'))) drawAll(); };
@@ -356,83 +298,53 @@ function drawHero() {
 let NAME = '';
 const VM_PROFILE_NAME = () => NAME;
 
-// ---------- cards ----------
-// a picture that doesn't load moves on to the next one (ESPN → NFL.com → team logo), and the box goes when none do
-function nextPic(img) {
-  const rest = (img.dataset.alt || '').split(' ').filter(Boolean);
-  if (!rest.length) return img.parentNode.remove();
-  if (rest.length === 1 && /teamlogos/.test(rest[0])) img.parentNode.classList.add('tlogo');
-  img.dataset.alt = rest.slice(1).join(' '); img.src = rest[0];
-}
-const POS_LABEL = { HC: 'COACH', ST: 'STADIUM' };
-function cardHtml(c, { slot, extra = '', cls = '', count = 0, sell = null } = {}) { // sell: the id of a copy that can be sold
-  const r = UT.rarityOf(c.gr), full = r.key === 'mythic', pics = UT.photos(c, S.logos, full), isLogo = !c.h, tk = UT.teamKey(c.t), logo = S.logos?.[tk];
-  // the first name goes on small cards; coaches keep theirs, and stadiums and O-lines are one name
-  const words = String(c.n).split(' '), split = words.length > 1 && !['ST', 'OL', 'HC'].includes(c.g);
-  return `<div class="card r-${r.key} ${full ? 'fullart' : ''} ${cls}" style="--rc:${r.color};--tc:${esc(S.colors?.[tk] || r.color)}" ${extra}>${count > 1 ? `<span class="cnt">×${count}</span>` : ''}
-    <div class="cface"><div class="cbg"></div>
-      ${pics.length ? `<div class="ph ${isLogo ? 'tlogo' : ''}"><img src="${esc(pics[0])}" data-alt="${esc(pics.slice(1).join(' '))}" alt="" loading="lazy" onerror="nextPic(this)"></div>` : ''}
-      ${full ? '<div class="holo"></div><div class="spark"></div>' : ''}
-      <div class="cbadge"><span class="gr">${c.gr}</span><span class="pos">${esc(slot || POS_LABEL[c.g] || c.g)}</span>${logo && !isLogo ? `<img class="tm" src="${esc(logo.replace('/i/teamlogos/', '/combiner/i?img=/i/teamlogos/').replace(/\.png$/, '.png&w=64&h=64'))}" alt="${esc(c.t)}" loading="lazy" onerror="this.remove()">` : ''}</div>
-      <div class="plate"><div class="nm ${c.n.length > 17 ? 'long' : ''}">${split ? `<span class="fn">${esc(words[0])} </span>${esc(words.slice(1).join(' '))}` : esc(c.n)}</div><div class="yr">${c.s} ${esc(c.t)}</div>${c.ed ? `<div class="ed">🏆 ${esc(c.ed)} edition</div>` : c.set ? `<div class="ed set">${esc(c.set)} set card</div>` : ''}<div class="ln">${esc(c.l)}</div>
-        <div class="ft"><span>${full ? '✦ ' : ''}${r.name}</span>${sell ? `<button class="btn sm" data-sell="${sell}">Sell · ${r.sell}</button>` : ''}</div></div>
-    </div></div>`;
-}
-// cards lean toward the pointer, and the Mythic foil follows it
-if (matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) {
-  let tilted = null, frame = 0;
-  const reset = () => { if (tilted) ['--rx', '--ry', '--mx', '--my'].forEach(v => tilted.style.removeProperty(v)); tilted = null; };
-  document.addEventListener('pointermove', e => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      const card = e.target.closest?.('.card'), face = card?.querySelector('.cface');
-      if (face !== tilted) reset();
-      if (!face || card.closest('.flip:not(.open)')) return;
-      const b = card.getBoundingClientRect(), x = (e.clientX - b.left) / b.width, y = (e.clientY - b.top) / b.height;
-      tilted = face;
-      face.style.setProperty('--rx', `${((x - .5) * 13).toFixed(1)}deg`); face.style.setProperty('--ry', `${((.5 - y) * 13).toFixed(1)}deg`);
-      const holo = face.querySelector('.holo'); if (holo) { holo.style.setProperty('--mx', `${(x * 100).toFixed(0)}%`); holo.style.setProperty('--my', `${(y * 100).toFixed(0)}%`); }
-    });
-  });
-}
+// ---------- cards (drawn by cards.js) ----------
+const cardHtml = (c, o) => VMCards.html(c, o);
 
 // ---------- lineup ----------
 function drawLineup() {
   const me = S.me;
   if (!me) { $('lineup').innerHTML = '<p class="empty">Sign in to build a lineup.</p>'; return; }
   if (!me.cards.length) { $('lineup').innerHTML = '<p class="empty">No cards yet. Open your free starter pack in 📦 Packs.</p>'; return; }
-  const C = lineupCards(me), R = UT.ratings(C);
+  const comp = LMODE === 'comp', C = comp ? compCards(me) : lineupCards(me), R = UT.ratings(C);
+  const cost = comp ? UT.compCost(C) : 0, myth = comp ? UT.REQUIRED.filter(([s]) => C[s]?.gr >= 99).length : 0;
   // each spot where it lines up: [slot, grid column, grid row] on a 5-column field
   const spot = ([s, col, row, label]) => { const g = UT.SLOTS.find(x => x[0] === s)[1];
     return `<div class="slot" data-slot="${s}" style="grid-column:${col};grid-row:${row}"><div class="lbl">${label || s}</div>${C[s] ? cardHtml(C[s], { slot: s }) : `<div class="hole">+ ${UT.NAMES[g]}</div>`}</div>`; };
   const DEF = [['DB1', 1, 2, 'CB'], ['DB2', 5, 2, 'S'], ['LB', 3, 3, 'MLB'], ['DL1', 2, 4, 'EDGE'], ['DL2', 4, 4, 'EDGE']];
   const OFF = [['WR1', 1, 2, 'WR · X'], ['OL', 3, 2, 'O-LINE'], ['TE', 4, 2, 'TE'], ['WR2', 5, 2, 'WR · Z'], ['QB', 3, 3], ['RB', 3, 4, 'RB']];
-  $('lineup').innerHTML = `<h2>🃏 Lineup · Overall ${R.ovr}</h2>
+  const tabs = `<div class="seg lmode"><button type="button" data-lm="main" class="${comp ? '' : 'on'}">🃏 Main lineup</button><button type="button" data-lm="comp" class="${comp ? 'on' : ''}">⚔ Competitive lineup</button></div>`;
+  const meter = comp ? `<div class="budget ${cost > UT.COMP.budget || myth > UT.COMP.maxMythic ? 'over' : ''}"><div><b>Budget ${cost} / ${UT.COMP.budget}</b> · Mythics ${myth} / ${UT.COMP.maxMythic}</div>
+      <div class="bbar"><div style="width:${Math.min(100, 100 * cost / UT.COMP.budget)}%"></div></div>
+      <div class="s">Each card costs by rarity: ${Object.entries(UT.COMP.cost).map(([k, v]) => `${UT.RARITY.find(r => r.key === k).name} ${v}`).join(' · ')}. No coach or stadium. Competitive games pay double for both teams.${me.compErr ? ` <b>${esc(me.compErr)}</b>` : ' ✓ Ready to play.'}</div></div>` : '';
+  $('lineup').innerHTML = `<h2>🃏 Lineup · Overall ${R.ovr}</h2>${tabs}${meter}
     <div class="field">
       <div class="half"><h3><span>🛡️ Defense</span><b>${Math.round(R.d)}</b></h3>${DEF.map(spot).join('')}</div>
       <div class="los"><span>Line of scrimmage</span></div>
       <div class="half">${OFF.map(spot).join('')}<h3 style="grid-row:5"><span>🏈 Offense</span><b>${Math.round(R.o)}</b></h3></div>
     </div>
-    <div class="sideline"><div class="lbl2">Sideline (optional)</div>${spot(['HC', 1, 2, 'Head coach'])}${spot(['ST', 2, 2, 'Stadium'])}</div>
+    ${comp ? '' : `<div class="sideline"><div class="lbl2">Sideline (optional)</div>${spot(['HC', 1, 2, 'Head coach'])}${spot(['ST', 2, 2, 'Stadium'])}</div>`}
     <div class="bar2"><button class="btn" id="best">⚡ Best lineup</button></div>
     <p class="note">Click a spot to choose its card. One card per player. ≈ ${R.ppg.toFixed(1)} points scored and ${R.pa.toFixed(1)} allowed against an average team.
       🧢 Coach ${C.HC ? C.HC.gr : `none (plays like a ${UT.NO_COACH})`}: a little better on both sides and bigger game-plan edges. 🏟️ Home field when you host: ${R.hfa.toFixed(1)} points${C.ST ? `, ${esc(C.ST.x?.roof === 'outdoors' ? `outdoor weather (about ${C.ST.x.dec}° in December)` : 'indoors')}` : ''}.</p>`;
-  $('best').onclick = async () => { if (await act('lineup', { lineup: 'best' })) drawAll(); };
+  $('best').onclick = async () => { if (await act('lineup', { lineup: 'best', which: LMODE })) drawAll(); };
+  $('lineup').querySelectorAll('[data-lm]').forEach(b => (b.onclick = () => { LMODE = b.dataset.lm; drawLineup(); }));
   $('lineup').querySelectorAll('[data-slot]').forEach(el => (el.onclick = () => openPicker(el.dataset.slot)));
 }
 function openPicker(slot) {
-  const me = S.me, g = UT.SLOTS.find(([s]) => s === slot)[1], here = me.lineup[slot];
-  const where = u => Object.entries(me.lineup).find(([, x]) => x === u)?.[0];
+  const comp = LMODE === 'comp', me = S.me, cur = comp ? me.comp || {} : me.lineup, g = UT.SLOTS.find(([s]) => s === slot)[1], here = cur[slot];
+  const where = u => Object.entries(cur).find(([, x]) => x === u)?.[0];
+  const costTag = c => (comp ? ` · costs ${UT.COMP.cost[UT.rarityOf(c.gr).key]}` : '');
   const list = me.cards.filter(c => c.g === g).sort((a, b) => b.gr - a.gr);
   $('mbody').innerHTML = `<h2 style="margin:0 0 12px">${slot} · ${UT.NAMES[g]}</h2>
-    ${list.length ? `<div class="cards" style="text-align:left">${list.map(c => cardHtml(c, { cls: `pickable ${c.u === here ? 'in' : ''}`, extra: `data-pick="${c.u}"`, slot: where(c.u) ? `${g} · in ${where(c.u)}` : g })).join('')}</div>`
+    ${list.length ? `<div class="cards" style="text-align:left">${list.map(c => cardHtml(c, { cls: `pickable ${c.u === here ? 'in' : ''}`, extra: `data-pick="${c.u}"`, slot: (where(c.u) ? `${g} · in ${where(c.u)}` : g) + costTag(c) })).join('')}</div>`
       : `<p class="empty">No ${UT.NAMES[g].toLowerCase()} cards yet. Open some packs.</p>`}<div class="err" id="pickErr"></div>`;
   $('modal').hidden = false;
   $('mbody').querySelectorAll('[data-pick]').forEach(el => (el.onclick = async () => {
-    const u = el.dataset.pick, lineup = { ...me.lineup }, from = where(u);
+    const u = el.dataset.pick, lineup = { ...cur }, from = where(u);
     if (from && from !== slot) lineup[from] = lineup[slot]; // the two spots swap (WR1 ↔ WR2…)
     lineup[slot] = u;
-    if (await act('lineup', { lineup }, $('pickErr'))) { closeModal(); drawAll(); }
+    if (await act('lineup', { lineup, which: LMODE }, $('pickErr'))) { closeModal(); drawAll(); }
   }));
 }
 
@@ -443,6 +355,7 @@ function drawPacks() {
   const odds = o => `<div class="odds">${UT.RARITY.filter(r => o[r.key]).map(r => `<span style="color:${r.color};font-weight:700">${r.name}</span><div class="b"><div style="width:${Math.max(o[r.key] * 100, 1.5)}%;background:${r.color}"></div></div><span>${o[r.key] < 0.01 ? (o[r.key] * 100).toFixed(2) : Math.round(o[r.key] * 100)}%</span>`).join('')}</div>`;
   $('packs').innerHTML = `<h2>📦 Packs · ${me.balance.toLocaleString()} points</h2>
     ${!me.starter ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.starter.icon}</div><b>${UT.PACKS.starter.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.starter.desc}</div><button class="btn go" data-open="starter">Open it</button></div>`
+      : me.rookie?.bundle ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.rookie.icon}</div><b>${UT.PACKS.rookie.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.rookie.desc} Plus double points until you've earned ${me.rookie.until.toLocaleString()}.</div><button class="btn go" data-open="rookie">Open it</button></div>`
       : !me.staff ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.staff.icon}</div><b>New: ${UT.PACKS.staff.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.staff.desc} Coaches and stadiums now have their own spots on the sideline.</div><button class="btn go" data-open="staff">Open it</button></div>` : ''}
     <div class="packs">${['standard', 'premium', 'legend'].map(k => { const p = UT.PACKS[k]; return `<div class="pack"><div class="ic">${p.icon}</div><div class="nm">${p.name}</div><div class="pr">${p.price.toLocaleString()} pts</div><div class="d">${p.desc}</div>${odds(p.odds)}
       <button class="btn ${me.balance >= p.price ? 'go' : ''}" data-open="${k}" ${me.balance < p.price ? 'disabled' : ''}>${me.balance >= p.price ? 'Open' : `Need ${(p.price - me.balance).toLocaleString()} more`}</button></div>`; }).join('')}</div>
@@ -471,7 +384,7 @@ function revealCards(P, cards) {
 function drawColl() {
   const me = S.me;
   if (!me) { $('coll').innerHTML = '<p class="empty">Sign in to see your cards.</p>'; return; }
-  const inLineup = new Set(Object.values(me.lineup)), groups = new Map();
+  const inLineup = heldIds(me), groups = new Map();
   for (const c of me.cards) { if (!groups.has(c.k)) groups.set(c.k, []); groups.get(c.k).push(c); }
   // duplicates: every copy after the first (keeping the one in your lineup)
   const dupes = [...groups.values()].flatMap(cs => cs.sort((a, b) => inLineup.has(b.u) - inLineup.has(a.u)).slice(1)).filter(c => !inLineup.has(c.u));
@@ -499,7 +412,7 @@ function drawColl() {
 // cards that can go (not in the lineup, not an edition), the ones you'll miss least first: extra copies, then cards no
 // unfinished collection needs, then the lowest grades
 function tradeable(me, from) {
-  const inLineup = new Set(Object.values(me.lineup)), seen = new Set(), done = me.collected || {};
+  const inLineup = heldIds(me), seen = new Set(), done = me.collected || {};
   const needed = new Set((S.collections || []).filter(c => !done[c.id]).flatMap(c => c.cards.map(x => UT.baseKey(x.k))));
   const sorted = me.cards.slice().sort((a, b) => inLineup.has(b.u) - inLineup.has(a.u)); // a lineup copy is the "kept" one
   const rank = c => { const dupe = seen.has(c.k); seen.add(c.k); return dupe ? 0 : needed.has(UT.baseKey(c.k)) ? 2 : 1; };
@@ -586,19 +499,21 @@ function drawPlay() {
   // the queue
   const mine = S.queue.find(q => q.pid === myId), others = S.queue.filter(q => q.pid !== myId);
   const myCards = me ? lineupCards(me) : {};
-  const odds = q => { const theirs = Object.fromEntries(q.lineup.map(([s, , gr]) => [s, { gr }])); return 1 - UT.expected(theirs, myCards).homeWin; };
+  const odds = q => { const theirs = Object.fromEntries(q.lineup.map(([s, , gr]) => [s, { gr }])); return 1 - UT.expected(theirs, q.competitive ? compCards(me) : myCards).homeWin; };
+  const canPlay = q => (q.competitive ? !me.compErr : isFull(me));
   const tipOf = q => esc(`<b>${esc(q.team)} · OVR ${q.ovr}</b>` + q.lineup.map(([s, n, gr]) => `${s} ${esc(n)} (${gr})`).join('<br>'));
   $('queue').innerHTML = `<div class="queuebox">${!me ? '<span class="muted">Sign in to queue up a team.</span>'
-      : mine ? `<button class="btn" id="unqueue">✕ Take my team off the queue</button><div class="s">${mine.balanced ? `${BAL_BADGE} ` : ''}Your team is waiting for a challenger (queued ${ago(mine.at)}). You'll get a replay when someone plays it.</div>`
-      : `<button class="btn go" id="enqueue" ${isFull(me) ? '' : 'disabled'}>📣 Queue up my team</button>
+      : mine ? `<button class="btn" id="unqueue">✕ Take my team off the queue</button><div class="s">${mine.competitive ? `${COMP_BADGE} ` : ''}${mine.balanced ? `${BAL_BADGE} ` : ''}Your team is waiting for a challenger (queued ${ago(mine.at)}). You'll get a replay when someone plays it.</div>`
+      : `<button class="btn go" id="enqueue" ${isFull(me) || !me.compErr ? '' : 'disabled'}>📣 Queue up my team</button>
+        <label class="balchk" data-tip="<b>⚔ Competitive game</b>Plays your competitive lineup (the 🃏 Lineup tab), against the challenger's. Double points for both teams. Your team is marked ⚔ on the queue."><input type="checkbox" id="competitive" ${me.competitive ? 'checked' : ''} ${me.compErr ? 'disabled' : ''}> ⚔ Competitive (double points)${me.compErr ? ` <span class="muted">· set up your competitive lineup first</span>` : ''}</label>
         <label class="balchk" data-tip="<b>⚖️ Balanced game</b>No game plans for either side: you skip the plan screen, and so does whoever challenges you. Your team is marked ⚖️ on the queue."><input type="checkbox" id="balanced" ${me.balanced ? 'checked' : ''}> ⚖️ Balanced game (no game plans)</label><div class="s">${isFull(me) ? 'Anyone can challenge it. You host (home field), and the game is played the moment they accept.' : 'Fill every spot in your lineup first.'}</div>`}</div>
-    ${others.length ? others.map(q => `<div class="row" data-tip="${tipOf(q)}"><div><div class="t">${sideName(q)}</div><div class="s">${q.balanced ? `${BAL_BADGE} · ` : ''}${esc(q.name)} · OVR ${q.ovr} · queued ${ago(q.at)}</div></div>
-      <div class="acts">${me && isFull(me) ? `<span class="odd" data-tip="<b>Your chances</b>From both lineups' ratings, on the road.">${Math.round(100 * odds(q))}%</span><button class="btn go sm" data-ch="${q.qid}" data-bal="${q.balanced ? 1 : ''}">⚔ Challenge</button>` : ''}</div></div>`).join('')
+    ${others.length ? others.map(q => `<div class="row" data-tip="${tipOf(q)}"><div><div class="t">${sideName(q)}</div><div class="s">${q.competitive ? `${COMP_BADGE} · ` : ''}${q.balanced ? `${BAL_BADGE} · ` : ''}${esc(q.name)} · OVR ${q.ovr} · queued ${ago(q.at)}</div></div>
+      <div class="acts">${me && !canPlay(q) && q.competitive ? '<span class="muted" style="font-size:12px">Needs a competitive lineup</span>' : ''}${me && canPlay(q) ? `<span class="odd" data-tip="<b>Your chances</b>From both lineups' ratings, on the road.">${Math.round(100 * odds(q))}%</span><button class="btn go sm" data-ch="${q.qid}" data-bal="${q.balanced ? 1 : ''}">⚔ Challenge</button>` : ''}</div></div>`).join('')
       : '<p class="empty">No one else is queued right now.</p>'}<div class="err" id="qErr"></div>`;
   if ($('enqueue')) $('enqueue').onclick = async () => {
-    const balanced = $('balanced').checked; // ⚖️ no game plans: skip the plan screen
+    const balanced = $('balanced').checked, competitive = !!$('competitive')?.checked; // ⚖️ no game plans: skip the plan screen
     const tactics = balanced ? null : await pickPlan('Game plan for your queued team', '📣 Queue up'); if (!balanced && !tactics) return;
-    if (await act('queue', { tactics, balanced }, $('qErr'))) load();
+    if (await act('queue', { tactics, balanced, competitive }, $('qErr'))) load();
   };
   if ($('unqueue')) $('unqueue').onclick = async () => { if (await act('queue', { cancel: true }, $('qErr'))) load(); };
   $('queue').querySelectorAll('[data-ch]').forEach(b => (b.onclick = async () => {
@@ -614,7 +529,7 @@ function drawPlay() {
     const res = mineG ? ((g[g.winner].pid === myId) ? '<b class="W">W</b> ' : '<b class="L">L</b> ') : '';
     const hide = (me?.unseen || []).includes(g.gid) || g.gid === HOLD; // don't spoil a game you haven't watched
     return `<div class="row res ${mineG ? 'mine' : ''}"><div><div class="t">${hide ? `${sideName(g.away)} @ ${sideName(g.home)}` : `${res}${esc(W.abbr)} <span class="sc">${Math.max(g.hs, g.as)}-${Math.min(g.hs, g.as)}</span> ${esc(L.abbr)}${g.ot ? ' (OT)' : ''}`}</div>
-      <div class="s">${g.balanced ? '⚖️ · ' : ''}${hide ? 'Not watched yet' : `${esc(W.team)} beat ${esc(L.team)}`} · ${ago(g.at)}</div></div>
+      <div class="s">${g.competitive ? '⚔ · ' : ''}${g.balanced ? '⚖️ · ' : ''}${hide ? 'Not watched yet' : `${esc(W.team)} beat ${esc(L.team)}`} · ${ago(g.at)}</div></div>
       <div class="acts"><button class="btn sm" data-watch="${g.gid}" title="Replay it live">▶</button>${hide ? '' : `<button class="btn sm" data-box="${g.gid}" title="Box score">📋</button>`}</div></div>`; }).join('')
     : '<p class="empty">No games yet. Queue up your team or challenge one.</p>';
   document.querySelectorAll('#t-play [data-watch]').forEach(b => (b.onclick = () => watch(b.dataset.watch, true)));
@@ -698,8 +613,8 @@ function edgesHtml(g) {
 function finalHtml(g) {
   const W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'], myId = VM.profile();
   const mine = g.home.pid === myId ? 'home' : g.away.pid === myId ? 'away' : null;
-  const you = g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! ${g.reward ? `+${g.reward} points` : `No points: you've hit today's ${UT.BOT_CAP} bot points`}${g.capped && g.reward ? ` (today's ${UT.BOT_CAP}-point bot limit)` : ''}` : 'The bot wins this one. No points for a loss.')
-    : mine ? (g.winner === mine ? `🎉 You win! +${UT.REWARD.win} points` : `Tough loss. +${UT.REWARD.loss} points for playing`) : '';
+  const you = g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! +${g.reward} points` : 'The bot wins this one. No points for a loss.')
+    : mine ? (g.winner === mine ? `🎉 You win! +${UT.REWARD.win * (g.competitive ? UT.COMP.mult : 1)} points${g.competitive ? ' (⚔ double)' : ''}` : `Tough loss. +${UT.REWARD.loss * (g.competitive ? UT.COMP.mult : 1)} points for playing`) : '';
   return `<div class="final"><div class="t">🏆 ${esc(W.team)} ${Math.max(g.hs, g.as)}, ${esc(L.team)} ${Math.min(g.hs, g.as)}${g.ot ? ' (OT)' : ''}</div>
     <div class="s">⭐ Player of the game: ${esc(g.mvp.name)} (${esc(g.mvp.line)})${g.comeback ? ` · came back from ${g.comeback} down` : ''}</div>
     ${you ? `<div class="s" style="margin-top:4px;font-weight:700;color:var(--text)">${you}</div>` : ''}</div>
@@ -729,17 +644,15 @@ const botRec = me => { const r = Object.values(me.bot?.rec || {}).reduce((a, x) 
 function drawBots() {
   const me = S.me;
   if (!me) { $('bots').innerHTML = '<p class="empty">Sign in to play the bots.</p>'; return; }
-  const C = lineupCards(me), today = me.bot.ptsToday, left = Math.max(0, UT.BOT_CAP - today);
-  // your chances against a lineup of cards right at the bot's overall (you host)
-  const odds = ovr => UT.expected(C, Object.fromEntries(UT.SLOTS.map(([s]) => [s, { gr: ovr }]))).homeWin;
-  $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} / ${UT.BOT_CAP} bot points today</h2>
-    <div class="packs">${Object.entries(UT.BOTS).map(([k, B]) => { const r = me.bot.rec[k] || { w: 0, l: 0 }, mid = (B.ovr[0] + B.ovr[1]) / 2;
+  const C = lineupCards(me), today = me.bot.ptsToday;
+  $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} bot points today</h2>
+    <div class="packs">${Object.entries(UT.BOTS).map(([k, B]) => { const r = me.bot.rec[k] || { w: 0, l: 0 };
       return `<div class="pack"><div class="ic">🤖</div><div class="nm">${B.name}</div><div class="d">${B.team} · ${B.ovr[0] === B.ovr[1] ? B.ovr[0] : `${B.ovr[0]}–${B.ovr[1]}`} overall</div>
-        <div class="pr">+${B.reward} a win</div>
-        <div class="d">Your chances ≈ ${isFull(me) ? Math.round(100 * odds(mid)) + '%' : '–'} · you're ${r.w}-${r.l} against it</div>
+        <div class="pr">+${isFull(me) ? UT.botPay(C, k) * (me.rookie && me.rookie.earned < me.rookie.until ? 2 : 1) : '–'} a win${me.rookie && me.rookie.earned < me.rookie.until ? ' 🐣' : ''}</div>
+        <div class="d">Your chances ≈ ${isFull(me) ? Math.round(100 * UT.botOdds(C, k)) + '%' : '–'} · you're ${r.w}-${r.l} against it</div>
         <button class="btn go" data-bot="${k}" ${isFull(me) ? '' : 'disabled'}>Play</button></div>`; }).join('')}</div>
     <div class="err" id="botErr"></div>
-    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. Losses pay nothing, and bot wins pay until you've made ${UT.BOT_CAP} bot points in a day (${left} left today). Bot games don't count toward your record or the leaderboards.</p>`;
+    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. A win pays more the tougher that bot is for your team, with no limit. Losses pay nothing. Bot games don't count toward your record or the leaderboards.</p>`;
   $('bots').querySelectorAll('[data-bot]').forEach(b => (b.onclick = async () => {
     const tactics = await pickPlan(`Game plan vs the ${UT.BOTS[b.dataset.bot].name} bot`, '▶ Play'); if (!tactics) return;
     $('bots').querySelectorAll('[data-bot]').forEach(x => (x.disabled = true));
@@ -813,7 +726,7 @@ function drawLeaders() {
   const rec = B.record.map(r => r.pid === myId && me ? { ...r, w: me.w, l: me.l } : r).filter(r => r.w + r.l);
   const pct = r => (r.w / (r.w + r.l)).toFixed(3).replace(/^0/, '');
   const table = (head, rows) => `<table class="board"><tr>${head.map((h, i) => `<th class="${i > 1 ? 'num' : ''}">${h}</th>`).join('')}</tr>${rows.join('')}</table>`;
-  const who = r => `<b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· ${esc(r.name)}</span>`;
+  const who = r => `<b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· <a href="profiles.html?id=${encodeURIComponent(r.pid)}" style="color:inherit">${esc(r.name)}</a></span>`;
   $('bRecord').innerHTML = rec.length ? table(['#', 'Team', 'W-L', 'Pct', '🏆'], rec.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num">${r.w}-${r.l}</td><td class="num">${pct(r)}</td><td class="num" title="Season titles">${r.titles}</td></tr>`))
     : '<p class="empty">No games between players yet.</p>';
   $('bOverall').innerHTML = B.overall.length ? table(['#', 'Team', 'OVR', 'Off', 'Def'], B.overall.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num"><b>${r.ovr}</b></td><td class="num">${r.o}</td><td class="num">${r.d}</td></tr>`))

@@ -9,6 +9,7 @@
 // 🔑 Each profile has a PIN (4 digits and 1 letter, e.g. 4821K), stored only as a salted scrypt hash. Signing in with it
 // gives the browser a token (kept as a SHA-256 hash in the profile's "tokens"), and every change to a profile needs that
 // token. Profiles made before PINs existed get theirs the first time someone signs in to them.
+// "showcase" is what the profile page shows off: { cards: [up to 5 card ids], title: an unlocked gold, platinum or legendary achievement's key }.
 // "prefs" holds per-profile settings the pages share: { fav: 'KC', stats: [stat keys], tactics: {...}, ticker: true or false }.
 const fs = require('fs');
 const path = require('path');
@@ -27,7 +28,19 @@ const validId = id => /^[a-z0-9-]{1,40}$/.test(id);
 
 function load(id) {
   if (!validId(id) || !fs.existsSync(fileOf(id))) return null;
-  return JSON.parse(fs.readFileSync(fileOf(id), 'utf8'));
+  const p = JSON.parse(fs.readFileSync(fileOf(id), 'utf8'));
+  if (topUp(p)) save(p);
+  return p;
+}
+// achievements unlocked before their points went up get the difference
+function topUp(p) {
+  let changed = false;
+  for (const k of Object.keys(p.achievements || {})) {
+    const a = ACH.BY_KEY[k]; if (!a) continue;
+    const paid = p.ledger.filter(l => l.key === k && l.pts > 0).reduce((s, l) => s + l.pts, 0);
+    if (paid < a.pts) { credit(p, a.pts - paid, `Achievement bonus: ${a.name} (new points)`, { key: k }); changed = true; }
+  }
+  return changed;
 }
 // write to a temp file, then rename over the old one: a crash mid-save can't leave a half-written profile
 function save(p) {
@@ -35,7 +48,11 @@ function save(p) {
   fs.writeFileSync(tmp, JSON.stringify(p, null, 1));
   fs.renameSync(tmp, fileOf(p.id));
 }
-const summary = p => ({ id: p.id, name: p.name, created: p.created, balance: p.balance, earned: p.ledger.filter(l => l.pts > 0 && !l.sale).reduce((a, l) => a + l.pts, 0), unlocked: Object.keys(p.achievements).length, pin: !!p.pin });
+// points earned: every award, but not card sales or stakes coming back (those were already yours)
+const earnedOf = p => p.ledger.filter(l => l.pts > 0 && !l.sale && !l.refund).reduce((a, l) => a + l.pts, 0);
+const ROOKIE_UNTIL = 5000; // 🐣 game, daily, bot and pick'em points pay double until a profile has earned this many
+const summary = p => ({ id: p.id, name: p.name, created: p.created, balance: p.balance, earned: earnedOf(p), unlocked: Object.keys(p.achievements).length, pin: !!p.pin,
+  title: ACH.isTitle(p.showcase?.title) ? p.showcase.title : '', showcase: (p.showcase?.cards || []).map(u => p.ut?.cards?.find(c => c.u === u)).filter(Boolean) });
 // a profile as the pages see it: everything but the PIN hash and sign-in tokens
 const visible = p => { const { pin, tokens, ...rest } = p; return { ...rest, prefs: p.prefs || {} }; };
 
@@ -115,6 +132,17 @@ function create(name, pin) {
   save(p);
   return { profile: visible(p), unlocked, token };
 }
+// ⭐ the profile page's showcase: up to 5 of your own cards, and a title from a hard achievement you've unlocked
+function setShowcase(id, token, b) {
+  const p = authorize(id, token), mine = new Set((p.ut?.cards || []).map(c => c.u));
+  const cards = [...new Set(Array.isArray(b.cards) ? b.cards : [])].filter(u => mine.has(u));
+  if (cards.length > 5) throw new Error('A showcase holds 5 cards.');
+  const title = String(b.title || '');
+  if (title && (!p.achievements[title] || !ACH.isTitle(title))) throw new Error('Titles come from gold, platinum and legendary achievements you\'ve unlocked.');
+  p.showcase = { cards, title };
+  save(p);
+  return { showcase: p.showcase };
+}
 // ⚙ per-profile settings: favorite team, the matchup page's stat checkboxes, the last Ultimate Team game plan
 function setPrefs(id, token, prefs) {
   const p = authorize(id, token), cur = p.prefs ||= {};
@@ -159,5 +187,11 @@ function spend(id, amount, reason) {
   return { balance: p.balance };
 }
 // credit points (daily points, game rewards, card sales); sales are marked so they don't count as "earned"
-function credit(p, pts, reason, extra = {}) { p.ledger.push({ at: new Date().toISOString(), pts, reason: String(reason).slice(0, 80), ...extra }); p.balance += pts; }
-module.exports = { DIR, all, list, load, save, create, track, spend, award, checkGoals, credit, login, logout, authorize, setPrefs, visible };
+// boost: true doubles it while the profile is a rookie; refund: true is a stake or price coming back (not counted as earned)
+function credit(p, pts, reason, extra = {}) {
+  const { boost, ...rest } = extra;
+  if (boost && pts > 0 && earnedOf(p) < ROOKIE_UNTIL) { pts *= 2; reason = `🐣 2× ${reason}`; }
+  p.ledger.push({ at: new Date().toISOString(), pts, reason: String(reason).slice(0, 80), ...rest }); p.balance += pts;
+  return pts;
+}
+module.exports = { DIR, all, list, load, save, create, track, spend, award, checkGoals, credit, earnedOf, ROOKIE_UNTIL, setShowcase, login, logout, authorize, setPrefs, visible };

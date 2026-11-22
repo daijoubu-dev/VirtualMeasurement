@@ -38,19 +38,23 @@ const defaultTeam = p => ({ name: `${p.name}'s Squad`.slice(0, 24), abbr: (p.nam
 function utOf(p) {
   const ut = (p.ut ||= { team: defaultTeam(p), cards: [], lineup: {}, starter: false, daily: '', rec: { w: 0, l: 0 }, unseen: [] });
   // added later: filled in (never reset) for profiles made before them
-  ut.bot ||= { rec: {}, day: '', pts: 0 }; ut.seasons ||= []; ut.seasonDay ||= ''; ut.titles ||= 0; ut.collected ||= {};
+  ut.bot ||= { rec: {}, day: '', pts: 0 }; ut.seasons ||= []; ut.seasonDay ||= ''; ut.titles ||= 0; ut.collected ||= {}; ut.comp ||= {};
   if (ut.staff === undefined) ut.staff = false; // the Staff pack is for everyone, including teams made before coaches and stadiums
   // 📸 cards opened before cards had photos get their player's headshot
   pools(); for (const c of ut.cards) { const h = HEADS[c.k.split('|')[0]]; if (h && c.h !== h) c.h = h; }
   return ut;
 }
-const cardsOf = ut => Object.fromEntries(Object.entries(ut.lineup).map(([s, u]) => [s, ut.cards.find(c => c.u === u)]).filter(([, c]) => c));
+// which: 'main' (the lineup) or 'comp' (the ⚔ competitive lineup)
+const cardsOf = (ut, which = 'main') => Object.fromEntries(Object.entries(which === 'comp' ? ut.comp || {} : ut.lineup).map(([s, u]) => [s, ut.cards.find(c => c.u === u)]).filter(([, c]) => c));
+const held = ut => new Set([...Object.values(ut.lineup), ...Object.values(ut.comp || {})]); // cards in either lineup can't be sold, traded or turned in
 const full = ut => UT.REQUIRED.every(([s]) => cardsOf(ut)[s]); // the 11 players (coach and stadium are optional)
 function state(p) {
   const ut = utOf(p);
   return { team: ut.team, cards: ut.cards, lineup: ut.lineup, starter: ut.starter, dailyReady: ut.daily !== today(), rec: ut.rec, unseen: ut.unseen, balance: p.balance,
     bot: { rec: ut.bot.rec, ptsToday: ut.bot.day === today() ? ut.bot.pts : 0 }, seasonReady: ut.seasonDay !== today(), seasons: ut.seasons.slice(0, 10), titles: ut.titles,
-    staff: ut.staff, collected: ut.collected, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced };
+    staff: ut.staff, collected: ut.collected, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced, competitive: !!p.prefs?.competitive,
+    comp: ut.comp, compErr: UT.compCheck(cardsOf(ut, 'comp')),
+    rookie: { earned: profiles.earnedOf(p), until: profiles.ROOKIE_UNTIL, bundle: !ut.rookie && profiles.earnedOf(p) < profiles.ROOKIE_UNTIL } };
 }
 
 // ---------- this season's league for 📅 season mode, from the Matchups data (app/data.js), like the 17-0 page ----------
@@ -108,7 +112,7 @@ function bestLineup(ut) {
   }
   return lineup;
 }
-const side = (p, ut) => ({ pid: p.id, name: p.name, team: ut.team.name, abbr: ut.team.abbr, cards: cardsOf(ut), ovr: UT.ratings(cardsOf(ut)).ovr });
+const side = (p, ut, which = 'main') => ({ pid: p.id, name: p.name, team: ut.team.name, abbr: ut.team.abbr, cards: cardsOf(ut, which), ovr: UT.ratings(cardsOf(ut, which)).ovr });
 // the game plan a request picked (and remember it as the profile's last one)
 function planFrom(p, b) { const t = UT.planOf(b.tactics); (p.prefs ||= {}).tactics = t; return t; }
 // new cards go into the collection (and the 🏆 set, the pull log and the achievements)
@@ -135,12 +139,17 @@ const ACTIONS = {
   daily(p) {
     if (p.ut.daily === today()) throw new Error('Already claimed today. Come back tomorrow.');
     p.ut.daily = today();
-    profiles.credit(p, UT.DAILY, 'Ultimate Team: daily free points');
+    profiles.credit(p, UT.DAILY, 'Ultimate Team: daily free points', { boost: true });
   },
   open(p, b, out) {
     const key = b.pack, pack = UT.PACKS[key];
     if (!pack) throw new Error('No such pack.');
     if (key === 'starter') { if (p.ut.starter) throw new Error('The starter pack is only once.'); p.ut.starter = true; p.ut.staff = true; }
+    else if (key === 'rookie') {
+      if (p.ut.rookie) throw new Error('The Rookie bundle is only once.');
+      if (profiles.earnedOf(p) >= profiles.ROOKIE_UNTIL) throw new Error('The Rookie bundle is for new players.');
+      p.ut.rookie = true;
+    }
     else if (key === 'staff') { if (p.ut.staff) throw new Error('The Staff pack is only once.'); p.ut.staff = true; }
     else {
       if (pack.price > p.balance) throw new Error(`Not enough points: you have ${p.balance}.`);
@@ -169,7 +178,7 @@ const ACTIONS = {
   collect(p, b, out) {
     const col = collections().find(c => c.id === b.id); if (!col) throw new Error('No such collection.');
     if (p.ut.collected[col.id]) throw new Error(`You've already turned in the ${col.name}.`);
-    const inLineup = new Set(Object.values(p.ut.lineup)), used = [];
+    const inLineup = held(p.ut), used = [];
     for (const need of col.cards) {
       // the set version (from the team pack) or the card it's made from; set versions go first, so a real 99 is kept if possible
       const copies = p.ut.cards.filter(c => UT.baseKey(c.k) === UT.baseKey(need.k) && !c.ed && !used.includes(c)).sort((a, b) => (b.k === need.k) - (a.k === need.k));
@@ -189,7 +198,7 @@ const ACTIONS = {
   },
   // ♻️ trade 5 cards of one rarity (Common, Rare or Epic, none in the lineup) for a random card of the next rarity
   tradeup(p, b, out) {
-    const uids = [...new Set(Array.isArray(b.uids) ? b.uids : [])], inLineup = new Set(Object.values(p.ut.lineup));
+    const uids = [...new Set(Array.isArray(b.uids) ? b.uids : [])], inLineup = held(p.ut);
     const cards = uids.map(u => p.ut.cards.find(c => c.u === u)).filter(Boolean);
     if (cards.length !== UT.TRADE_N) throw new Error(`Pick ${UT.TRADE_N} cards to trade.`);
     if (cards.some(c => inLineup.has(c.u))) throw new Error("Cards in your lineup can't be traded.");
@@ -203,8 +212,9 @@ const ACTIONS = {
     out.cards = [got];
   },
   lineup(p, b) {
-    const want = b.lineup === 'best' ? bestLineup(p.ut) : b.lineup || {}, lineup = {}, players = new Set();
-    for (const [s, g] of UT.SLOTS) {
+    const comp = b.which === 'comp'; // the ⚔ competitive lineup: just the eleven players
+    const want = b.lineup === 'best' ? (comp ? Object.fromEntries(Object.entries(UT.compBest(p.ut.cards)).map(([s, c]) => [s, c.u])) : bestLineup(p.ut)) : b.lineup || {}, lineup = {}, players = new Set();
+    for (const [s, g] of comp ? UT.REQUIRED : UT.SLOTS) {
       const u = want[s]; if (!u) continue;
       const c = p.ut.cards.find(x => x.u === u);
       if (!c || c.g !== g) throw new Error(`That card can't play ${s}.`);
@@ -212,10 +222,10 @@ const ACTIONS = {
       if (players.has(pl)) throw new Error(`${c.n} is already in your lineup.`);
       players.add(pl); lineup[s] = u;
     }
-    p.ut.lineup = lineup;
+    if (comp) p.ut.comp = lineup; else p.ut.lineup = lineup;
   },
   sell(p, b) {
-    const inLineup = new Set(Object.values(p.ut.lineup)), uids = new Set(Array.isArray(b.uids) ? b.uids : []);
+    const inLineup = held(p.ut), uids = new Set(Array.isArray(b.uids) ? b.uids : []);
     const sold = p.ut.cards.filter(c => uids.has(c.u) && !inLineup.has(c.u));
     if (!sold.length) throw new Error('Nothing to sell (cards in your lineup can\'t be sold).');
     p.ut.cards = p.ut.cards.filter(c => !sold.includes(c));
@@ -225,11 +235,14 @@ const ACTIONS = {
   queue(p, b) {
     const q = readJson(QUEUE, []).filter(e => e.pid !== p.id);
     if (!b.cancel) {
-      if (!full(p.ut)) throw new Error('Fill every spot in your lineup first.');
+      // ⚔ a competitive game: your competitive lineup, double points for both sides
+      const competitive = !!b.competitive, err = competitive ? UT.compCheck(cardsOf(p.ut, 'comp')) : !full(p.ut) && 'Fill every spot in your lineup first.';
+      if (err) throw new Error(err);
+      (p.prefs ||= {}).competitive = competitive;
       // ⚖️ a balanced game: no game plans for either side (marked on the queue, so the challenger skips the plan screen too)
       const balanced = !!b.balanced;
       (p.prefs ||= {}).balanced = balanced;
-      q.push({ qid: uid(), at: new Date().toISOString(), ...side(p, p.ut), balanced, tactics: balanced ? { ...UT.DEFAULT_PLAN } : planFrom(p, b) }); // the game plan stays secret until the game
+      q.push({ qid: uid(), at: new Date().toISOString(), ...side(p, p.ut, competitive ? 'comp' : 'main'), balanced, competitive, tactics: balanced ? { ...UT.DEFAULT_PLAN } : planFrom(p, b) }); // the game plan stays secret until the game
     }
     writeJson(QUEUE, q);
   },
@@ -237,11 +250,12 @@ const ACTIONS = {
     const q = readJson(QUEUE, []), e = q.find(x => x.qid === b.qid);
     if (!e) throw new Error('That game is gone: someone else may have challenged it first.');
     if (e.pid === p.id) throw new Error('You can\'t challenge your own team.');
-    if (!full(p.ut)) throw new Error('Fill every spot in your lineup first.');
+    const err = e.competitive ? UT.compCheck(cardsOf(p.ut, 'comp')) : !full(p.ut) && 'Fill every spot in your lineup first.';
+    if (err) throw new Error(err);
     const host = profiles.load(e.pid);
-    const seed = Math.floor(Math.random() * 2 ** 31), home = { ...e }, away = { ...side(p, p.ut), tactics: e.balanced ? { ...UT.DEFAULT_PLAN } : planFrom(p, b) };
+    const seed = Math.floor(Math.random() * 2 ** 31), home = { ...e }, away = { ...side(p, p.ut, e.competitive ? 'comp' : 'main'), tactics: e.balanced ? { ...UT.DEFAULT_PLAN } : planFrom(p, b) };
     delete home.qid;
-    const sim = { ...UT.simGame(home, away, seed), ...(e.balanced ? { balanced: true } : {}) };
+    const sim = { ...UT.simGame(home, away, seed), ...(e.balanced ? { balanced: true } : {}), ...(e.competitive ? { competitive: true } : {}) };
     // 🎁 a card for each side (better odds for the winner); the host's shows up in the replay
     const reward = { home: { u: uid(), ...UT.gameCard(pools(), sim.winner === 'home') }, away: { u: uid(), ...UT.gameCard(pools(), sim.winner === 'away') } };
     const game = { gid: uid() + uid(), at: new Date().toISOString(), seed, home, away, ...sim, reward };
@@ -252,7 +266,7 @@ const ACTIONS = {
     const settle = (pr, mine, list) => {
       const won = sim.winner === mine, them = mine === 'home' ? away : home, sc = `${Math.max(sim.hs, sim.as)}-${Math.min(sim.hs, sim.as)}`;
       utOf(pr).rec[won ? 'w' : 'l']++;
-      profiles.credit(pr, won ? UT.REWARD.win : UT.REWARD.loss, `Ultimate Team: ${won ? 'beat' : 'lost to'} ${them.team} ${sc}`);
+      profiles.credit(pr, (won ? UT.REWARD.win : UT.REWARD.loss) * (sim.competitive ? UT.COMP.mult : 1), `Ultimate Team${sim.competitive ? ' ⚔' : ''}: ${won ? 'beat' : 'lost to'} ${them.team} ${sc}`, { boost: true });
       if (won) {
         pr.counters.ut_wins = (pr.counters.ut_wins || 0) + 1;
         profiles.award(pr, 'ut_win', list);
@@ -267,19 +281,21 @@ const ACTIONS = {
     out.game = game;
   },
   seen(p, b) { p.ut.unseen = p.ut.unseen.filter(g => g !== b.gid); },
-  // 🤖 a game against a bot: played right away, not listed with the results. Wins pay by level, up to BOT_CAP a day.
+  // 🤖 a game against a bot: played right away, not listed with the results. A win pays more the harder that bot is for
+  // your team (UT.botPay), with no limit.
   bot(p, b, out) {
     const B = UT.BOTS[b.level]; if (!B) throw new Error('No such bot.');
     if (!full(p.ut)) throw new Error('Fill every spot in your lineup first.');
     const ut = p.ut; if (ut.bot.day !== today()) { ut.bot.day = today(); ut.bot.pts = 0; }
+    const pay = UT.botPay(cardsOf(ut), b.level);
     const bot = UT.makeBot(pools(), b.level), seed = Math.floor(Math.random() * 2 ** 31);
     const home = { ...side(p, ut), tactics: planFrom(p, b) }, away = { pid: null, ...bot };
     const sim = UT.simGame(home, away, seed), won = sim.winner === 'home';
-    const reward = won ? Math.max(0, Math.min(B.reward, UT.BOT_CAP - ut.bot.pts)) : 0;
+    let reward = 0;
     const rec = (ut.bot.rec[b.level] ||= { w: 0, l: 0 }); rec[won ? 'w' : 'l']++;
-    if (reward) { ut.bot.pts += reward; profiles.credit(p, reward, `Ultimate Team: beat the ${B.name} bot ${sim.hs}-${sim.as}`); }
+    if (won) { reward = profiles.credit(p, pay, `Ultimate Team: beat the ${B.name} bot ${sim.hs}-${sim.as}`, { boost: true }); ut.bot.pts += reward; }
     if (won && b.level === 'hard') profiles.award(p, 'ut_bot_hard', out.unlocked);
-    out.game = { gid: null, at: new Date().toISOString(), seed, home, away, ...sim, bot: b.level, reward, capped: won && reward < B.reward };
+    out.game = { gid: null, at: new Date().toISOString(), seed, home, away, ...sim, bot: b.level, reward };
   },
   // 📅 one season a day with your lineup, on a real franchise's schedule
   season(p, b, out) {
@@ -293,26 +309,28 @@ const ACTIONS = {
     ut.seasonDay = today();
     ut.seasons = [{ at: new Date().toISOString(), team: ut.team, name: L.teams.find(x => x.t === b.team)?.name, ...s }, ...ut.seasons].slice(0, 20);
     if (s.champ) ut.titles++;
-    profiles.credit(p, s.reward, `Ultimate Team season: ${recStr}, ${how}`);
+    profiles.credit(p, s.reward, `Ultimate Team season: ${recStr}, ${how}`, { boost: true });
     profiles.award(p, 'ut_season', out.unlocked);
     if (s.champ) profiles.award(p, 'ut_ring', out.unlocked);
     if (s.perfect) profiles.award(p, 'ut_perfect', out.unlocked);
     out.season = ut.seasons[0];
   },
 };
-const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, winner: g.winner, ...(g.balanced ? { balanced: true } : {}),
+const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, winner: g.winner, ...(g.balanced ? { balanced: true } : {}), ...(g.competitive ? { competitive: true } : {}),
   home: { pid: g.home.pid, name: g.home.name, team: g.home.team, abbr: g.home.abbr, ovr: g.home.ovr },
   away: { pid: g.away.pid, name: g.away.name, team: g.away.team, abbr: g.away.abbr, ovr: g.away.ovr } });
 
 //   GET  /api/ut                     the open queue and recent results
 //   GET  /api/ut/<id>                the same, plus that profile's team, cards and lineup
 //   GET  /api/ut/game/<game id>      one game in full (to replay it)
+//   GET  /api/ut/art                 team logos and colors for drawing cards
 //   POST /api/ut/<id>/<action>       team {name, abbr} · daily · open {pack} · lineup {lineup | 'best'} · sell {uids} · tradeup {uids}
 //                                    queue {cancel?, tactics, balanced?} · challenge {qid, tactics} · seen {gid} · bot {level, tactics} · season {team}
 //                                    teampack {id} · collect {id}        (tactics = { off, def, tempo }, see UT.TACTICS)
 function handle(req, url, body) {
   const [, , , a, b] = url.split('/'); // '', 'api', 'ut', a, b
   if (req.method === 'GET') {
+    if (a === 'art') return { logos: (pools(), LOGOS), colors: COLORS }; // the cards' team logos and colors (the profile pages)
     if (a === 'game') { const g = /^[a-z0-9]{1,32}$/.test(b) && readJson(path.join(GDIR, b + '.json'), null); if (!g) throw new Error('No such game.'); return { game: g }; }
     const P = pulls(), who = {};
     for (const x of P) { const w = (who[x.pid] ||= { pid: x.pid, name: x.name, n: 0, best: x.card }); w.n++; if (x.card.gr > w.best.gr) w.best = x.card; }

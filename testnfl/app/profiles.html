@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profiles · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="cards.css">
+<script src="achievements.js"></script>
+<script src="profile.js"></script>
+<script src="ticker.js" defer></script>
+<script src="ultimate.js"></script>
+<script src="cards.js"></script>
+<style>
+  [hidden] { display: none !important; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .btn { border: 1px solid var(--border); background: var(--soft); color: var(--text); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: 650; font-size: 13px; }
+  .btn:hover { border-color: var(--accent); } .btn.go { background: var(--accent); border-color: var(--accent); color: #fff; } .btn.sm { padding: 3px 10px; font-size: 12px; }
+  /* everyone */
+  .plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 14px; }
+  .pcard { display: block; text-decoration: none; color: inherit; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  .pcard:hover { border-color: var(--accent); }
+  .pcard .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; } .pcard .nm { font-size: 18px; font-weight: 850; } .pcard .pts { color: var(--gold); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .pcard .mini { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .title { font-size: 12.5px; color: var(--muted); font-weight: 650; }
+  /* one profile */
+  .phead { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px 24px; flex-wrap: wrap; }
+  .phead h2 { font-size: 32px; line-height: 1.05; text-transform: none; color: var(--text); font-weight: 850; letter-spacing: -.01em; margin: 2px 0 4px; }
+  .phead .title { font-size: 14px; color: var(--gold); font-weight: 800; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .tile { background: var(--soft); border-radius: 10px; padding: 9px 14px; } .tile .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); } .tile .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; } .tile .s { font-size: 12px; color: var(--muted); }
+  .showcase { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; max-width: 980px; margin: 0 auto; }
+  @media (max-width: 640px) { .showcase { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } }
+  .slotx { border: 2px dashed var(--border); border-radius: 14px; aspect-ratio: 5 / 7; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .card .cnt { position: absolute; z-index: 5; top: -7px; right: -7px; }
+  .pickme { cursor: pointer; } .pickme:hover { transform: translateY(-3px); } .card.chosen { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .filters { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .achs { display: flex; flex-wrap: wrap; gap: 6px; } .ach { border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
+  .editbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; margin-top: 12px; } .editbar select { max-width: 280px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html" class="on">👥 Profiles</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+  </header>
+  <div id="view"></div>
+</main>
+
+<script>
+// 👥 Profiles: everybody (profiles.html), or one person's page (profiles.html?id=ham): their title, records, a showcase of
+// five cards and their whole collection. On your own page you choose the showcase and your title.
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const UT = window.VM_UT, A = window.VM_ACHIEVEMENTS;
+const id = new URLSearchParams(location.search).get('id');
+let EDIT = null, FILTER = 'All'; // EDIT: the showcase being chosen ({ cards: [uids], title })
+
+async function art() { // team logos and colors for the cards
+  try { const r = await (await fetch('/api/ut/art')).json(); if (r.ok) { VMCards.logos = r.logos; VMCards.colors = r.colors; } } catch {}
+}
+const titleOf = key => { const a = A.isTitle(key) && A.BY_KEY[key]; return a ? `${a.icon} ${a.name}` : ''; }; // titles: the hard achievements
+
+async function everyone() {
+  document.title = 'Profiles · Virtual Measurement';
+  const r = await fetch('/api/profiles').then(r => r.json()).catch(() => null);
+  if (!r?.ok) { $('view').innerHTML = '<p class="panel empty">Profiles need the server: open the site with start.bat.</p>'; return; }
+  $('view').innerHTML = `<div class="panel"><h2>👥 Everybody · ${r.profiles.length}</h2><div class="plist">${r.profiles.map(p => `<a class="pcard" href="profiles.html?id=${encodeURIComponent(p.id)}">
+      <div class="top"><span class="nm">${esc(p.name)}</span><span class="pts">${p.earned.toLocaleString()} pts</span></div>
+      <div class="title">${esc(titleOf(p.title) || 'No title yet')} · ${p.unlocked} achievements</div>
+      <div class="mini">${(p.showcase || []).map(c => VMCards.html(c)).join('')}</div></a>`).join('')}</div></div>`;
+}
+
+async function one() {
+  const r = await fetch('/api/profiles/' + encodeURIComponent(id)).then(r => r.json()).catch(() => null);
+  if (!r?.ok) { $('view').innerHTML = `<p class="panel empty">${esc(r?.error || "Couldn't load that profile.")} <a href="profiles.html">See everybody</a></p>`; return; }
+  const p = r.profile, ut = p.ut || {}, cards = ut.cards || [], mine = window.VM?.profile() === p.id;
+  document.title = `${p.name} · Virtual Measurement`;
+  const earned = p.ledger.filter(l => l.pts > 0 && !l.sale && !l.refund).reduce((s, l) => s + l.pts, 0);
+  const unlocked = Object.keys(p.achievements).filter(k => A.BY_KEY[k]).sort((a, b) => (p.achievements[b] > p.achievements[a] ? 1 : -1));
+  // the showcase: the five chosen cards, or the five best until they choose
+  const byU = new Map(cards.map(c => [c.u, c])), chosen = (EDIT ? EDIT.cards : p.showcase?.cards || []).map(u => byU.get(u)).filter(Boolean);
+  const show = chosen.length || EDIT ? chosen : cards.slice().sort((a, b) => b.gr - a.gr).slice(0, 5);
+  const botW = Object.values(ut.bot?.rec || {}).reduce((s, x) => s + x.w, 0), botL = Object.values(ut.bot?.rec || {}).reduce((s, x) => s + x.l, 0);
+  const picks = Object.values(p.pickem?.[Object.keys(p.pickem || {}).sort().pop()] || {}).filter(x => x.res), pw = picks.filter(x => x.res === 'W').length, pl = picks.filter(x => x.res === 'L').length;
+  const count = k => cards.filter(c => UT.rarityOf(c.gr).key === k).length;
+  const title = EDIT ? EDIT.title : p.showcase?.title;
+  // the collection, one card per kind with how many copies
+  const groups = new Map(); for (const c of cards) { if (!groups.has(c.k)) groups.set(c.k, []); groups.get(c.k).push(c); }
+  const list = [...groups.values()].map(cs => cs[0]).filter(c => FILTER === 'All' || (UT.RARITY.some(r => r.name === FILTER) ? UT.rarityOf(c.gr).name === FILTER : c.g === FILTER)).sort((a, b) => b.gr - a.gr);
+  $('view').innerHTML = `
+    <div class="panel"><div class="phead"><div><div class="title">${esc(titleOf(title) || (mine && unlocked.some(A.isTitle) ? 'Pick a title below' : ''))}</div><h2>${esc(p.name)}</h2>
+      <div class="muted" style="font-size:13px">${ut.team ? `${esc(ut.team.abbr)} · ${esc(ut.team.name)} · ` : ''}joined ${new Date(p.created).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</div></div>
+      <div>${mine && !EDIT ? '<button class="btn go" id="edit">✏️ Edit showcase and title</button>' : ''} <a class="btn" href="profiles.html" style="text-decoration:none">👥 Everybody</a></div></div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Points earned</div><div class="v" style="color:var(--gold)">${earned.toLocaleString()}</div><div class="s">${p.balance.toLocaleString()} to spend</div></div>
+        <div class="tile"><div class="k">vs players</div><div class="v">${ut.rec ? `${ut.rec.w}-${ut.rec.l}` : '–'}</div><div class="s">🏆 ${ut.titles || 0} season title${ut.titles === 1 ? '' : 's'}</div></div>
+        <div class="tile"><div class="k">vs bots</div><div class="v">${botW}-${botL}</div></div>
+        <div class="tile"><div class="k">Pick'em</div><div class="v">${pw}-${pl}</div><div class="s">this season</div></div>
+        <div class="tile"><div class="k">Cards</div><div class="v">${cards.length}</div><div class="s">🌈 ${count('mythic')} · 👑 ${count('legendary')} · ${Object.keys(ut.collected || {}).length} sets</div></div>
+        <div class="tile"><div class="k">Achievements</div><div class="v">${unlocked.length} / ${A.LIST.length}</div></div>
+      </div></div>
+    <div class="panel"><h2>⭐ Showcase</h2>
+      <div class="showcase">${Array.from({ length: 5 }, (_, i) => (show[i] ? VMCards.html(show[i], { extra: EDIT ? `data-un="${show[i].u}" title="Click to take it out"` : '', cls: EDIT ? 'pickme' : '' }) : `<div class="slotx">${EDIT ? 'Click a card below to add it' : 'Empty'}</div>`)).join('')}</div>
+      ${EDIT ? `<div class="editbar"><label>Title <select id="titleSel"><option value="">No title</option>${unlocked.filter(A.isTitle).map(k => `<option value="${k}" ${k === EDIT.title ? 'selected' : ''}>${esc(titleOf(k))}</option>`).join('')}</select></label>
+        <button class="btn go" id="saveShow">Save</button><button class="btn" id="cancelShow">Cancel</button><span class="muted" style="font-size:12px">Pick up to 5 cards. Titles come from the gold, platinum and legendary achievements you've unlocked.</span></div><div style="color:var(--loss);text-align:center;font-size:13px" id="showErr"></div>` : ''}</div>
+    <div class="panel"><h2>🗂 Collection · ${cards.length} cards, ${groups.size} different</h2>
+      <div class="filters"><div class="seg" id="fseg">${['All', ...UT.RARITY.slice().reverse().map(r => r.name), ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div></div>
+      ${list.length ? `<div class="cards">${list.map(c => VMCards.html(c, { count: groups.get(c.k).length, cls: EDIT ? `pickme ${EDIT.cards.includes(c.u) ? 'chosen' : ''}` : '', extra: EDIT ? `data-add="${c.u}"` : '' })).join('')}</div>` : '<p class="empty">No cards here.</p>'}</div>
+    <div class="panel"><h2>🏆 Achievements</h2><div class="achs">${unlocked.map(k => `<span class="ach" title="${esc(A.BY_KEY[k].desc)}">${esc(titleOf(k))}</span>`).join('') || '<span class="muted">None yet.</span>'}</div></div>`;
+  $('fseg').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { FILTER = b.dataset.f; one(); } };
+  if ($('edit')) $('edit').onclick = () => { EDIT = { cards: (p.showcase?.cards || show.map(c => c.u)).slice(0, 5), title: p.showcase?.title || '' }; one(); };
+  if (!EDIT) return;
+  $('view').onclick = e => {
+    const add = e.target.closest('[data-add]'), un = e.target.closest('[data-un]');
+    if (add) { const u = add.dataset.add; EDIT.cards = EDIT.cards.includes(u) ? EDIT.cards.filter(x => x !== u) : EDIT.cards.length < 5 ? [...EDIT.cards, u] : EDIT.cards; one(); }
+    else if (un) { EDIT.cards = EDIT.cards.filter(x => x !== un.dataset.un); one(); }
+  };
+  $('titleSel').onchange = () => { EDIT.title = $('titleSel').value; one(); };
+  $('cancelShow').onclick = () => { EDIT = null; $('view').onclick = null; one(); };
+  $('saveShow').onclick = async () => {
+    const r2 = await fetch(`/api/profiles/${p.id}/showcase`, { method: 'POST', headers: VM.headers(), body: JSON.stringify(EDIT) }).then(r => r.json()).catch(() => ({ ok: false, error: "The server didn't answer." }));
+    if (!r2.ok) { $('showErr').textContent = r2.error; return; }
+    EDIT = null; $('view').onclick = null; one();
+  };
+}
+
+(async () => {
+  if (!location.protocol.startsWith('http')) { $('view').innerHTML = '<p class="panel empty">Profiles need the server: open the site with start.bat.</p>'; return; }
+  await art();
+  id ? one() : everyone();
+  window.addEventListener('vm:profile', () => (id ? one() : everyone()));
+})();
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

@@ -44,6 +44,7 @@
   .nav a.on { background: var(--accent); color: #fff; }
   .navs { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .ngrp { display: inline-flex; align-items: center; gap: 6px; }
+  .ngrp.main .nav { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); font-weight: 650; } .ngrp.main .nav a:not(.on) { color: var(--text); } .ngrp.main .nlbl { color: var(--accent); }
   .nlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; }
   @media (max-width: 520px) { .navs, .ngrp { max-width: 100%; flex-wrap: wrap; } .nav { flex-wrap: wrap; max-width: 100%; } .nav a { padding: 5px 9px; } }
   .status { display: flex; align-items: center; gap: 10px; font-size: 13px; }
@@ -360,7 +361,7 @@
 <main>
   <header>
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
-    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html" class="on">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html" class="on">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">👥 Profiles</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
     <div class="status">
       <span class="muted" id="meta"></span>
       <span id="refreshMsg"></span>

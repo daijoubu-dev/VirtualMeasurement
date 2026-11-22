@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pick'em · Virtual Measurement</title>
+<link rel="icon" type="image/png" href="pylon.png">
+<link rel="stylesheet" href="common.css">
+<script src="profile.js"></script>
+<script src="ticker.js" defer></script>
+<style>
+  [hidden] { display: none !important; }
+  .phero { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px 24px; flex-wrap: wrap; }
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+  .phero h2 { font-size: 30px; line-height: 1.1; text-transform: none; color: var(--text); font-weight: 850; letter-spacing: -.01em; margin: 2px 0 3px; }
+  .phero .sub { color: var(--muted); font-size: 13px; }
+  .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tile { background: var(--soft); border-radius: 10px; padding: 8px 14px; min-width: 104px; }
+  .tile .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); } .tile .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; } .tile .v.gold { color: var(--gold); }
+  .rules { font-size: 13px; color: var(--muted); margin: -4px 0 14px; text-align: center; }
+  .step { display: inline-flex; align-items: center; gap: 4px; }
+  .step button { width: 32px; height: 32px; border: 1px solid var(--border); background: var(--soft); border-radius: 8px; cursor: pointer; } .step button:disabled { opacity: .4; cursor: default; }
+  .step select { height: 32px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+  @media (max-width: 960px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .day { font-size: 11.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 16px 0 8px; } .day:first-child { margin-top: 0; }
+  .gm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px; gap: 8px; align-items: stretch; border: 1px solid var(--border); border-radius: 12px; padding: 8px; margin-bottom: 8px; background: var(--panel); }
+  .gm.picked { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+  .side { --tc: var(--accent); display: flex; align-items: center; gap: 9px; border: 2px solid var(--border); border-radius: 10px; padding: 7px 10px; background: var(--soft); color: inherit; cursor: pointer; text-align: left; min-width: 0; font: inherit; }
+  .side:hover:not(:disabled) { border-color: var(--tc); }
+  .side.on { border-color: var(--tc); background: color-mix(in srgb, var(--tc) 18%, var(--panel)); box-shadow: inset 0 0 0 1px var(--tc); }
+  .side:disabled { cursor: default; }
+  .side img { width: 30px; height: 30px; object-fit: contain; flex: none; }
+  .side .ab { font-weight: 850; font-size: 16px; } .side .nm { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .side .ln { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; font-size: 15px; white-space: nowrap; }
+  .side .sc { margin-left: auto; font-weight: 850; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .side .who { min-width: 0; }
+  .meta { display: flex; flex-direction: column; justify-content: center; gap: 4px; font-size: 12px; color: var(--muted); padding: 0 2px; }
+  .meta select { width: 100%; }
+  .res { font-weight: 800; font-size: 13px; } .res.W { color: var(--win); } .res.L { color: var(--loss); } .res.P { color: var(--muted); }
+  .crowd { font-size: 11.5px; }
+  .lockrow { display: flex; gap: 6px; align-items: center; } .lockrow input { width: 76px; min-width: 0; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); font-variant-numeric: tabular-nums; }
+  .lockbtn { border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 8px; padding: 5px 10px; font-weight: 750; cursor: pointer; white-space: nowrap; } .lockbtn:disabled { opacity: .45; cursor: default; }
+  .locked { font-weight: 700; color: var(--text); }
+  .live { color: #e11d2e; font-weight: 800; }
+  @media (max-width: 640px) { .gm { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .meta { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; } .meta select { width: auto; } .side .nm { display: none; } }
+  .board { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .board th, .board td { padding: 6px 6px; border-bottom: 1px solid var(--border); text-align: right; } .board th { font-size: 10.5px; text-transform: uppercase; color: var(--muted); font-weight: 650; letter-spacing: .04em; }
+  .board th:nth-child(2), .board td:nth-child(2) { text-align: left; } .board tr.me td { font-weight: 800; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .pos { color: var(--win); } .neg { color: var(--loss); }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .err { color: var(--loss); font-size: 13px; min-height: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html" class="on">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">👥 Profiles</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+  </header>
+
+  <div class="panel phero">
+    <div><div class="eyebrow" id="eyebrow">Pick'em</div><h2 id="title">Pick'em</h2><div class="sub" id="sub"></div></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="step"><button type="button" id="prev" aria-label="Previous week">◀</button><select id="week" aria-label="Week"></select><button type="button" id="next" aria-label="Next week">▶</button></div>
+  </div>
+  <p class="rules" id="rules"></p>
+  <div class="err" id="err" style="text-align:center"></div>
+  <div class="cols">
+    <div id="games"></div>
+    <div class="panel"><h2>🏆 Season standings</h2><div id="board"></div><p class="muted" style="font-size:12px;margin:10px 0 0">Ranked by points won from picks (stakes and free wins, minus stakes lost).</p></div>
+  </div>
+</main>
+
+<script>
+// 🎯 Pick'em: every game of the week against the spread (pickem.js on the server decides, pays out and keeps the standings)
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let P = null, week = null, live = {}; const SEL = {}; // SEL: the team you've clicked but not locked in yet, per game
+const lineFor = (team, g, line = g.line) => { if (line === null || line === undefined) return '–'; const own = team === g.home ? -line : line; return own === 0 ? 'PK' : (own > 0 ? '+' : '') + own; };
+const logo = t => (P.teams[t]?.logo ? `<img src="${esc(P.teams[t].logo.replace('/i/teamlogos/', '/combiner/i?img=/i/teamlogos/').replace(/\.png$/, '.png&w=64&h=64'))}" alt="" loading="lazy" onerror="this.remove()">` : '');
+const when = t => new Date(t).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+const dayOf = t => new Date(t).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+
+async function load(w = week) {
+  if (!location.protocol.startsWith('http')) { $('games').innerHTML = '<p class="panel empty">Pick\'em needs the server: open the site with start.bat.</p>'; return; }
+  const me = window.VM?.profile();
+  const qs = new URLSearchParams({ ...(me ? { pid: me } : {}), ...(w ? { week: w } : {}) });
+  const r = await fetch('/api/pickem?' + qs, { headers: window.VM?.headers() || {} }).then(r => r.json()).catch(() => null);
+  if (!r?.ok) { $('games').innerHTML = `<p class="panel empty">${esc(r?.error || "Couldn't load pick'em.")}</p>`; return; }
+  P = r; week = r.week; draw();
+}
+function draw() {
+  const me = window.VM?.profile(), g = P.games, i = P.weeks.indexOf(P.week);
+  $('week').innerHTML = P.weeks.map(w => `<option value="${w}">${w > 18 ? `Playoffs ${w - 18}` : `Week ${w}`}</option>`).join(''); $('week').value = P.week;
+  $('prev').disabled = i <= 0; $('next').disabled = i < 0 || i >= P.weeks.length - 1;
+  const open = g.filter(x => x.state === 'open'), mine = g.filter(x => x.mine);
+  const done = mine.filter(x => x.mine.res), w = done.filter(x => x.mine.res === 'W').length, l = done.filter(x => x.mine.res === 'L').length;
+  const atStake = mine.filter(x => !x.mine.res).reduce((s, x) => s + (x.mine.stake || 0), 0), won = done.reduce((s, x) => s + (x.mine.paid || 0) - (x.mine.stake || 0), 0);
+  $('eyebrow').textContent = open.length ? `${open.length} game${open.length === 1 ? '' : 's'} still open` : g.length && g.every(x => x.state === 'final') ? 'Final' : 'Locked';
+  $('title').textContent = `${P.label} pick'em`;
+  const next = open[0]; $('sub').textContent = next ? `Next lock: ${when(next.kick)} (${next.away} @ ${next.home})` : 'Every game this week has kicked off.';
+  $('tiles').innerHTML = me ? `<div class="tile"><div class="k">This week</div><div class="v">${w}-${l}</div></div><div class="tile"><div class="k">At stake</div><div class="v">${atStake}</div></div>
+    <div class="tile"><div class="k">Won this week</div><div class="v ${won > 0 ? 'pos' : won < 0 ? 'neg' : ''}">${won > 0 ? '+' : ''}${won}</div></div><div class="tile"><div class="k">Your points</div><div class="v gold">${(P.balance ?? 0).toLocaleString()}</div></div>`
+    : '<div class="tile"><div class="k">Sign in</div><div class="v" style="font-size:14px">👤 top right to pick</div></div>';
+  $('rules').innerHTML = `Pick each game against the spread. A right pick pays <b>${P.base} points</b> for free, and you can stake as many points as you like on top: a win pays the stake back doubled, a push gives it back, a loss keeps it. <b>Locking in is final.</b> Once you have, you'll see everyone else's pick on that game.`;
+  // the games, by day
+  let html = '', lastDay = '';
+  for (const x of g) {
+    const d = dayOf(x.kick); if (d !== lastDay) { html += `<div class="day">${esc(d)}</div>`; lastDay = d; }
+    const lv = live[`${x.away}@${x.home}`], canPick = me && x.state === 'open' && x.line !== null && !x.mine;
+    const side = t => { const on = x.mine ? x.mine.team === t : SEL[x.id] === t, score = x.state === 'final' ? (t === x.home ? x.hs : x.as) : lv && lv.state !== 'pre' ? (t === x.home ? lv.home.score : lv.away.score) : null;
+      return `<button type="button" class="side ${on ? 'on' : ''}" style="--tc:${esc(P.teams[t]?.color || 'var(--accent)')}" data-g="${x.id}" data-t="${t}" ${canPick ? '' : 'disabled'} aria-pressed="${on}">
+        ${logo(t)}<span class="who"><span class="ab">${t}</span><div class="nm">${esc(P.teams[t]?.name || '')}</div></span>${score !== null ? `<span class="sc">${score}</span>` : `<span class="ln">${lineFor(t, x, x.mine ? x.mine.line : x.line)}</span>`}</button>`; };
+    const res = x.mine?.res ? `<span class="res ${x.mine.res}">${{ W: '✓ Right', L: '✗ Wrong', P: '– Push' }[x.mine.res]} · ${x.mine.res === 'L' ? (x.mine.stake ? `−${x.mine.stake}` : '0') : `+${(x.mine.paid || 0) - (x.mine.res === 'P' ? x.mine.stake : 0) - (x.mine.res === 'W' ? x.mine.stake : 0)}`}</span>` : '';
+    const status = x.state === 'final' ? 'Final' : lv?.state === 'in' ? `<span class="live">● ${esc(lv.detail)}</span>` : x.state === 'locked' ? 'Locked' : when(x.kick);
+    const crowd = x.crowd?.length ? `<span class="crowd">${[x.away, x.home].map(t => `${x.crowd.filter(c => c.team === t).length} on ${t}`).join(' · ')}</span>` : '';
+    const stake = canPick ? `<div class="lockrow"><input type="number" min="0" step="1" inputmode="numeric" placeholder="Stake" data-stake="${x.id}" aria-label="Stake (points)"><button type="button" class="lockbtn" data-lock="${x.id}" ${SEL[x.id] ? '' : 'disabled'}>🔒 Lock in</button></div>`
+      : x.mine && !x.mine.res ? `<span class="locked">🔒 ${x.mine.team} ${lineFor(x.mine.team, x, x.mine.line)}${x.mine.stake ? ` · staked ${x.mine.stake}` : ''}</span>` : x.mine?.stake ? `<span>Staked ${x.mine.stake}</span>` : '';
+    html += `<div class="gm ${x.mine ? 'picked' : ''}">${side(x.away)}${side(x.home)}<div class="meta"><span>${status}</span>${x.line === null ? '<span>No line yet</span>' : ''}${stake}${res}${crowd}</div></div>`;
+  }
+  $('games').innerHTML = html || '<p class="panel empty">No games this week.</p>';
+  $('board').innerHTML = P.board.length ? `<table class="board"><tr><th>#</th><th>Player</th><th>W-L-P</th><th>Week</th><th>Points</th></tr>${P.board.map((r, n) => `<tr class="${r.pid === me ? 'me' : ''}"><td>${n + 1}</td><td><a href="profiles.html?id=${encodeURIComponent(r.pid)}" style="color:inherit">${esc(r.name)}</a></td><td>${r.w}-${r.l}${r.p ? '-' + r.p : ''}</td><td>${r.ww}-${r.wl}</td><td class="${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}">${r.net > 0 ? '+' : ''}${r.net}</td></tr>`).join('')}</table>`
+    : '<p class="empty">No settled picks yet this season.</p>';
+}
+async function send(game, team, stake) {
+  $('err').textContent = '';
+  const x0 = P.games.find(g => g.id === game);
+  if (!confirm(`Lock in ${team} ${lineFor(team, x0)}${stake ? ` with ${stake} points staked` : ''}? You can't change it afterwards.`)) return;
+  const r = await fetch(`/api/pickem/${VM.profile()}/pick`, { method: 'POST', headers: VM.headers(), body: JSON.stringify({ game, team, stake }) }).then(r => r.json()).catch(() => ({ ok: false, error: "The server didn't answer." }));
+  if (!r.ok) { $('err').textContent = r.error; return; }
+  VM.setBalance(r.balance); (r.unlocked || []).forEach(a => VM.toast(a));
+  const x = P.games.find(g => g.id === game); x.mine = r.pick; x.crowd = r.crowd; delete SEL[game]; P.balance = r.balance; draw();
+}
+$('games').addEventListener('click', e => {
+  // choosing a side only highlights it; 🔒 Lock in sends it
+  const b = e.target.closest('.side[data-g]'); if (b && !b.disabled) { const id = b.dataset.g, keep = document.querySelector(`[data-stake="${id}"]`)?.value; SEL[id] = SEL[id] === b.dataset.t ? undefined : b.dataset.t; draw(); const inp = document.querySelector(`[data-stake="${id}"]`); if (inp && keep) inp.value = keep; return; }
+  const l = e.target.closest('[data-lock]'); if (l) { const id = l.dataset.lock, v = document.querySelector(`[data-stake="${id}"]`).value.trim(); return send(id, SEL[id], v === '' ? 0 : Math.floor(+v)); }
+});
+$('prev').onclick = () => { const i = P.weeks.indexOf(P.week); if (i > 0) load(P.weeks[i - 1]); };
+$('next').onclick = () => { const i = P.weeks.indexOf(P.week); if (i < P.weeks.length - 1) load(P.weeks[i + 1]); };
+$('week').onchange = () => load(+$('week').value);
+window.addEventListener('vm:profile', () => load());
+// live scores on the games being played (the same feed as the ticker)
+async function pollLive() {
+  let d = null; if (location.protocol.startsWith('http') && !document.hidden) { try { d = await (await fetch('/api/live')).json(); } catch {} }
+  if (d?.ok) { live = Object.fromEntries(d.games.map(x => [`${x.away.abbr}@${x.home.abbr}`, x])); if (P) draw(); }
+  setTimeout(pollLive, d?.anyLive ? 30e3 : 5 * 60e3);
+}
+load().then(pollLive);
+</script>
+<script src="glossary.js"></script>
+</body>
+</html>

@@ -30,6 +30,7 @@
   ];
   const rarityOf = grade => [...RARITY].reverse().find(r => grade >= r.min);
   const PACKS = {
+    rookie: { name: 'Rookie bundle', price: 0, cards: 10, icon: '🐣', desc: 'Free for new players: two Premium packs, 10 cards with at least two Epics.' },
     starter: { name: 'Starter pack', price: 0, cards: 13, icon: '🎁', desc: 'Free, once: one card for every spot (coach and stadium too), so you can play right away.' },
     staff: { name: 'Staff pack', price: 0, cards: 2, icon: '🧢', desc: 'Free, once: a head coach and a stadium for your team.' },
     standard: { name: 'Standard pack', price: 100, cards: 5, icon: '📦', odds: { common: 0.55, rare: 0.30, epic: 0.12, legendary: 0.0295, mythic: 0.0005 }, desc: '5 cards.' },
@@ -115,6 +116,7 @@
   }
   // a pack's cards (without ids). Positions come up as often as they appear in the lineup (2 WR, 2 DL, 2 DB, 1 coach…).
   function openPack(key, pools, rand = Math.random) {
+    if (key === 'rookie') return [...openPack('premium', pools, rand), ...openPack('premium', pools, rand)];
     const pack = PACKS[key]; if (!pack) throw new Error('No such pack.');
     const any = (g, rar) => { const list = pools[g][nearestRar(pools, g, rar)]; return { ...list[Math.floor(rand() * list.length)] }; }; // a random card of that group and rarity
     if (key === 'starter' || key === 'staff') { // one card per spot, mostly Commons, never the same player twice
@@ -467,11 +469,47 @@
 
   // ---------- 🤖 bots: computer teams built to an overall rating, with a random game plan ----------
   const BOTS = {
-    easy: { name: 'Easy', team: 'Practice Squad', abbr: 'PRAC', ovr: [70, 70], reward: 5 },
-    medium: { name: 'Medium', team: 'Pro Bowlers', abbr: 'PRO', ovr: [85, 85], reward: 10 },
-    hard: { name: 'Hard', team: 'Hall of Famers', abbr: 'HOF', ovr: [95, 99], reward: 15 },
+    easy: { name: 'Easy', team: 'Practice Squad', abbr: 'PRAC', ovr: [70, 70] },
+    medium: { name: 'Medium', team: 'Pro Bowlers', abbr: 'PRO', ovr: [85, 85] },
+    hard: { name: 'Hard', team: 'Hall of Famers', abbr: 'HOF', ovr: [95, 99] },
   };
-  const BOT_CAP = 100; // bot points a day, so beating Easy bots over and over can't print points
+  // A bot win pays more the less likely it was: a new team beating the Easy bot earns a lot, a stacked team beating it
+  // earns 3. No limit at all, so time spent pays off.
+  const BOT_PAY = 30;
+  const botOdds = (cards, level) => { const B = BOTS[level], ovr = (B.ovr[0] + B.ovr[1]) / 2; return expected(cards, Object.fromEntries(SLOTS.map(([s]) => [s, { gr: ovr }]))).homeWin; };
+  const botPay = (cards, level) => Math.max(3, Math.round(BOT_PAY * (1 - botOdds(cards, level))) + 2);
+
+  // ⚔ Competitive lineups: a second lineup for competitive games (double points). Just the eleven players (no coach or
+  // stadium), and the cards' rarities have to fit a budget, with at most one Mythic, so you pick where your stars go.
+  const COMP = { budget: 24, cost: { common: 0, rare: 1, epic: 2, legendary: 4, mythic: 6 }, maxMythic: 1, mult: 2 };
+  const costOf = c => COMP.cost[rarityOf(c.gr).key];
+  const compCost = cards => REQUIRED.reduce((s, [slot]) => s + (cards[slot] ? costOf(cards[slot]) : 0), 0);
+  const mythics = cards => REQUIRED.filter(([s]) => cards[s] && cards[s].gr >= 99).length;
+  function compCheck(cards) { // what's wrong with a competitive lineup, or null if it's good to go
+    if (!REQUIRED.every(([s]) => cards[s])) return 'Fill all 11 spots in your competitive lineup first.';
+    if (mythics(cards) > COMP.maxMythic) return 'A competitive lineup can only have one Mythic.';
+    const c = compCost(cards); if (c > COMP.budget) return `Your competitive lineup costs ${c}: the budget is ${COMP.budget}.`;
+    return null;
+  }
+  // the best competitive lineup from a collection: the best card at every spot, then cheaper cards wherever they cost the
+  // least grade per budget point saved, until it fits
+  function compBest(all) {
+    const pid = c => c.k.split('|')[0], by = Object.fromEntries(REQUIRED.map(([s, g]) => [s, all.filter(c => c.g === g).sort((a, b) => b.gr - a.gr)]));
+    const pick = {}, used = new Set();
+    for (const [s] of REQUIRED) { const c = by[s].find(x => !used.has(pid(x))); if (c) { pick[s] = c; used.add(pid(c)); } }
+    for (let n = 0; n < 80 && (compCost(pick) > COMP.budget || mythics(pick) > COMP.maxMythic); n++) {
+      const tooMany = mythics(pick) > COMP.maxMythic; let best = null;
+      for (const [s] of REQUIRED) {
+        const cur = pick[s]; if (!cur || (tooMany && cur.gr < 99)) continue;
+        const c = by[s].find(x => costOf(x) < costOf(cur) && !(used.has(pid(x)) && pid(x) !== pid(cur))); if (!c) continue;
+        const loss = (cur.gr - c.gr) / (costOf(cur) - costOf(c));
+        if (!best || loss < best.loss) best = { s, c, loss };
+      }
+      if (!best) break;
+      used.delete(pid(pick[best.s])); pick[best.s] = best.c; used.add(pid(best.c));
+    }
+    return pick;
+  }
   const randomPlan = (rand = Math.random) => { const k = o => Object.keys(o)[Math.floor(rand() * Object.keys(o).length)]; return { off: k(TACTICS.off), def: k(TACTICS.def), tempo: k(TACTICS.tempo) }; };
   function makeBot(pools, level, rand = Math.random) {
     const B = BOTS[level]; if (!B) throw new Error('No such bot.');
@@ -530,7 +568,7 @@
     return { F, season: L.season, games, wins, ties, losses: games.length - wins - ties, post, playoffs: wins >= 10, champ, perfect, reward, ovr: R.ovr };
   }
 
-  const out = { SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, BOT_CAP, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
+  const out = { SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
     planOf, randomPlan, makePools, openPack, ratings, expected, simGame, makeBot, simSeason };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_UT = out;
 })(typeof window !== 'undefined' ? window : globalThis);

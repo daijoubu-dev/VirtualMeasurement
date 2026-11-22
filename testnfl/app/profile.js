@@ -108,7 +108,7 @@
         <form id="vmNew"><input id="vmName" maxlength="24" placeholder="New profile name"><input class="pin" id="vmNewPin" maxlength="5" autocomplete="off" placeholder="PIN"><button type="submit">Create</button></form>
         <div class="hint">New profiles need a PIN: ${PIN_HINT}.</div><div class="err" id="vmErr"></div>
         ${window.VMTicker ? `<label class="vmtick"><input type="checkbox" id="vmTick" ${window.VMTicker.isOn() ? 'checked' : ''}> 📺 Show the stat ticker</label>` : ''}
-        <div class="row"><a class="lnk" href="achievements.html">🏆 Achievements</a>${me ? '<button type="button" class="lnk" id="vmOut">Sign out</button>' : ''}</div></div>` : '');
+        <div class="row"><a class="lnk" href="achievements.html">🏆 Achievements</a>${me ? `<a class="lnk" href="profiles.html?id=${encodeURIComponent(me)}">⭐ My profile</a>` : ''}${me ? '<button type="button" class="lnk" id="vmOut">Sign out</button>' : ''}</div></div>` : '');
     if (focusPin || pinFor) document.getElementById('vmPinIn')?.focus();
   }
   function signedOut() {

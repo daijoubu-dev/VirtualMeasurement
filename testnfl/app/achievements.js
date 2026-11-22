@@ -4,12 +4,12 @@
 //   neither: unlocked directly by the page                    hidden: shown as ??? until unlocked
 // Points are a spendable balance (a ledger of every award and purchase), meant for the Ultimate Team packs to come.
 (function (root) {
-  const TIERS = { bronze: { pts: 25, icon: '🥉' }, silver: { pts: 75, icon: '🥈' }, gold: { pts: 200, icon: '🥇' }, platinum: { pts: 500, icon: '💎' }, legendary: { pts: 1500, icon: '👑' } };
+  const TIERS = { bronze: { pts: 75, icon: '🥉' }, silver: { pts: 225, icon: '🥈' }, gold: { pts: 600, icon: '🥇' }, platinum: { pts: 1500, icon: '💎' }, legendary: { pts: 4500, icon: '👑' } };
   const A = [
     // ---- getting around ----
     { key: 'welcome', group: 'Getting started', name: 'Welcome to Virtual Measurement', desc: 'Create a profile.', tier: 'bronze' },
     { key: 'fav_team', group: 'Getting started', name: 'Ride or die', desc: 'Pick your ⭐ favorite team on the Matchups page.', tier: 'bronze' },
-    { key: 'tourist', group: 'Getting started', name: 'Tourist', desc: 'Visit every page of the site.', tier: 'bronze', set: 'pages', goal: 9 },
+    { key: 'tourist', group: 'Getting started', name: 'Tourist', desc: 'Visit every page of the site.', tier: 'bronze', set: 'pages', goal: 11 },
     // ---- matchups & stats ----
     { key: 'scout_25', group: 'Stats', name: 'Film room', desc: 'Look at 25 different matchups.', tier: 'bronze', set: 'matchups', goal: 25 },
     { key: 'scout_100', group: 'Stats', name: 'Advance scout', desc: 'Look at 100 different matchups.', tier: 'silver', set: 'matchups', goal: 100 },
@@ -52,9 +52,16 @@
     { key: 'ut_wins_10', group: 'Ultimate Team', name: 'Contender', desc: 'Win 10 Ultimate Team games.', tier: 'silver', counter: 'ut_wins', goal: 10 },
     { key: 'ut_wins_50', group: 'Ultimate Team', name: 'Dynasty', desc: 'Win 50 Ultimate Team games.', tier: 'gold', counter: 'ut_wins', goal: 50 },
     { key: 'ut_shutout', group: 'Ultimate Team', name: 'Goose egg', desc: 'Win an Ultimate Team game without allowing a point.', tier: 'gold', hidden: true },
+    { key: 'pe_first', group: "Pick'em", name: 'Locked in', desc: 'Make your first pick\'em pick.', tier: 'bronze' },
+    { key: 'pe_wins_25', group: "Pick'em", name: 'Sharp', desc: 'Get 25 picks right against the spread.', tier: 'silver', counter: 'pe_wins', goal: 25 },
+    { key: 'pe_wins_100', group: "Pick'em", name: 'Vegas is calling', desc: 'Get 100 picks right against the spread.', tier: 'gold', counter: 'pe_wins', goal: 100 },
+    { key: 'pe_big', group: "Pick'em", name: 'Bet the house', desc: 'Win a 250-point stake.', tier: 'silver' },
+    { key: 'pe_perfect', group: "Pick'em", name: 'Perfect week', desc: 'Pick at least 8 games in a week and get every one right.', tier: 'platinum', hidden: true },
     { key: 'ut_comeback', group: 'Ultimate Team', name: 'Never in doubt', desc: 'Win an Ultimate Team game after trailing by 14 or more.', tier: 'silver', hidden: true },
   ];
   for (const a of A) { a.pts = TIERS[a.tier].pts; a.icon = TIERS[a.tier].icon; }
-  const out = { TIERS, LIST: A, BY_KEY: Object.fromEntries(A.map(a => [a.key, a])) };
+  // the hard ones (gold, platinum and legendary) double as profile titles
+  const TITLE_TIERS = ['gold', 'platinum', 'legendary'], isTitle = key => TITLE_TIERS.includes(A.find(a => a.key === key)?.tier);
+  const out = { TIERS, LIST: A, BY_KEY: Object.fromEntries(A.map(a => [a.key, a])), isTitle };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_ACHIEVEMENTS = out;
 })(typeof window !== 'undefined' ? window : globalThis);

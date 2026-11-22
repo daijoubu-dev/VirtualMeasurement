@@ -39,7 +39,7 @@
 <main>
   <header>
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
-    <nav class="navs"><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Sims</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a><a href="ultimate.html">Ultimate Team</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="achievements.html" class="on">🏆 Achievements</a></span></span></nav>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">👥 Profiles</a><a href="achievements.html" class="on">🏆 Achievements</a></span></span></nav>
   </header>
 
   <div class="panel" id="who"></div>
@@ -65,7 +65,7 @@ async function draw() {
   const total = A.LIST.reduce((a, x) => a + x.pts, 0);
   // the leaderboard (points earned, so spending on packs doesn't drop you down)
   $('board').innerHTML = list.length ? `<table class="board"><tr><th>#</th><th>Profile</th><th class="num">Achievements</th><th class="num">Earned</th></tr>` +
-    list.map((p, i) => `<tr class="${p.id === id ? 'me' : ''}"><td>${i + 1}</td><td>${esc(p.name)}</td><td class="num">${p.unlocked} / ${A.LIST.length}</td><td class="num">${p.earned.toLocaleString()}</td></tr>`).join('') + '</table>'
+    list.map((p, i) => `<tr class="${p.id === id ? 'me' : ''}"><td>${i + 1}</td><td><a href="profiles.html?id=${encodeURIComponent(p.id)}" style="color:inherit">${esc(p.name)}</a></td><td class="num">${p.unlocked} / ${A.LIST.length}</td><td class="num">${p.earned.toLocaleString()}</td></tr>`).join('') + '</table>'
     : '<p class="empty">No profiles yet.</p>';
   if (!mine) {
     $('who').innerHTML = '<p class="empty">Sign in or create a profile with the 👤 button at the top right to start earning achievements and points.</p>';

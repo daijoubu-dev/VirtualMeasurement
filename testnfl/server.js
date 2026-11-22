@@ -13,6 +13,7 @@ const { fetchData, currentSeason } = require('./fetch');
 const profiles = require('./profiles');
 const ultimate = require('./ultimate_api');
 const live = require('./live');
+const pickem = require('./pickem');
 
 const PORT = Number(process.env.PORT) || 8765;
 // Listen on every network interface, but only answer local-network addresses (see isLocalNetwork)
@@ -50,7 +51,9 @@ const runNode = (script, args = []) => new Promise((resolve, reject) =>
 async function refresh() {
   const log = [];
   const season = currentSeason();
-  await fetchData(season, season, line => log.push(line));
+  // a fresh copy (cloned from GitHub, no data yet) downloads every season once; after that, only the current one
+  const fresh = !fs.existsSync(path.join(__dirname, 'data', 'raw', 'stats_team_week_1999.csv'));
+  await fetchData(fresh ? 1999 : season, season, line => log.push(line));
   log.push((await runNode('build.js', ['1999', String(season)])).trim());
   log.push((await runNode('build_app.js')).trim());
   log.push((await runNode('build_perfect.js')).trim()); // the 17-0 page's player pool (completed seasons)
@@ -64,6 +67,7 @@ async function runRefresh() {
   refreshing = true;
   try {
     const log = await refresh(); lastRefresh = Date.now(); console.log(log);
+    try { pickem.settle(); } catch (e) { console.error("Pick'em settling failed:", e.message); } // new final scores pay out
     fs.writeFileSync(REFRESH_STAMP, new Date().toISOString());
     return log;
   }
@@ -103,6 +107,7 @@ async function autoRefresh() {
 //   POST /api/profiles/<id>/track    {events: [...]} from the pages; answers with anything that unlocked
 //   POST /api/profiles/<id>/spend    {amount, reason} (for the Ultimate Team packs)
 //   POST /api/profiles/<id>/prefs    {fav?, stats?, tactics?, ticker?} per-profile settings
+//   POST /api/profiles/<id>/showcase {cards: [up to 5 card ids], title: an achievement key} for the profile page
 // Everything that changes a profile needs its token, in an X-VM-Token header (or "token" in the body, for sendBeacon).
 const tokenOf = (req, body) => req.headers['x-vm-token'] || body?.token || '';
 const readBody = req => new Promise((resolve, reject) => {
@@ -125,6 +130,7 @@ async function profileApi(req, res, url) {
     if (action === 'track') return send(200, { ok: true, ...profiles.track(id, b.events) });
     if (action === 'spend') return send(200, { ok: true, ...profiles.spend(id, b.amount, b.reason) });
     if (action === 'prefs') return send(200, { ok: true, ...profiles.setPrefs(id, token, b) });
+    if (action === 'showcase') return send(200, { ok: true, ...profiles.setShowcase(id, token, b) });
     send(404, { ok: false, error: 'Unknown profile request.' });
   } catch (e) { send(e.status || 400, { ok: false, error: e.message }); }
 }
@@ -161,6 +167,17 @@ async function handle(req, res) {
     }
     return;
   }
+  // 🎯 pick'em (see pickem.js): reading is open, picking needs that profile's token
+  if (url === '/api/pickem' || url.startsWith('/api/pickem/')) {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const body = req.method === 'POST' ? await readBody(req) : null;
+      if (req.method === 'POST') profiles.authorize(url.split('/')[3], tokenOf(req, body));
+      const authed = id => { try { return !!id && !!profiles.authorize(id, req.headers['x-vm-token']); } catch { return false; } };
+      res.end(JSON.stringify({ ok: true, ...pickem.handle(req, url, body, authed) }));
+    } catch (e) { res.writeHead(e.status || 400); res.end(JSON.stringify({ ok: false, error: e.message })); }
+    return;
+  }
   // 🔴 live scores for the ticker and the Leaders page (see live.js)
   if (url === '/api/live' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -185,6 +202,11 @@ async function handle(req, res) {
 }
 function started() {
   if (AUTO_REFRESH) { setTimeout(autoRefresh, 60e3); setInterval(autoRefresh, 10 * 60e3); }
+  // first run on a fresh copy: there's no data yet, so get it now (a few minutes) whatever the date
+  if (!fs.existsSync(path.join(APP, 'data.js')) && !refreshing) {
+    console.log('First run: downloading and building all the data. This takes a few minutes; the site works once it says it\'s done.');
+    runRefresh().then(() => console.log('Data ready.')).catch(e => console.error('First download failed:', e.message, '(restart the server to try again)'));
+  }
   console.log(`Virtual Measurement running at http://localhost:${PORT}  (Ctrl+C to stop)${PUBLIC ? '  · PUBLIC: answering every address' : ''}`);
   console.log(`Profiles are saved in ${profiles.DIR}`);
   if (!PUBLIC && HOST !== '127.0.0.1' && HOST !== 'localhost') {
