@@ -699,7 +699,7 @@ function drawBots() {
         <div class="d">Your chances ≈ ${isFull(me) ? Math.round(100 * UT.botOdds(C, k)) + '%' : '–'} · you're ${r.w}-${r.l} against it</div>
         <button class="btn go" data-bot="${k}" ${isFull(me) ? '' : 'disabled'}>Play</button></div>`; }).join('')}</div>
     <div class="err" id="botErr"></div>
-    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. A win pays more the tougher that bot is for your team, with no limit. Losses pay nothing${SEA() ? `, but every game earns XP (${UT.SEASON.xp.botWin} a win, ${UT.SEASON.xp.botLoss} a loss; games against players earn more)` : ''}. Bot games don't count toward your record or the ${SEA() ? 'season standings' : 'leaderboards'}.</p>`;
+    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. A win pays a flat amount by bot (Rookie 10, Easy 20, Medium 30, Hall of Famers 50), with no limit. Losses pay nothing${SEA() ? `, but every game earns XP (${UT.SEASON.xp.botWin} a win, ${UT.SEASON.xp.botLoss} a loss; games against players earn more)` : ''}. Bot games don't count toward your record or the ${SEA() ? 'season standings' : 'leaderboards'}.</p>`;
   $('bots').querySelectorAll('[data-bot]').forEach(b => (b.onclick = async () => {
     const tactics = await pickPlan(`Game plan vs the ${UT.BOTS[b.dataset.bot].name} bot`, '▶ Play'); if (!tactics) return;
     $('bots').querySelectorAll('[data-bot]').forEach(x => (x.disabled = true));

@@ -471,16 +471,15 @@
 
   // ---------- 🤖 bots: computer teams built to an overall rating, with a random game plan ----------
   const BOTS = {
-    rookie: { name: 'Rookie', team: 'Scout Team', abbr: 'SCT', ovr: [45, 45] }, // 🐣 for brand-new teams (a new season's starter teams are about 45)
-    easy: { name: 'Easy', team: 'Practice Squad', abbr: 'PRAC', ovr: [70, 70] },
-    medium: { name: 'Medium', team: 'Pro Bowlers', abbr: 'PRO', ovr: [85, 85] },
-    hard: { name: 'Hard', team: 'Hall of Famers', abbr: 'HOF', ovr: [95, 99] },
+    rookie: { name: 'Rookie', team: 'Scout Team', abbr: 'SCT', ovr: [45, 45], pay: 10 }, // 🐣 for brand-new teams (a new season's starter teams are about 45)
+    easy: { name: 'Easy', team: 'Practice Squad', abbr: 'PRAC', ovr: [70, 70], pay: 20 },
+    medium: { name: 'Medium', team: 'Pro Bowlers', abbr: 'PRO', ovr: [85, 85], pay: 30 },
+    hard: { name: 'Hard', team: 'Hall of Famers', abbr: 'HOF', ovr: [95, 99], pay: 50 },
   };
   // A bot win pays more the less likely it was: a new team beating the Easy bot earns a lot, a stacked team beating it
   // earns 3. No limit at all, so time spent pays off.
-  const BOT_PAY = 30;
   const botOdds = (cards, level) => { const B = BOTS[level], ovr = (B.ovr[0] + B.ovr[1]) / 2; return expected(cards, Object.fromEntries(SLOTS.map(([s]) => [s, { gr: ovr }]))).homeWin; };
-  const botPay = (cards, level) => Math.max(3, Math.round(BOT_PAY * (1 - botOdds(cards, level))) + 2);
+  const botPay = (cards, level) => BOTS[level].pay; // a flat amount a win, by bot (doubled for rookies in permanent mode)
 
   // ⚔ Competitive lineups: a second lineup for competitive games (double points). Just the eleven players (no coach or
   // stadium), and the cards' rarities have to fit a budget, with at most one Mythic, so you pick where your stars go.

@@ -146,7 +146,7 @@ Collect player cards, build a team, queue it up and let someone challenge it. Ne
   - The host gets a "challenged your team" banner and watches the replay. Their record and points leave that game out until they've watched it, so nothing spoils it.
 - **🤖 Bots:** Rookie (45 overall, about what a starter pack makes), Easy (70), Medium (85) and Hard (95–99).
   - Each game draws a new bot team from real player-seasons near that overall, with a random game plan. You host.
-  - A win pays more the tougher that bot is for your team: up to 32 points when it was a long shot, down to 3 when it was a sure thing (`UT.botPay`). A brand-new team beating the Easy bot earns about 20; a stacked one, 4. No limit: play as many as you like. Losses pay nothing.
+  - A win pays a flat amount by bot: Rookie 10, Easy 20, Medium 30, Hall of Famers 50 (`UT.BOTS[level].pay`; points in permanent mode, doubled for rookies, coins in seasonal mode). No limit: play as many as you like. Losses pay nothing.
   - Bot games keep their own record, apart from the player record and leaderboards.
 - **📅 Schedule:** once a day (by the server's date), your lineup takes over a real team's schedule this season, using the same opponents, playoff path and ties as the 17-0 page. Your coach counts, and your stadium's home field counts in home games (game plans don't apply).
   - Pays 100 points for playing, 200 for the playoffs (10+ wins), 300 for winning the Super Bowl, and a secret 1,000 for a perfect season.

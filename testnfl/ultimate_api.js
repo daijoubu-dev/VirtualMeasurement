@@ -401,8 +401,7 @@ const ACTIONS = {
     out.game = game;
   },
   seen(p, b, out, ctx) { ctx.ut.unseen = ctx.ut.unseen.filter(g => g !== b.gid); },
-  // 🤖 a game against a bot: played right away, not listed with the results. A win pays more the harder that bot is for
-  // your team (UT.botPay), with no limit. In seasonal mode it pays coins and XP.
+  // 🤖 a game against a bot: played right away, not listed with the results. A win pays that bot's flat amount  // (UT.BOTS[level].pay: 10, 20, 30 or 50), with no limit. In seasonal mode it pays coins and XP.
   bot(p, b, out, ctx) {
     const B = UT.BOTS[b.level]; if (!B) throw new Error('No such bot.');
     const ut = ctx.ut;
