@@ -243,7 +243,12 @@
   };
 
   // side = { name, abbr, cards: { slot: card }, tactics? }; the home side is the one who queued the game (and its stadium)
-  function simGame(homeSide, awaySide, seed) {
+  // opts.live = { scale, extras }: a 🎮 live game. The sim plays a "background" game at scale × the usual scoring (no missed
+  // extra points or 2-point tries, no overtime yet), then the plays decided at the key moments (extras: { team, pts, kind,
+  // who: [slots, 'K' for the kicker], yds, q, t, text }) are merged in at their times. Everything random about the
+  // background comes first, so the same seed gives the same background whatever was decided.
+  function simGame(homeSide, awaySide, seed, opts = {}) {
+    const LV = opts.live || null;
     const R0 = rng(seed);
     const rand = () => R0();
     const randn = () => { let u = 0, v = 0; while (!u) u = rand(); while (!v) v = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
@@ -297,9 +302,12 @@
 
     // the final score
     const E = expected(homeSide.cards, awaySide.cards, plan.home, plan.away);
-    const realScore = x => { x = Math.max(0, Math.round(x)); return x === 1 ? (rand() < 0.5 ? 0 : 3) : x; };
-    let hs = realScore(E.eh + wx.pts + randn() * E.sdH), as = realScore(E.ea + wx.pts + randn() * E.sdA);
-    const ot = hs === as;
+    let realScore = x => { x = Math.max(0, Math.round(x)); return x === 1 ? (rand() < 0.5 ? 0 : 3) : x; };
+    const k = LV ? LV.scale : 1;
+    const liveScore = x => { x = Math.max(0, Math.round(x)); const odd = { 1: 0, 2: 3, 4: 3, 5: 6, 8: 7, 11: 10 }; return x in odd ? odd[x] : x; }; // (TDs and field goals add up to these)
+    if (LV) realScore = liveScore;
+    let hs = realScore((E.eh + wx.pts) * k + randn() * E.sdH * Math.sqrt(k)), as = realScore((E.ea + wx.pts) * k + randn() * E.sdA * Math.sqrt(k));
+    let ot = !LV && hs === as;
     if (ot) rand() < 1 / (1 + Math.exp(-(E.eh - E.ea) / 7)) ? (hs += 3) : (as += 3); // overtime field goal
     const g = { home: 'home', away: 'away', hs, as, ot, winner: hs > as ? 'home' : 'away' };
     g.loser = g.winner === 'home' ? 'away' : 'home'; g.ws = Math.max(hs, as); g.ls = Math.min(hs, as);
@@ -310,6 +318,7 @@
     function scoringPlays(team, pts) {
       const Rm = R[team], O = R[team === 'home' ? 'away' : 'home'], ways = [];
       for (let t = 0; 6 * t <= pts; t++) for (let m = 0; m <= Math.min(t, 2); m++) for (let two = 0; two + m <= Math.min(t, 3); two++) for (let sf = 0; sf <= 2; sf++) {
+        if (LV && (m || two)) continue; // (a live game's background: plain extra points)
         const r = pts - (7 * t - m + two) - 2 * sf;
         if (r >= 0 && r % 3 === 0) ways.push({ p: { t, m, two, sf, f: r / 3 }, w: pois(t, 2.6) * pois(r / 3, 1.7) * 0.025 ** m * 0.012 ** two * 0.008 ** sf });
       }
@@ -346,7 +355,7 @@
       return pen;
     }
     // both teams' scoring as one log: realistic order, quarters, game clock, running score and notes
-    const otWinner = g.ot ? g.winner : null;
+    let otWinner = g.ot ? g.winner : null;
     let best = [], bestPen = Infinity;
     for (let tries = 0; tries < 30 && bestPen >= 8; tries++) {
       const plays = [...scoringPlays('home', hs - (otWinner === 'home' ? 3 : 0)), ...scoringPlays('away', as - (otWinner === 'away' ? 3 : 0))];
@@ -360,17 +369,26 @@
       times[i] = sameQ ? Math.max(3, times[i - 1] - rnd(10, 16)) : 900 - rnd(10, 16);
       for (let j = i + 1; j < n && quarters[j] === quarters[i]; j++) if (times[j] >= times[j - 1]) times[j] = Math.max(1, times[j - 1] - rnd(30, 120));
     });
+    const seq = best.map((p, i) => ({ p, q: quarters[i], t: times[i] }));
+    if (LV) { // 🎮 the decided plays go in at their times, and the final score (and any overtime) comes from everything
+      for (const x of LV.extras || []) seq.push({ p: { team: x.team, pts: x.pts, kind: x.kind, yds: x.yds, text: x.text, pick6: x.pick6, fixed: true, note: x.note,
+        who: (x.who || []).map(s => (s === 'K' ? R[x.team].kicker : R[x.team].P[s])).filter(Boolean) }, q: x.q, t: x.t });
+      seq.sort((x, y) => x.q - y.q || y.t - x.t);
+      hs = sum(seq.filter(x => x.p.team === 'home').map(x => x.p.pts)); as = sum(seq.filter(x => x.p.team === 'away').map(x => x.p.pts));
+      if (hs === as && LV.final) { ot = true; otWinner = rand() < 1 / (1 + Math.exp(-(E.eh - E.ea) / 7)) ? 'home' : 'away'; otWinner === 'home' ? (hs += 3) : (as += 3); }
+      Object.assign(g, { hs, as, ot, winner: hs > as ? 'home' : 'away' }); g.loser = g.winner === 'home' ? 'away' : 'home'; g.ws = Math.max(hs, as); g.ls = Math.min(hs, as);
+    }
     let h = 0, a = 0, decisive = -1;
     const maxDown = { home: 0, away: 0 };
-    const log = best.map((p, i) => {
+    const log = seq.map(({ p, q, t }) => {
       const before = p.team === 'home' ? h - a : a - h;
       p.team === 'home' ? (h += p.pts) : (a += p.pts);
       maxDown.home = Math.max(maxDown.home, a - h); maxDown.away = Math.max(maxDown.away, h - a);
       const after = p.team === 'home' ? h - a : a - h;
-      let text = p.kind === 'fg' ? `${p.who[0].name} ${p.yds}-yd field goal` : p.text;
-      if (p.pts === 6) { text += TWO_PT.includes(after) ? ' (2-pt try failed)' : ' (XP missed)'; p.xpMiss = !TWO_PT.includes(after); }
-      if (p.pts === 8) text += ' (2-pt conversion good)';
-      return { ...p, text, q: quarters[i], t: times[i], h, a, before, after };
+      let text = p.kind === 'fg' && !p.fixed ? `${p.who[0].name} ${p.yds}-yd field goal` : p.text;
+      if (p.pts === 6 && !p.fixed) { text += TWO_PT.includes(after) ? ' (2-pt try failed)' : ' (XP missed)'; p.xpMiss = !TWO_PT.includes(after); }
+      if (p.pts === 8 && !p.fixed) text += ' (2-pt conversion good)';
+      return { ...p, text, q, t, h, a, before, after };
     });
     log.forEach((p, i) => { if (p.team === g.winner && p.before <= 0 && p.after > 0) decisive = i; });
     if (otWinner) {
@@ -379,8 +397,8 @@
       log.push({ team: otWinner, pts: 3, kind: 'fg', yds, who: [R[otWinner].kicker], q: 'OT', t, h, a, text: `${R[otWinner].kicker.name} ${yds}-yd walk-off field goal 🦵`, note: 'Wins it in overtime' });
     } else if (decisive >= 0 && log[decisive].q === 4 && g.ws - g.ls <= 8) {
       const d = log[decisive];
-      if (decisive === log.length - 1 && !d.kick) d.t = Math.min(d.t, rnd(3, 119));
-      d.note = d.t <= 120 ? (decisive === log.length - 1 && d.kind === 'fg' && d.t <= 10 ? 'Walk-off field goal' : 'Game-winning drive 🏁') : 'Go-ahead score';
+      if (decisive === log.length - 1 && !d.kick && !LV) d.t = Math.min(d.t, rnd(3, 119));
+      if (!d.fixed) d.note = d.t <= 120 ? (decisive === log.length - 1 && d.kind === 'fg' && d.t <= 10 ? 'Walk-off field goal' : 'Game-winning drive 🏁') : 'Go-ahead score';
     }
     log.forEach(p => (p.when = p.q === 'OT' ? `OT ${clock(p.t)}` : `Q${p.q} ${clock(p.t)}`));
 
@@ -597,7 +615,77 @@
     return { track: { ...a, k: `${a.k}|S${n}`, gr: 99, ed: `Season ${n}` }, champ: { ...b, k: `${b.k}|S${n}C`, gr: 99, ed: `Season ${n} Champion` } };
   }
 
-  const out = { SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
+  // ---------- 🎮 live bot games: the sim stops at key moments and you make the call ----------
+  // Five moments a game, three on offense and two on defense (the last one depends on the score: behind or tied, a
+  // two-minute drill; ahead, their last drive). Your call goes up against the bot's hidden one: the same counters as the
+  // game plans (VS), your cards for that call against theirs, and your coach. The rest of the game is a normal sim at
+  // LIVE.scale × the scoring. Wins pay LIVE.mult × the bot's pay.
+  const LIVE = { scale: 0.55, mult: 2, moments: 5 };
+  const OFF_CALLS = ['run', 'pass', 'quick', 'deep'], DEF_CALLS = ['blitz', 'box', 'zone', 'man'];
+  const MOMENTS = {
+    redzone: { side: 'off', name: 'Red zone', text: '1st & goal at their 8', base: 0.5 },
+    fourth: { side: 'off', name: '4th down', text: '4th & 2 at their 38', base: 0.56, punt: true },
+    drive: { side: 'off', name: 'Two-minute drill', text: 'Ball at your 30, the clock running', base: 0.42 },
+    goalline: { side: 'def', name: 'Goal-line stand', text: 'They have 1st & goal at your 6', base: 0.5 },
+    third: { side: 'def', name: '3rd down', text: 'They have 3rd & 7 at your 31', base: 0.45 },
+    last: { side: 'def', name: 'Their last drive', text: 'They have the ball at their 30, the clock running', base: 0.42 },
+  };
+  // when the moments come (quarter, seconds left in it) and what they are; the last one's kind waits for the score
+  function liveMoments(seed) {
+    const r = rng(seed ^ 0x5bd1e995), rnd = (lo, hi) => lo + Math.floor(r() * (hi - lo + 1)), one = l => l[Math.floor(r() * l.length)];
+    return [{ q: 1, t: rnd(200, 600), kind: one(['redzone', 'fourth']) }, { q: 2, t: rnd(50, 160), kind: one(['goalline', 'third']) },
+      { q: 3, t: rnd(250, 620), kind: one(['fourth', 'redzone']) }, { q: 4, t: rnd(400, 640), kind: one(['goalline', 'third']) }, { q: 4, t: rnd(70, 115), kind: null }];
+  }
+  const finalKind = diff => (diff > 0 ? 'last' : 'drive'); // diff: your score minus theirs when the last moment comes
+  const callsFor = kind => [...(MOMENTS[kind].side === 'off' ? OFF_CALLS : DEF_CALLS), ...(MOMENTS[kind].punt ? ['punt'] : [])];
+  // the chance the offense's call works against the defense's call
+  function callOdds(kind, o, d, offCards, defCards) {
+    const vs = VS[o]?.[d] || 0, mult = coachMult(coachOf(vs > 0 ? offCards : defCards));
+    const fit = (avgGr(offCards, ...OFF_FIT[o]) - avgGr(defCards, ...DEF_FIT[d])) * 0.005;
+    return Math.max(0.08, Math.min(0.92, MOMENTS[kind].base + vs * 0.06 * mult + fit));
+  }
+  // who scores on a call, and how it reads
+  function scorePlay(cards, abbr, call, yds) {
+    const nm = s => cards[s]?.n || `${abbr} backup`;
+    if (call === 'run') return { kind: 'run', who: ['RB'], text: `${nm('RB')} ${yds}-yd TD run` };
+    const to = call === 'deep' ? 'WR1' : call === 'quick' ? (yds % 2 ? 'TE' : 'WR2') : (yds % 2 ? 'WR1' : 'WR2');
+    return { kind: 'pass', who: ['QB', to], text: `${nm('QB')} ${yds}-yd TD pass to ${nm(to)}` };
+  }
+  // a moment played out: { off, def (the two calls), ok (did the offense's call work), text, extras (scoring plays) }
+  // me / them: { cards, abbr, team: 'home' | 'away' }
+  function liveResolve(m, call, me, them, rand = Math.random) {
+    const M = MOMENTS[m.kind], mineOff = M.side === 'off', rnd = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+    const botCall = (mineOff ? DEF_CALLS : OFF_CALLS)[Math.floor(rand() * 4)];
+    const atk = mineOff ? me : them, dfn = mineOff ? them : me, extras = [], at = (dt = 0) => ({ q: m.q, t: Math.max(2, m.t - dt) });
+    const T = TACTICS, nm = (side, s) => side.cards[s]?.n || `${side.abbr} ${s === 'K' ? 'kicker' : 'backup'}`;
+    const td = (side, c, lo, hi, dt) => { const y = rnd(lo, hi), p = scorePlay(side.cards, side.abbr, c, y); extras.push({ team: side.team, pts: 7, yds: y, ...p, ...at(dt), note: '🎮' }); return p.text; };
+    const fg = (side, lo, hi, dt) => { const y = rnd(lo, hi); extras.push({ team: side.team, pts: 3, kind: 'fg', yds: y, who: ['K'], text: `${nm(side, 'K')} ${y}-yd field goal`, ...at(dt), note: '🎮' }); return `${y}-yd field goal`; };
+    if (call === 'punt') return { off: 'punt', def: botCall, ok: false, punt: true, text: '🦵 You punt it away. Nobody scores.', extras, good: null };
+    const o = mineOff ? call : botCall, d = mineOff ? botCall : call, p = callOdds(m.kind, o, d, atk.cards, dfn.cards), ok = rand() < p;
+    const vs = `${T.off[o].icon} ${T.off[o].name} vs ${T.def[d].icon} ${T.def[d].name}`;
+    let text;
+    const r = rand();
+    if (m.kind === 'redzone') text = ok ? `✅ ${td(atk, o, 1, 8)}!` : r < (o === 'deep' || o === 'pass' ? 0.3 : 0.18) ? `❌ Stopped, and ${nm(dfn, o === 'run' ? 'LB' : 'DB1')} comes up with the ball. No points.` : `❌ Stopped at the goal line. You settle for a ${fg(atk, 20, 27)}.`;
+    else if (m.kind === 'fourth') text = ok ? (r < 0.55 ? `✅ Converted, and the drive goes all the way: ${td(atk, o, 5, 38, 40)}!` : r < 0.85 ? `✅ Converted. The drive stalls later: ${fg(atk, 28, 45, 40)}.` : '✅ Converted, but the drive stalls and the punt goes in.')
+      : r < 0.4 ? `❌ Turned over on downs, and they take it the other way: ${fg(dfn, 30, 48, 90)}.` : r < 0.55 ? `❌ Turned over on downs, and they take it the other way: ${td(dfn, ['run', 'pass'][rnd(0, 1)], 8, 45, 90)}.` : '❌ Turned over on downs. Your defense holds after that.';
+    else if (m.kind === 'drive') text = ok ? `✅ ${td(atk, o, 6, 32, 50)}!` : r < 0.45 ? `❌ The drive stalls in range: ${fg(atk, 38, 52, 60)}.` : r < 0.65 ? `❌ Picked off by ${nm(dfn, 'DB1')}.` : '❌ The drive stalls. Nothing.';
+    else if (m.kind === 'goalline') text = ok ? `❌ They punch it in: ${td(atk, o, 1, 6)}.` : r < 0.3 ? `✅ Stuffed, and ${nm(dfn, 'LB')} takes it away!` : `✅ Held at the goal line. They kick a ${fg(atk, 20, 26)}.`;
+    else if (m.kind === 'third') text = ok ? (r < 0.6 ? `❌ They convert and score: ${td(atk, o, 4, 31, 40)}.` : `❌ They convert, then stall: ${fg(atk, 26, 40, 40)}.`) : r < 0.5 ? `✅ Off the field! They kick a ${fg(atk, 45, 50)}.` : '✅ Off the field! The long field goal misses.';
+    else text = ok ? `❌ They drive it down: ${td(atk, o, 5, 30, 50)}.` : r < 0.3 ? `✅ ${nm(dfn, 'DB2')} picks it off!` : '✅ Stopped on downs!';
+    return { off: o, def: d, ok, good: mineOff ? ok : !ok, odds: Math.round(100 * (mineOff ? p : 1 - p)), vs, text, extras };
+  }
+  // 🔄 a card's back: the game plans (and live calls) it powers, and by about how many points
+  const slotsOf = g => SLOTS.filter(([, x]) => x === g).map(([s]) => s);
+  function cardFits(c) {
+    const mine = slotsOf(c.g), out = [];
+    for (const [side, FIT] of [['off', OFF_FIT], ['def', DEF_FIT]]) for (const [k, list] of Object.entries(FIT)) {
+      const at = mine.filter(s => list.includes(s)); if (!at.length) continue;
+      out.push({ side, key: k, name: TACTICS[side][k].name, icon: TACTICS[side][k].icon, pts: (c.gr - 65) * 0.06 / list.length, as: at.length < mine.length ? at.join('/') : '' });
+    }
+    return out;
+  }
+
+  const out = { LIVE, MOMENTS, OFF_CALLS, DEF_CALLS, liveMoments, finalKind, callsFor, callOdds, liveResolve, cardFits, coachMult, OFF_FIT, DEF_FIT, avgGr, SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
     planOf, randomPlan, makePools, openPack, ratings, expected, simGame, makeBot, simSeason };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_UT = out;
 })(typeof window !== 'undefined' ? window : globalThis);

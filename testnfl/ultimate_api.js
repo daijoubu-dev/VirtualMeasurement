@@ -86,13 +86,13 @@ function state(p, mode = 'main') {
     const n = sea.n, sp = span(n), last = readJson(SEASONS, { results: {} }).results[n - 1];
     return { mode, unit: 'coins', team: sea.team, cards: sea.cards, lineup: sea.lineup, comp: {}, compErr: null, starter: sea.starter, staff: true, collected: {},
       dailyReady: sea.daily !== today(), daily: UT.SEASON.daily, rec: sea.rec, unseen: sea.unseen, balance: sea.coins, points: p.balance, packs: ['season'],
-      bot: { rec: sea.bot.rec, ptsToday: sea.bot.day === today() ? sea.bot.pts : 0 }, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced,
+      bot: { rec: sea.bot.rec, ptsToday: sea.bot.day === today() ? sea.bot.pts : 0 }, live: sea.live ? livePublic(sea.live) : null, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced,
       season: { n, starts: sp.starts, ends: sp.ends, xp: sea.xp, got: sea.got, doubleLeft: Math.max(0, UT.SEASON.doubleXp - (sea.xpDay.day === today() ? sea.xpDay.games : 0)),
         cards: UT.seasonCards(pools(), n), board: seasonBoard(n), last: last ? { n: last.n, champion: last.standings.find(r => r.pid === last.champion) || null, top: last.standings.slice(0, 5) } : null } };
   }
   const ut = utOf(p);
   return { mode, unit: 'points', team: ut.team, cards: ut.cards, lineup: ut.lineup, starter: ut.starter, dailyReady: ut.daily !== today(), daily: UT.DAILY, rec: ut.rec, unseen: ut.unseen, balance: p.balance,
-    packs: ['standard', 'premium', 'legend'], bot: { rec: ut.bot.rec, ptsToday: ut.bot.day === today() ? ut.bot.pts : 0 }, seasonReady: ut.seasonDay !== today(), seasons: ut.seasons.slice(0, 10), titles: ut.titles,
+    packs: ['standard', 'premium', 'legend'], bot: { rec: ut.bot.rec, ptsToday: ut.bot.day === today() ? ut.bot.pts : 0 }, live: ut.live ? livePublic(ut.live) : null, seasonReady: ut.seasonDay !== today(), seasons: ut.seasons.slice(0, 10), titles: ut.titles,
     staff: ut.staff, collected: ut.collected, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced, competitive: !!p.prefs?.competitive,
     comp: ut.comp, compErr: UT.compCheck(cardsOf(ut, 'comp')),
     rookie: { earned: profiles.earnedOf(p), until: profiles.ROOKIE_UNTIL, bundle: !ut.rookie && profiles.earnedOf(p) < profiles.ROOKIE_UNTIL } };
@@ -403,21 +403,45 @@ const ACTIONS = {
   seen(p, b, out, ctx) { ctx.ut.unseen = ctx.ut.unseen.filter(g => g !== b.gid); },
   // 🤖 a game against a bot: played right away, not listed with the results. A win pays that bot's flat amount
   // (UT.BOTS[level].pay: 10, 20, 30 or 50), with no limit. In seasonal mode it pays coins and XP.
+  // 🎮 b.live: a live game instead, played a call at a time with the "live" action (one at a time per mode; asking for
+  // another while one is going just brings it back)
   bot(p, b, out, ctx) {
     const B = UT.BOTS[b.level]; if (!B) throw new Error('No such bot.');
     const ut = ctx.ut;
     if (!full(ut)) throw new Error('Fill every spot in your lineup first.');
-    if (ut.bot.day !== today()) { ut.bot.day = today(); ut.bot.pts = 0; }
-    const pay = UT.botPay(cardsOf(ut), b.level);
+    if (b.live && ut.live) { out.live = livePublic(ut.live); return; }
     const bot = UT.makeBot(pools(), b.level), seed = Math.floor(Math.random() * 2 ** 31);
     const home = { ...side(p, ut), tactics: planFrom(p, b) }, away = { pid: null, ...bot };
-    const sim = UT.simGame(home, away, seed), won = sim.winner === 'home';
-    let reward = 0;
-    const rec = (ut.bot.rec[b.level] ||= { w: 0, l: 0 }); rec[won ? 'w' : 'l']++;
-    if (won) { reward = ctx.earn(pay, `Ultimate Team: beat the ${B.name} bot ${sim.hs}-${sim.as}`, { boost: true }); ut.bot.pts += reward; }
-    if (ctx.mode === 'season') out.xp = addXp(p, ut, won ? UT.SEASON.xp.botWin : UT.SEASON.xp.botLoss, out.unlocked);
-    else if (won && b.level === 'hard') profiles.award(p, 'ut_bot_hard', out.unlocked);
-    out.game = { gid: null, at: new Date().toISOString(), seed, home, away, ...sim, bot: b.level, reward, ...(ctx.mode === 'season' ? { seasonal: ut.n } : {}) };
+    if (b.live) {
+      ut.live = { level: b.level, seed, at: new Date().toISOString(), home, away, moments: UT.liveMoments(seed), i: 0, done: [], extras: [] };
+      out.live = livePublic(ut.live);
+      return;
+    }
+    settleBot(p, ut, ctx, b.level, home, away, seed, UT.simGame(home, away, seed), null, out);
+  },
+  // 🎮 a call at the current moment of the live game ({ call }), or { sim: true } to let the rest play out on random calls
+  live(p, b, out, ctx) {
+    const ut = ctx.ut, L = ut.live; if (!L) throw new Error('No live game going. Start one from the 🤖 Bots tab.');
+    const step = call => {
+      const m = L.moments[L.i];
+      if (!m.kind) m.kind = UT.finalKind(scoreAt(L, m).diff);
+      const calls = UT.callsFor(m.kind);
+      if (!calls.includes(call)) throw new Error("That call isn't one of the options.");
+      const me = { cards: L.home.cards, abbr: L.home.abbr, team: 'home' }, them = { cards: L.away.cards, abbr: L.away.abbr, team: 'away' };
+      const r = UT.liveResolve(m, call, me, them);
+      L.extras.push(...r.extras);
+      L.done.push({ kind: m.kind, q: m.q, t: m.t, call, off: r.off, def: r.def, ok: r.ok, good: r.good, odds: r.odds, vs: r.vs, text: r.text });
+      L.i++;
+      if (L.i < L.moments.length && !L.moments[L.i].kind) L.moments[L.i].kind = UT.finalKind(scoreAt(L, L.moments[L.i]).diff);
+    };
+    if (b.sim) while (L.i < L.moments.length) { const m = L.moments[L.i], c = UT.callsFor(m.kind || UT.finalKind(scoreAt(L, m).diff)).filter(x => x !== 'punt'); step(c[Math.floor(Math.random() * c.length)]); }
+    else step(String(b.call || ''));
+    out.result = L.done[L.done.length - 1];
+    if (L.i < L.moments.length) { out.live = livePublic(L); return; }
+    // the end: the whole game with every call in it, paid like a bot game × UT.LIVE.mult
+    const sim = UT.simGame(L.home, L.away, L.seed, { live: { scale: UT.LIVE.scale, extras: L.extras, final: true } });
+    delete ut.live;
+    settleBot(p, ut, ctx, L.level, L.home, L.away, L.seed, sim, L.done, out);
   },
   // 📅 one schedule run a day with your lineup, on a real franchise's schedule
   season(p, b, out, ctx) {
@@ -439,6 +463,28 @@ const ACTIONS = {
     out.season = ut.seasons[0];
   },
 };
+// a finished bot game (moments: a 🎮 live game's calls, which pays UT.LIVE.mult × and gives that much XP)
+function settleBot(p, ut, ctx, level, home, away, seed, sim, moments, out) {
+  const B = UT.BOTS[level], won = sim.winner === 'home', mult = moments ? UT.LIVE.mult : 1;
+  if (ut.bot.day !== today()) { ut.bot.day = today(); ut.bot.pts = 0; }
+  let reward = 0;
+  const rec = (ut.bot.rec[level] ||= { w: 0, l: 0 }); rec[won ? 'w' : 'l']++;
+  if (won) { reward = ctx.earn(UT.botPay(home.cards, level) * mult, `Ultimate Team${moments ? ' 🎮' : ''}: beat the ${B.name} bot ${sim.hs}-${sim.as}`, { boost: true }); ut.bot.pts += reward; }
+  if (ctx.mode === 'season') out.xp = addXp(p, ut, (won ? UT.SEASON.xp.botWin : UT.SEASON.xp.botLoss) * mult, out.unlocked);
+  else if (won && level === 'hard') profiles.award(p, 'ut_bot_hard', out.unlocked);
+  out.game = { gid: null, at: new Date().toISOString(), seed, home, away, ...sim, bot: level, reward, ...(moments ? { live: true, moments } : {}), ...(ctx.mode === 'season' ? { seasonal: ut.n } : {}) };
+}
+// 🎮 a live game so far: the scoring plays before the current moment (never the ones after it), the moment and its calls
+const liveSim = L => UT.simGame(L.home, L.away, L.seed, { live: { scale: UT.LIVE.scale, extras: L.extras } });
+const before = (p, m) => p.q < m.q || (p.q === m.q && p.t > m.t);
+function scoreAt(L, m) { const shown = liveSim(L).log.filter(p => before(p, m)), x = shown[shown.length - 1] || { h: 0, a: 0 }; return { h: x.h, a: x.a, diff: x.h - x.a, shown }; }
+function livePublic(L) {
+  const m = L.moments[L.i], s = scoreAt(L, m), M = UT.MOMENTS[m.kind];
+  const info = x => ({ name: x.name, team: x.team, abbr: x.abbr, ovr: x.ovr });
+  return { level: L.level, at: L.at, home: info(L.home), away: info(L.away), cards: { home: L.home.cards, away: L.away.cards }, plan: L.home.tactics,
+    plays: s.shown.map(({ team, text, when, h, a, note }) => ({ team, text, when, h, a, note: note === '🎮' ? '🎮' : undefined })), h: s.h, a: s.a,
+    moment: { i: L.i, n: L.moments.length, q: m.q, t: m.t, kind: m.kind, side: M.side, name: M.name, text: M.text, calls: UT.callsFor(m.kind) }, done: L.done };
+}
 const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, winner: g.winner, ...(g.balanced ? { balanced: true } : {}), ...(g.competitive ? { competitive: true } : {}), ...(g.seasonal ? { seasonal: g.seasonal } : {}),
   home: { pid: g.home.pid, name: g.home.name, team: g.home.team, abbr: g.home.abbr, ovr: g.home.ovr },
   away: { pid: g.away.pid, name: g.away.name, team: g.away.team, abbr: g.away.abbr, ovr: g.away.ovr } });
@@ -451,6 +497,7 @@ const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, wi
 //   POST /api/ut/<id>/<action>          team {name, abbr} · daily · open {pack} · lineup {lineup | 'best', which?} · sell {uids} · tradeup {uids}
 //                                       queue {cancel?, tactics, balanced?, competitive?} · challenge {qid, tactics} · seen {gid} · bot {level, tactics}
 //                                       season {team} · teampack {id} · collect {id}        (tactics = { off, def, tempo }, see UT.TACTICS)
+//                                       bot {level, tactics, live: true} starts a 🎮 live game · live {call} | live {sim: true} plays it
 //                                       Every action takes mode: 'season' to act on this season's cards instead.
 function handle(req, url, body) {
   finalizeSeasons();

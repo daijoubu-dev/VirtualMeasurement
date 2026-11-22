@@ -27,6 +27,19 @@
 .card.pickable { cursor: pointer; } .card.pickable:hover { transform: translateY(-3px); }
 .slot .card:hover .cface { border-color: var(--accent); }
 
+/* 🔄 the back: the ↻ button shows on hover (always on touch screens) */
+.cflip { position: absolute; z-index: 8; top: 3cqw; right: 3cqw; width: max(20px, 13cqw); height: max(20px, 13cqw); border-radius: 50%; border: 1px solid rgba(255, 255, 255, .35); background: rgba(8, 11, 18, .7); color: #fff; font-size: max(12px, 7.5cqw); line-height: 1; cursor: pointer; opacity: 0; transition: opacity .15s; display: grid; place-items: center; padding: 0; }
+.card:hover .cflip, .card.flipped .cflip { opacity: .9; } @media (hover: none) { .cflip { opacity: .75; } }
+.cback { display: none; position: absolute; z-index: 7; inset: 0; border-radius: inherit; border: 2px solid var(--rc); background: linear-gradient(168deg, color-mix(in srgb, var(--rc) 22%, #111725), #070a11 70%); padding: 6cqw 6.5cqw 5cqw; flex-direction: column; gap: 1.6cqw; overflow: hidden; font-family: system-ui, sans-serif; font-size: max(9px, 6.2cqw); line-height: 1.25; color: #dde4ef; }
+.card.flipped .cback { display: flex; } .card.flipped .cface { visibility: hidden; } .card.flipped .cnt { display: none; }
+.card.flipanim > .cface, .card.flipanim > .cback { animation: cflip .32s ease-out; } @keyframes cflip { from { transform: perspective(620px) rotateY(80deg); opacity: .3; } }
+.bk-h { padding-right: 15cqw; } .bk-h b { display: block; font-size: 1.25em; line-height: 1.1; color: #fff; } .bk-h span { font-size: .85em; color: #aab6c8; }
+.bk-s { margin-top: 1.5cqw; font-size: .78em; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--rc); }
+.bk-r { display: flex; justify-content: space-between; gap: 6px; padding: .8cqw 0; border-bottom: 1px solid rgba(255, 255, 255, .1); } .bk-r i { color: #8d99ab; font-style: normal; font-size: .85em; }
+.bk-r b { font-variant-numeric: tabular-nums; } .bk-r.up b { color: #4ade80; } .bk-r.dn b { color: #f87171; }
+.bk-n { font-size: .8em; color: #8d99ab; } .bk-l { margin-top: auto; font-size: .82em; color: #c6cfdd; } .bk-f { font-size: .75em; color: #8d99ab; border-top: 1px solid rgba(255, 255, 255, .14); padding-top: 1.5cqw; }
+@container (max-width: 118px) { .cflip { display: none; } }
+
 /* each rarity has its own stock */
 .r-common .cface { --rc: #8b96a6; } .r-common .cbg { background: radial-gradient(110% 70% at 72% 24%, color-mix(in srgb, var(--tc) 34%, transparent), transparent 72%), linear-gradient(168deg, #2a3140, #0d1119 74%); }
 .r-common .cbg::after { background: repeating-linear-gradient(112deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 5cqw); }

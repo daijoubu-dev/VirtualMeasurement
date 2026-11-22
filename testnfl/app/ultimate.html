@@ -193,6 +193,18 @@
   .xpbar { height: 10px; border-radius: 5px; background: var(--soft); overflow: hidden; border: 1px solid var(--border); } .xpbar div { height: 100%; background: linear-gradient(90deg, #6366f1, #ec4899); }
   .seamyth { display: grid; grid-template-columns: repeat(2, minmax(0, 200px)); gap: 16px; justify-content: center; margin: 14px 0 4px; text-align: left; }
   .seamyth .boxh { text-align: center; }
+  /* 🎮 live games */
+  .moment { max-width: 760px; margin: 14px auto 0; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--soft); }
+  .moment .mh { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; } .moment .mh b { font-size: 16px; } .moment .mq { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; font-weight: 700; }
+  .moment .ms { font-size: 13px; color: var(--muted); margin: 2px 0 10px; }
+  .calls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .callb { text-align: left; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 10px; padding: 8px 10px; cursor: pointer; font: inherit; display: flex; flex-direction: column; gap: 3px; }
+  .callb:hover:not([disabled]) { border-color: var(--accent); transform: translateY(-1px); } .callb[disabled] { opacity: .5; cursor: default; }
+  .callb b { font-size: 14px; } .callb .p { font-size: 20px; font-weight: 850; font-variant-numeric: tabular-nums; } .callb span { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+  .mres { max-width: 760px; margin: 12px auto 0; border-radius: 10px; padding: 10px 14px; border: 1px solid var(--border); text-align: center; animation: fadein .4s ease; }
+  .mres .t { font-weight: 800; font-size: 15px; } .mres .s { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .mres.good { border-color: #16a34a; background: color-mix(in srgb, #16a34a 12%, transparent); } .mres.bad { border-color: #dc2626; background: color-mix(in srgb, #dc2626 10%, transparent); }
+  .recap { max-width: 760px; margin: 12px auto 0; font-size: 13px; } .recap div { padding: 3px 0; border-top: 1px solid var(--border); }
   .filters { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 </style>
 </head>
@@ -659,13 +671,14 @@ function finalHtml(g) {
   const W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'], myId = VM.profile();
   const mine = g.home.pid === myId ? 'home' : g.away.pid === myId ? 'away' : null;
   const xp = g.xp ? ` · ✨ +${g.xp.xp} XP${g.xp.reached.length ? ` · 🎁 Milestone: ${g.xp.reached.map(esc).join(', ')}` : ''}` : '';
-  const you = (g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! +${g.reward} ${g.seasonal ? 'coins' : 'points'}` : `The bot wins this one. No ${g.seasonal ? 'coins' : 'points'} for a loss.`)
+  const you = (g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! +${g.reward} ${g.seasonal ? 'coins' : 'points'}${g.live ? ' (🎮 live: double)' : ''}` : `The bot wins this one. No ${g.seasonal ? 'coins' : 'points'} for a loss.`)
     : mine && g.seasonal ? (g.winner === mine ? `🎉 You win! +${UT.SEASON.win} coins` : `Tough loss. +${UT.SEASON.loss} coins for playing`)
     : mine ? (g.winner === mine ? `🎉 You win! +${UT.REWARD.win * (g.competitive ? UT.COMP.mult : 1)} points${g.competitive ? ' (⚔ double)' : ''}` : `Tough loss. +${UT.REWARD.loss * (g.competitive ? UT.COMP.mult : 1)} points for playing`) : '') + (mine || g.bot ? xp : '');
   return `<div class="final"><div class="t">🏆 ${esc(W.team)} ${Math.max(g.hs, g.as)}, ${esc(L.team)} ${Math.min(g.hs, g.as)}${g.ot ? ' (OT)' : ''}</div>
     <div class="s">⭐ Player of the game: ${esc(g.mvp.name)} (${esc(g.mvp.line)})${g.comeback ? ` · came back from ${g.comeback} down` : ''}</div>
     ${you ? `<div class="s" style="margin-top:4px;font-weight:700;color:var(--text)">${you}</div>` : ''}</div>
     ${mine && g.reward?.[mine] ? `<div style="max-width:190px;margin:10px auto 0;text-align:left"><div class="boxh">🎁 Your card for playing</div>${cardHtml(g.reward[mine])}</div>` : ''}
+    ${g.moments ? `<div class="recap"><h3 class="boxh">🎮 Your calls</h3>${g.moments.map(x => `<div><b>Q${x.q} ${clock(x.t)} ${esc(UT.MOMENTS[x.kind].name)}</b> · ${x.vs ? `${esc(x.vs)} (${x.odds}%)` : 'Punted'} · <span class="muted">${esc(x.text)}</span></div>`).join('')}</div>` : ''}
     ${edgesHtml(g)}`;
 }
 function boxHtml(g) {
@@ -692,20 +705,90 @@ function drawBots() {
   const me = S.me;
   if (!me) { $('bots').innerHTML = '<p class="empty">Sign in to play the bots.</p>'; return; }
   const C = lineupCards(me), today = me.bot.ptsToday, boost = !SEA() && me.rookie && me.rookie.earned < me.rookie.until;
+  const L = me.live;
   $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} bot ${unit()} today</h2>
+    ${L ? `<div class="banner"><span>🎮 Live game vs the <b>${esc(UT.BOTS[L.level].name)}</b> bot: ${esc(L.home.abbr)} ${L.h}, ${esc(L.away.abbr)} ${L.a} · moment ${L.moment.i + 1} of ${L.moment.n}</span><button class="btn go sm" id="resumeLive">▶ Resume</button></div>` : ''}
     <div class="packs">${Object.entries(UT.BOTS).map(([k, B]) => { const r = me.bot.rec[k] || { w: 0, l: 0 };
       return `<div class="pack"><div class="ic">🤖</div><div class="nm">${B.name}</div><div class="d">${B.team} · ${B.ovr[0] === B.ovr[1] ? B.ovr[0] : `${B.ovr[0]}–${B.ovr[1]}`} overall</div>
-        <div class="pr">+${isFull(me) ? UT.botPay(C, k) * (boost ? 2 : 1) : '–'} ${SEA() ? 'coins ' : ''}a win${boost ? ' 🐣' : ''}</div>
+        <div class="pr">+${UT.botPay(C, k) * UT.LIVE.mult * (boost ? 2 : 1)} ${SEA() ? 'coins ' : ''}a win live${boost ? ' 🐣' : ''}</div><div class="d">+${UT.botPay(C, k) * (boost ? 2 : 1)} when simmed</div>
         <div class="d">Your chances ≈ ${isFull(me) ? Math.round(100 * UT.botOdds(C, k)) + '%' : '–'} · you're ${r.w}-${r.l} against it</div>
-        <button class="btn go" data-bot="${k}" ${isFull(me) ? '' : 'disabled'}>Play</button></div>`; }).join('')}</div>
+        <div class="bar2" style="margin:6px 0 0"><button class="btn go" data-live="${k}" ${isFull(me) && !L ? '' : 'disabled'} title="You call the plays at the key moments: double pay">🎮 Live</button><button class="btn" data-bot="${k}" ${isFull(me) ? '' : 'disabled'} title="Straight to the result">▶ Sim</button></div></div>`; }).join('')}</div>
     <div class="err" id="botErr"></div>
-    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. A win pays a flat amount by bot (Rookie 10, Easy 20, Medium 30, Hall of Famers 50), with no limit. Losses pay nothing${SEA() ? `, but every game earns XP (${UT.SEASON.xp.botWin} a win, ${UT.SEASON.xp.botLoss} a loss; games against players earn more)` : ''}. Bot games don't count toward your record or the ${SEA() ? 'season standings' : 'leaderboards'}.</p>`;
+    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. 🎮 Live: the game stops at ${UT.LIVE.moments} key moments (red zone, 4th downs, goal-line stands, the two-minute drill) and you make the call against the bot's hidden one; live wins pay double. A win pays a flat amount by bot (Rookie 10, Easy 20, Medium 30, Hall of Famers 50), with no limit. Losses pay nothing${SEA() ? `, but every game earns XP (${UT.SEASON.xp.botWin} a win, ${UT.SEASON.xp.botLoss} a loss; games against players earn more)` : ''}. Bot games don't count toward your record or the ${SEA() ? 'season standings' : 'leaderboards'}.</p>`;
+  if ($('resumeLive')) $('resumeLive').onclick = () => showLive(S.me.live);
+  $('bots').querySelectorAll('[data-live]').forEach(b => (b.onclick = async () => {
+    const tactics = await pickPlan(`Game plan vs the ${UT.BOTS[b.dataset.live].name} bot (🎮 live)`, '🎮 Kick off'); if (!tactics) return;
+    const r = await act('bot', { level: b.dataset.live, tactics, live: true }, $('botErr'), true);
+    if (r?.live) { apply(r); showLive(r.live); }
+  }));
   $('bots').querySelectorAll('[data-bot]').forEach(b => (b.onclick = async () => {
     const tactics = await pickPlan(`Game plan vs the ${UT.BOTS[b.dataset.bot].name} bot`, '▶ Play'); if (!tactics) return;
     $('bots').querySelectorAll('[data-bot]').forEach(x => (x.disabled = true));
     const r = await act('bot', { level: b.dataset.bot, tactics }, $('botErr'), true);
     if (r) { r.game.xp = r.xp; HOLD = 'bot'; showGame(r.game, true, () => { apply(r); drawAll(); }); } else drawBots();
   }));
+}
+
+// ---------- 🎮 a live game: the scoring so far, the moment and your calls ----------
+const clock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+let LIVE_SHOWN = 0; // scoring plays already on screen (new ones are revealed one at a time)
+const callInfo = (L, c) => { // what a call button says: beats / loses to, your cards' fit, and your chances against an unknown call
+  const m = L.moment, off = m.side === 'off', mine = L.cards.home, theirs = L.cards.away, T = UT.TACTICS[off ? 'off' : 'def'][c];
+  if (c === 'punt') return { icon: '🦵', name: 'Punt', p: null, sub: 'Play it safe: nobody scores.' };
+  const other = off ? UT.DEF_CALLS : UT.OFF_CALLS, v = x => (off ? UT.VS[c][x] : -UT.VS[x][c]);
+  const nm = x => UT.TACTICS[off ? 'def' : 'off'][x].icon;
+  const p = other.reduce((s, x) => s + (off ? UT.callOdds(m.kind, c, x, mine, theirs) : 1 - UT.callOdds(m.kind, x, c, theirs, mine)), 0) / other.length;
+  const fit = Math.round(UT.avgGr(mine, ...(off ? UT.OFF_FIT[c] : UT.DEF_FIT[c])));
+  return { icon: T.icon, name: T.name, p, sub: `Beats ${other.filter(x => v(x) > 0).map(nm).join('') || '–'} · loses to ${other.filter(x => v(x) < 0).map(nm).join('') || '–'} · your fit ${fit}` };
+};
+function showLive(L, res = null) {
+  finishUp(); HOLD = 'live';
+  const el = $('game'), m = L.moment;
+  el.hidden = false;
+  const fresh = !res; if (fresh) LIVE_SHOWN = 0;
+  const tm = (k, cls) => `<div class="tm ${cls}"><div class="who"><div class="ab">${esc(L[k].abbr)}</div><div class="nm">${esc(L[k].team)} · OVR ${L[k].ovr}</div></div><span class="pts" id="s-${k}">0</span></div>`;
+  el.innerHTML = `<div class="live-h">🎮 Live vs the ${esc(UT.BOTS[L.level].name)} bot · moment ${m.i + 1} of ${m.n}</div>
+    <div class="scoreboard">${tm('away', 'away')}<div class="clk" id="clk">Kickoff</div>${tm('home', 'home')}</div>
+    ${res ? `<div class="mres ${res.good ? 'good' : res.good === false ? 'bad' : ''}"><div class="t">${esc(res.text)}</div>${res.vs ? `<div class="s">${esc(res.vs)} · you had ${res.odds}%</div>` : ''}</div>` : ''}
+    <div id="moment"></div>
+    <div style="text-align:center;margin-top:10px"><button class="btn sm" id="simRest" title="The rest of the moments are played on random calls">⏭ Sim the rest</button> <button class="btn sm" id="closeGame">✕ Close (resume from 🤖 Bots)</button></div>
+    <div class="err" id="liveErr"></div>
+    <div class="summary"><h3>Scoring plays</h3><div id="plays"></div></div>`;
+  $('closeGame').onclick = () => { HOLD = null; el.hidden = true; drawAll(); };
+  $('simRest').onclick = () => call({ sim: true });
+  const setScore = (h, a, when) => { $('s-home').textContent = h; $('s-away').textContent = a; if (when) $('clk').textContent = when; };
+  const plays = L.plays, old = Math.min(LIVE_SHOWN, plays.length);
+  $('plays').innerHTML = plays.slice(0, old).map(p => playRow(L, p)).join('') || '<p class="empty">No scoring yet.</p>';
+  const last = plays[old - 1]; setScore(last?.h || 0, last?.a || 0, last?.when);
+  let i = old;
+  const step = () => { // the plays since the last moment, one at a time, then the next moment
+    if (HOLD !== 'live') return;
+    if (i >= plays.length) { LIVE_SHOWN = plays.length; setScore(L.h, L.a, `Q${m.q} ${clock(m.t)}`); return drawMoment(L); }
+    const p = plays[i++];
+    if (i === 1) $('plays').innerHTML = '';
+    $('plays').insertAdjacentHTML('beforeend', playRow(L, p, 'new')); setScore(p.h, p.a, p.when);
+    const hit = $('s-' + p.team); hit.classList.remove('flash'); void hit.offsetWidth; hit.classList.add('flash');
+    setTimeout(step, 1000);
+  };
+  setTimeout(step, res ? 900 : 300);
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  async function call(body) {
+    el.querySelectorAll('.callb, #simRest').forEach(b => (b.disabled = true));
+    const r = await act('live', body, $('liveErr'), true);
+    if (!r) { el.querySelectorAll('.callb, #simRest').forEach(b => (b.disabled = false)); return; }
+    if (r.live) return showLive(r.live, r.result);
+    // the end: the result of the last call, then the final with the box score
+    HOLD = null; r.game.xp = r.xp;
+    showGame(r.game, false); apply(r); drawAll();
+    $('after').insertAdjacentHTML('afterbegin', `<div class="mres ${r.result.good ? 'good' : r.result.good === false ? 'bad' : ''}"><div class="t">${esc(r.result.text)}</div></div>`);
+  }
+  function drawMoment(L) {
+    const you = L.h - L.a, sit = you > 0 ? `You're up ${L.h}-${L.a}` : you < 0 ? `You're down ${L.a}-${L.h}` : `Tied ${L.h}-${L.a}`;
+    $('moment').innerHTML = `<div class="moment"><div class="mh"><span class="mq">Q${m.q} ${clock(m.t)}</span><b>${m.side === 'off' ? '🏈' : '🛡️'} ${esc(m.name)}</b><span>${esc(m.text)}</span></div>
+      <div class="ms">${sit}. ${m.side === 'off' ? 'Your ball: pick the play.' : 'Their ball: pick the defense.'} The bot's call is hidden; the % is your chance against a random one.</div>
+      <div class="calls">${m.calls.map(c => { const x = callInfo(L, c); return `<button class="callb" data-call="${c}"><b>${x.icon} ${esc(x.name)}</b>${x.p != null ? `<div class="p">${Math.round(100 * x.p)}%</div>` : ''}<span>${esc(x.sub)}</span></button>`; }).join('')}</div></div>`;
+    $('moment').querySelectorAll('[data-call]').forEach(b => (b.onclick = () => call({ call: b.dataset.call })));
+  }
 }
 
 // ---------- 📅 season ----------
