@@ -6,7 +6,7 @@
 // Needs ultimate.js (window.VM_UT) loaded before it.
 (function () {
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const VMCards = window.VMCards = { logos: {}, colors: {} };
+  const VMCards = window.VMCards = { logos: {}, colors: {}, flipped: new Set() }; // flipped: the cards showing their back (kept through redraws)
   // a picture that doesn't load moves on to the next one (ESPN → NFL.com → team logo), and the box goes when none do
   window.nextPic = function (img) {
     const rest = (img.dataset.alt || '').split(' ').filter(Boolean);
@@ -33,7 +33,8 @@
     const r = window.VM_UT.rarityOf(c.gr), full = r.key === 'mythic', pics = window.VM_UT.photos(c, VMCards.logos, full), isLogo = !c.h, tk = window.VM_UT.teamKey(c.t), logo = VMCards.logos?.[tk];
     // the first name goes on small cards; coaches keep theirs, and stadiums and O-lines are one name
     const words = String(c.n).split(' '), split = words.length > 1 && !['ST', 'OL', 'HC'].includes(c.g);
-    return `<div class="card r-${r.key} ${full ? 'fullart' : ''} ${cls}" style="--rc:${r.color};--tc:${esc(VMCards.colors?.[tk] || r.color)}" ${extra}>${count > 1 ? `<span class="cnt">×${count}</span>` : ''}<button type="button" class="cflip" title="Flip the card">↻</button>${back(c, r)}
+    const fid = String(c.u || c.k);
+    return `<div class="card r-${r.key} ${full ? 'fullart' : ''} ${cls} ${VMCards.flipped.has(fid) ? 'flipped' : ''}" data-fid="${esc(fid)}" style="--rc:${r.color};--tc:${esc(VMCards.colors?.[tk] || r.color)}" ${extra}>${count > 1 ? `<span class="cnt">×${count}</span>` : ''}<button type="button" class="cflip" title="Flip the card">↻</button>${back(c, r)}
       <div class="cface"><div class="cbg"></div>
         ${pics.length ? `<div class="ph ${isLogo ? 'tlogo' : ''}"><img src="${esc(pics[0])}" data-alt="${esc(pics.slice(1).join(' '))}" alt="" loading="lazy" onerror="nextPic(this)"></div>` : ''}
         ${full ? '<div class="holo"></div><div class="spark"></div>' : ''}
@@ -46,7 +47,7 @@
   document.addEventListener('click', e => {
     const b = e.target.closest?.('.cflip'); if (!b) return;
     e.stopPropagation(); e.preventDefault();
-    const card = b.closest('.card'); card.classList.toggle('flipped'); card.classList.remove('flipanim'); void card.offsetWidth; card.classList.add('flipanim');
+    const card = b.closest('.card'), on = card.classList.toggle('flipped'); on ? VMCards.flipped.add(card.dataset.fid) : VMCards.flipped.delete(card.dataset.fid); card.classList.remove('flipanim'); void card.offsetWidth; card.classList.add('flipanim');
   }, true);
   // cards lean toward the pointer, and the Mythic foil follows it
   if (matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) {
