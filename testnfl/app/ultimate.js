@@ -576,7 +576,7 @@
   // permanent rewards, ending in that season's Mythic. The best record against players wins the season (and another Mythic).
   const DAY = 864e5;
   const SEASON = {
-    epoch: Date.UTC(2026, 10, 23, 5), days: 14, // Season 1 starts Monday, November 23, 2026 at midnight US Eastern
+    epoch: Date.UTC(2026, 10, 22, 5), days: 14, // Season 1 started Sunday, November 22, 2026 at midnight US Eastern
     coins: 500, daily: 200, win: 60, loss: 20, // season coins: to start, a day, a game against a player
     xp: { win: 100, loss: 40, botWin: 40, botLoss: 15 }, doubleXp: 3, // the first 3 games of a day give double XP
     milestones: [
