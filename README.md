@@ -144,18 +144,25 @@ Collect player cards, build a team, queue it up and let someone challenge it. Ne
   - The server plays the game right then. The host gets home field (their stadium), the same SD 9.5 as 17-0, and overtime ends on a field goal.
   - The challenger watches it 🍿 live, one scoring play at a time like the Super Bowl's suspense mode, then sees the box score.
   - The host gets a "challenged your team" banner and watches the replay. Their record and points leave that game out until they've watched it, so nothing spoils it.
-- **🤖 Bots:** Easy (70 overall), Medium (85) and Hard (95–99).
+- **🤖 Bots:** Rookie (45 overall, about what a starter pack makes), Easy (70), Medium (85) and Hard (95–99).
   - Each game draws a new bot team from real player-seasons near that overall, with a random game plan. You host.
   - A win pays more the tougher that bot is for your team: up to 32 points when it was a long shot, down to 3 when it was a sure thing (`UT.botPay`). A brand-new team beating the Easy bot earns about 20; a stacked one, 4. No limit: play as many as you like. Losses pay nothing.
   - Bot games keep their own record, apart from the player record and leaderboards.
-- **📅 Season:** once a day (by the server's date), your lineup takes over a real team's schedule this season, using the same opponents, playoff path and ties as the 17-0 page. Your coach counts, and your stadium's home field counts in home games (game plans don't apply).
+- **📅 Schedule:** once a day (by the server's date), your lineup takes over a real team's schedule this season, using the same opponents, playoff path and ties as the 17-0 page. Your coach counts, and your stadium's home field counts in home games (game plans don't apply).
   - Pays 100 points for playing, 200 for the playoffs (10+ wins), 300 for winning the Super Bowl, and a secret 1,000 for a perfect season.
   - The page reveals the weeks one at a time and keeps the points back until the end. Your last 20 seasons are saved.
 - **🏅 Leaders:**
-  - Record against other players (with season titles) and best lineup by overall.
+  - Record against other players (with 💍 rings from schedule runs) and best lineup by overall.
   - Every 👑 Legendary and 🌈 Mythic card (from packs, games and collections), with who got it, when and how, plus a count of who has one.
   - Legendaries opened before the log existed are added once, marked "before the log started".
   - Your own record row leaves out games you haven't watched yet.
+- **🗓️ Seasonal mode:** the switch above the page ("🃏 Permanent | 🗓️ Seasonal") flips to a two-week season where everyone starts from nothing. Season 1 starts Monday, November 23, 2026 at midnight Eastern; a new one starts every 14 days.
+  - A season has its own cards, lineup, record and 🪙 coins (not points): the same free starter pack for everyone, 500 coins to start, 200 free a day, +60 a win and +20 a loss against players, and bot wins pay coins. The only pack is the Season pack (100 coins, Standard pack odds). Cards sell for coins. No trade-ups, collections, competitive lineups or schedule runs; the team name is shared.
+  - Seasonal games have their own queue and results: a seasonal team can only be challenged from seasonal mode, and game cards go to your season collection.
+  - ✨ XP: 100 a win and 40 a loss against players, 40 / 15 against bots, and your first 3 games each day count double. XP fills a milestone track whose rewards are **permanent** (your points and main collection): 500 points (250 XP), a Premium pack (600), 1,000 points (1,000), a Legend pack (1,500), 2,000 points (2,100), a "Season N Veteran" title (2,800), 2 Legend packs (3,600) and that season's 🌈 Mythic (4,500), a season-stamped 99 edition of a star.
+  - 🏆 The best record against players when the season ends wins it (wins minus losses, then wins, then point differential, then XP; no minimum number of games, but at least one game against a player). The champion gets a second season Mythic, a "Season N Champion" title and the Season Champion achievement. Everyone who played gets their final rank in their profile's history.
+  - The 🗓️ Season tab shows the track, both Mythics (each season's two are the same for everyone, picked from 95+ stars), the standings, the time left and last season's final.
+  - A season is wrapped up the first time anyone opens Ultimate Team after it ends (`finalizeSeasons`); last season's queued teams are dropped. `VM_SEASON_EPOCH` (milliseconds) moves the calendar for testing.
 - **Nothing resets:** fields added later (bots, seasons, titles, staff, collections) fill in the first time an older profile is used. Cards, lineups, records, points and history stay as they are.
 - **Box score:** built around the scoring plays (the Super Bowl sim's scoring and game-flow code) from each card's grade and season line and both game plans:
   - Passing, rushing and receiving (with each player's longest play), defense (tackles, sacks, INT, FF, TD) and kicking.
@@ -163,14 +170,14 @@ Collect player cards, build a team, queue it up and let someone challenge it. Ne
   - Player of the game.
 
   It always adds up: every TD keeps its yards and they're part of that player's line (an 80-yard TD run means 80+ rushing yards and an 80-yard long), passing yards are the sum of the catches, TD passes match TD catches, total yards are passing plus rushing, and a pick-six is on the defender's line.
-- **Files:** the sim, cards, packs, game plans, competitive rules and collections are in `app/ultimate.js` (the card design is `app/cards.js` and `app/cards.css`), shared by the page and the server. The server side is `ultimate_api.js`. The coach, stadium, collection, extra cards, photo ids and logos are built into `app/perfect.js` (`staff`, `extra`, `collections`, `heads` and `logos`, which the 17-0 page ignores). The page's 10-second check for new games asks for `?lite` and skips the collections, logos and team list, which only change with a refresh. Each profile keeps its cards, lineup, team and record in a `ut` section. The queue and games live in the `ultimate` folder inside `testnfl profiles`: `queue.json`, `games.json` (the last 500 results) one file per game in `games`, and `pulls.json` (the Legendary and Mythic log). Each game is stored in full, so a replay is always the same game. Routes: `GET /api/ut[/<id>]`, `GET /api/ut/game/<id>`, `POST /api/ut/<id>/<team|daily|open|teampack|collect|tradeup|lineup|sell|queue|challenge|seen|bot|season>`.
+- **Files:** the sim, cards, packs, game plans, competitive rules and collections are in `app/ultimate.js` (the card design is `app/cards.js` and `app/cards.css`), shared by the page and the server. The server side is `ultimate_api.js`. The coach, stadium, collection, extra cards, photo ids and logos are built into `app/perfect.js` (`staff`, `extra`, `collections`, `heads` and `logos`, which the 17-0 page ignores). The page's 10-second check for new games asks for `?lite` and skips the collections, logos and team list, which only change with a refresh. Each profile keeps its cards, lineup, team and record in a `ut` section, and the current season's in a `sea` section (plus `seasonHistory` and won `titles`). The queue and games live in the `ultimate` folder inside `testnfl profiles`: `queue.json`, `games.json` (the last 500 results) one file per game in `games`, `pulls.json` (the Legendary and Mythic log) and `seasons.json` (each finished season's final standings). Each game is stored in full, so a replay is always the same game. Routes: `GET /api/ut[/<id>][?mode=season]`, `GET /api/ut/game/<id>`, `POST /api/ut/<id>/<team|daily|open|teampack|collect|tradeup|lineup|sell|queue|challenge|seen|bot|season>` (any of them with `mode: 'season'` for seasonal mode).
 
 ### 👥 Profiles page
 Your own page is "⭐ My profile" in the nav's 👤 You group (and the 👤 menu). Other players' pages open from their names: on the Ultimate Team queue, the leaderboards and the pull log (`profiles.html?id=ham`). Hovering a name shows a quick card: their title, team, points, records against players and bots, pick'em record and showcase.
-- **The page:** their title, team, points earned, record against players and bots, pick'em record, cards (Mythics, Legendaries, collections turned in) and achievements.
+- **The page:** their title, team, 🗓️ last season's rank (hover for every season), points earned, record against players and bots, pick'em record, cards (Mythics, Legendaries, collections turned in) and achievements.
 - **⭐ Showcase:** five cards they're proudest of (their five best until they choose).
 - **Collection:** every card they own, filterable by rarity and position, so you can see what everyone has.
-- **On your own page:** ✏️ pick up to 5 cards for the showcase and a title. Titles are the names of the hard achievements (gold, platinum and legendary, 17 in all) you've unlocked; seasonal titles will join them.
+- **On your own page:** ✏️ pick up to 5 cards for the showcase and a title. Titles are the names of the hard achievements (gold, platinum and legendary) you've unlocked, plus the ones won in seasonal mode (Season N Veteran, Season N Champion).
 - The cards are drawn by `app/cards.js` and `app/cards.css`, shared with Ultimate Team. Routes: `POST /api/profiles/<id>/showcase {cards, title}`, `GET /api/ut/art` (team logos and colors for cards).
 
 ### Abbreviations

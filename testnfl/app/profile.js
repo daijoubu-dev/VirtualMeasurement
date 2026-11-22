@@ -158,6 +158,7 @@
     const rec = (r, t) => `<div><b>${r.w}-${r.l}</b><span>${t}</span></div>`;
     pop.innerHTML = `${u.title ? `<div class="t">${esc(u.title)}</div>` : ''}<div class="n">${esc(u.name)}</div><div class="tm">${esc(u.team?.abbr || '')} · ${esc(u.team?.name || '')} · ${u.earned.toLocaleString()} pts earned</div>
       <div class="st">${rec(u.rec, 'vs players')}${rec(u.bot, 'vs bots')}${rec(u.pickem, "pick'em")}</div>
+      ${u.lastSeason ? `<div class="tm" style="margin:-3px 0 8px">🗓️ Last season: ${u.lastSeason.champ ? '🏆 champion' : `#${u.lastSeason.rank} of ${u.lastSeason.of}`} (Season ${u.lastSeason.n}, ${u.lastSeason.w}-${u.lastSeason.l})</div>` : ''}
       <div class="sc">${u.showcase.map(c => `<div style="border-color:${esc(c.color)}" title="${esc(c.n)}">${c.pic ? `<img src="${esc(c.pic)}" alt="" onerror="this.remove()">` : ''}<b>${c.gr}</b></div>`).join('')}</div>`;
     pop.hidden = false;
     const r = el.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;

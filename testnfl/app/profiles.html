@@ -63,7 +63,9 @@ let EDIT = null, FILTER = 'All'; // EDIT: the showcase being chosen ({ cards: [u
 async function art() { // team logos and colors for the cards
   try { const r = await (await fetch('/api/ut/art')).json(); if (r.ok) { VMCards.logos = r.logos; VMCards.colors = r.colors; } } catch {}
 }
-const titleOf = key => { const a = A.isTitle(key) && A.BY_KEY[key]; return a ? `${a.icon} ${a.name}` : ''; }; // titles: the hard achievements
+// titles: the hard achievements, and the ones won in 🗓️ seasonal mode (CUSTOM, the profile's own list)
+let CUSTOM = [];
+const titleOf = key => { const a = A.isTitle(key) && A.BY_KEY[key], t = !a && CUSTOM.find(x => x.key === key); return a ? `${a.icon} ${a.name}` : t ? `${t.icon} ${t.name}` : ''; };
 
 // no id: your own page, once you're signed in
 function yours() {
@@ -85,26 +87,28 @@ async function one() {
   const botW = Object.values(ut.bot?.rec || {}).reduce((s, x) => s + x.w, 0), botL = Object.values(ut.bot?.rec || {}).reduce((s, x) => s + x.l, 0);
   const picks = Object.values(p.pickem?.[Object.keys(p.pickem || {}).sort().pop()] || {}).filter(x => x.res), pw = picks.filter(x => x.res === 'W').length, pl = picks.filter(x => x.res === 'L').length;
   const count = k => cards.filter(c => UT.rarityOf(c.gr).key === k).length;
-  const title = EDIT ? EDIT.title : p.showcase?.title;
+  CUSTOM = p.titles || [];
+  const title = EDIT ? EDIT.title : p.showcase?.title, titles = [...unlocked.filter(A.isTitle), ...CUSTOM.map(t => t.key)], hist = p.seasonHistory || [];
   // the collection, one card per kind with how many copies
   const groups = new Map(); for (const c of cards) { if (!groups.has(c.k)) groups.set(c.k, []); groups.get(c.k).push(c); }
   const list = [...groups.values()].map(cs => cs[0]).filter(c => FILTER === 'All' || (UT.RARITY.some(r => r.name === FILTER) ? UT.rarityOf(c.gr).name === FILTER : c.g === FILTER)).sort((a, b) => b.gr - a.gr);
   $('view').innerHTML = `
-    <div class="panel"><div class="phead"><div><div class="title">${esc(titleOf(title) || (mine && unlocked.some(A.isTitle) ? 'Pick a title below' : ''))}</div><h2>${esc(p.name)}</h2>
+    <div class="panel"><div class="phead"><div><div class="title">${esc(titleOf(title) || (mine && titles.length ? 'Pick a title below' : ''))}</div><h2>${esc(p.name)}</h2>
       <div class="muted" style="font-size:13px">${ut.team ? `${esc(ut.team.abbr)} · ${esc(ut.team.name)} · ` : ''}joined ${new Date(p.created).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</div></div>
       <div>${mine && !EDIT ? '<button class="btn go" id="edit">✏️ Edit showcase and title</button>' : ''}</div></div>
       <div class="tiles">
         <div class="tile"><div class="k">Points earned</div><div class="v" style="color:var(--gold)">${earned.toLocaleString()}</div><div class="s">${p.balance.toLocaleString()} to spend</div></div>
-        <div class="tile"><div class="k">vs players</div><div class="v">${ut.rec ? `${ut.rec.w}-${ut.rec.l}` : '–'}</div><div class="s">🏆 ${ut.titles || 0} season title${ut.titles === 1 ? '' : 's'}</div></div>
+        <div class="tile"><div class="k">vs players</div><div class="v">${ut.rec ? `${ut.rec.w}-${ut.rec.l}` : '–'}</div><div class="s">💍 ${ut.titles || 0} ring${ut.titles === 1 ? '' : 's'}</div></div>
         <div class="tile"><div class="k">vs bots</div><div class="v">${botW}-${botL}</div></div>
         <div class="tile"><div class="k">Pick'em</div><div class="v">${pw}-${pl}</div><div class="s">this season</div></div>
         <div class="tile"><div class="k">Cards</div><div class="v">${cards.length}</div><div class="s">🌈 ${count('mythic')} · 👑 ${count('legendary')} · ${Object.keys(ut.collected || {}).length} sets</div></div>
         <div class="tile"><div class="k">Achievements</div><div class="v">${unlocked.length} / ${A.LIST.length}</div></div>
+        ${hist.length ? `<div class="tile" title="${esc(hist.map(h => `Season ${h.n}: #${h.rank} of ${h.of}, ${h.w}-${h.l}`).join('\n'))}"><div class="k">🗓️ Last season</div><div class="v">${hist[0].champ ? '🏆 ' : ''}#${hist[0].rank}<span class="muted" style="font-size:13px"> of ${hist[0].of}</span></div><div class="s">Season ${hist[0].n} · ${hist[0].w}-${hist[0].l}${hist.filter(h => h.champ).length ? ` · ${hist.filter(h => h.champ).length}× champion` : ''}</div></div>` : ''}
       </div></div>
     <div class="panel"><h2>⭐ Showcase</h2>
       <div class="showcase">${Array.from({ length: 5 }, (_, i) => (show[i] ? VMCards.html(show[i], { extra: EDIT ? `data-un="${show[i].u}" title="Click to take it out"` : '', cls: EDIT ? 'pickme' : '' }) : `<div class="slotx">${EDIT ? 'Click a card below to add it' : 'Empty'}</div>`)).join('')}</div>
-      ${EDIT ? `<div class="editbar"><label>Title <select id="titleSel"><option value="">No title</option>${unlocked.filter(A.isTitle).map(k => `<option value="${k}" ${k === EDIT.title ? 'selected' : ''}>${esc(titleOf(k))}</option>`).join('')}</select></label>
-        <button class="btn go" id="saveShow">Save</button><button class="btn" id="cancelShow">Cancel</button><span class="muted" style="font-size:12px">Pick up to 5 cards. Titles come from the gold, platinum and legendary achievements you've unlocked.</span></div><div style="color:var(--loss);text-align:center;font-size:13px" id="showErr"></div>` : ''}</div>
+      ${EDIT ? `<div class="editbar"><label>Title <select id="titleSel"><option value="">No title</option>${titles.map(k => `<option value="${k}" ${k === EDIT.title ? 'selected' : ''}>${esc(titleOf(k))}</option>`).join('')}</select></label>
+        <button class="btn go" id="saveShow">Save</button><button class="btn" id="cancelShow">Cancel</button><span class="muted" style="font-size:12px">Pick up to 5 cards. Titles come from the gold, platinum and legendary achievements you've unlocked, and from seasonal mode.</span></div><div style="color:var(--loss);text-align:center;font-size:13px" id="showErr"></div>` : ''}</div>
     <div class="panel"><h2>🗂 Collection · ${cards.length} cards, ${groups.size} different</h2>
       <div class="filters"><div class="seg" id="fseg">${['All', ...UT.RARITY.slice().reverse().map(r => r.name), ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div></div>
       ${list.length ? `<div class="cards">${list.map(c => VMCards.html(c, { count: groups.get(c.k).length, cls: EDIT ? `pickme ${EDIT.cards.includes(c.u) ? 'chosen' : ''}` : '', extra: EDIT ? `data-add="${c.u}"` : '' })).join('')}</div>` : '<p class="empty">No cards here.</p>'}</div>

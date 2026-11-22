@@ -51,8 +51,11 @@ function save(p) {
 // points earned: every award, but not card sales or stakes coming back (those were already yours)
 const earnedOf = p => p.ledger.filter(l => l.pts > 0 && !l.sale && !l.refund).reduce((a, l) => a + l.pts, 0);
 const ROOKIE_UNTIL = 5000; // 🐣 game, daily, bot and pick'em points pay double until a profile has earned this many
+// titles: from a hard achievement (its key), or one won in seasonal mode (p.titles, like { key: 's1-champ', name: 'Season 1 Champion', icon: '🏆' })
+const titleOf = (p, key) => (ACH.isTitle(key) && p.achievements[key] ? { key, name: ACH.BY_KEY[key].name, icon: ACH.BY_KEY[key].icon || '🏅' } : (p.titles || []).find(t => t.key === key) || null);
+const titleText = p => { const t = p.showcase?.title && titleOf(p, p.showcase.title); return t ? `${t.icon} ${t.name}` : ''; };
 const summary = p => ({ id: p.id, name: p.name, created: p.created, balance: p.balance, earned: earnedOf(p), unlocked: Object.keys(p.achievements).length, pin: !!p.pin,
-  title: ACH.isTitle(p.showcase?.title) ? p.showcase.title : '', showcase: (p.showcase?.cards || []).map(u => p.ut?.cards?.find(c => c.u === u)).filter(Boolean) });
+  title: p.showcase?.title && titleOf(p, p.showcase.title) ? p.showcase.title : '', titleText: titleText(p), lastSeason: p.seasonHistory?.[0] || null, showcase: (p.showcase?.cards || []).map(u => p.ut?.cards?.find(c => c.u === u)).filter(Boolean) });
 // a profile as the pages see it: everything but the PIN hash and sign-in tokens
 const visible = p => { const { pin, tokens, ...rest } = p; return { ...rest, prefs: p.prefs || {} }; };
 
@@ -138,7 +141,7 @@ function setShowcase(id, token, b) {
   const cards = [...new Set(Array.isArray(b.cards) ? b.cards : [])].filter(u => mine.has(u));
   if (cards.length > 5) throw new Error('A showcase holds 5 cards.');
   const title = String(b.title || '');
-  if (title && (!p.achievements[title] || !ACH.isTitle(title))) throw new Error('Titles come from gold, platinum and legendary achievements you\'ve unlocked.');
+  if (title && !titleOf(p, title)) throw new Error('Titles come from gold, platinum and legendary achievements you\'ve unlocked, and from seasonal mode.');
   p.showcase = { cards, title };
   save(p);
   return { showcase: p.showcase };
@@ -194,4 +197,4 @@ function credit(p, pts, reason, extra = {}) {
   p.ledger.push({ at: new Date().toISOString(), pts, reason: String(reason).slice(0, 80), ...rest }); p.balance += pts;
   return pts;
 }
-module.exports = { DIR, all, list, load, save, create, track, spend, award, checkGoals, credit, earnedOf, ROOKIE_UNTIL, setShowcase, login, logout, authorize, setPrefs, visible };
+module.exports = { titleOf, titleText, DIR, all, list, load, save, create, track, spend, award, checkGoals, credit, earnedOf, ROOKIE_UNTIL, setShowcase, login, logout, authorize, setPrefs, visible };

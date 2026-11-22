@@ -33,6 +33,7 @@
     rookie: { name: 'Rookie bundle', price: 0, cards: 10, icon: '🐣', desc: 'Free for new players: two Premium packs, 10 cards with at least two Epics.' },
     starter: { name: 'Starter pack', price: 0, cards: 13, icon: '🎁', desc: 'Free, once: one card for every spot (coach and stadium too), so you can play right away.' },
     staff: { name: 'Staff pack', price: 0, cards: 2, icon: '🧢', desc: 'Free, once: a head coach and a stadium for your team.' },
+    season: { name: 'Season pack', price: 100, cards: 5, icon: '🗓️', desc: '5 cards at Standard pack odds, for season coins. The only pack in seasonal mode.' },
     standard: { name: 'Standard pack', price: 100, cards: 5, icon: '📦', odds: { common: 0.55, rare: 0.30, epic: 0.12, legendary: 0.0295, mythic: 0.0005 }, desc: '5 cards.' },
     premium: { name: 'Premium pack', price: 300, cards: 5, icon: '💎', odds: { common: 0.25, rare: 0.40, epic: 0.27, legendary: 0.0785, mythic: 0.0015 }, guarantee: 'epic', desc: '5 cards, at least one Epic or better.' },
     legend: { name: 'Legend pack', price: 1000, cards: 3, icon: '👑', odds: { common: 0, rare: 0.40, epic: 0.40, legendary: 0.197, mythic: 0.003 }, guarantee: 'legendary', desc: '3 cards, at least one Legendary.' },
@@ -117,6 +118,7 @@
   // a pack's cards (without ids). Positions come up as often as they appear in the lineup (2 WR, 2 DL, 2 DB, 1 coach…).
   function openPack(key, pools, rand = Math.random) {
     if (key === 'rookie') return [...openPack('premium', pools, rand), ...openPack('premium', pools, rand)];
+    if (key === 'season') return openPack('standard', pools, rand);
     const pack = PACKS[key]; if (!pack) throw new Error('No such pack.');
     const any = (g, rar) => { const list = pools[g][nearestRar(pools, g, rar)]; return { ...list[Math.floor(rand() * list.length)] }; }; // a random card of that group and rarity
     if (key === 'starter' || key === 'staff') { // one card per spot, mostly Commons, never the same player twice
@@ -469,6 +471,7 @@
 
   // ---------- 🤖 bots: computer teams built to an overall rating, with a random game plan ----------
   const BOTS = {
+    rookie: { name: 'Rookie', team: 'Scout Team', abbr: 'SCT', ovr: [45, 45] }, // 🐣 for brand-new teams (a new season's starter teams are about 45)
     easy: { name: 'Easy', team: 'Practice Squad', abbr: 'PRAC', ovr: [70, 70] },
     medium: { name: 'Medium', team: 'Pro Bowlers', abbr: 'PRO', ovr: [85, 85] },
     hard: { name: 'Hard', team: 'Hall of Famers', abbr: 'HOF', ovr: [95, 99] },
@@ -568,7 +571,34 @@
     return { F, season: L.season, games, wins, ties, losses: games.length - wins - ties, post, playoffs: wins >= 10, champ, perfect, reward, ovr: R.ovr };
   }
 
-  const out = { SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
+  // ---------- 🗓️ seasonal mode: two-week seasons where everyone starts from nothing ----------
+  // A season has its own cards, lineup, coins and record. Everyone gets the same free starter pack and SEASON.coins, plus
+  // SEASON.daily coins a day; the only pack is the Season pack. Games earn coins and XP, and XP fills a milestone track with
+  // permanent rewards, ending in that season's Mythic. The best record against players wins the season (and another Mythic).
+  const DAY = 864e5;
+  const SEASON = {
+    epoch: Date.UTC(2026, 10, 23, 5), days: 14, // Season 1 starts Monday, November 23, 2026 at midnight US Eastern
+    coins: 500, daily: 200, win: 60, loss: 20, // season coins: to start, a day, a game against a player
+    xp: { win: 100, loss: 40, botWin: 40, botLoss: 15 }, doubleXp: 3, // the first 3 games of a day give double XP
+    milestones: [
+      { xp: 250, pts: 500 }, { xp: 600, pack: 'premium' }, { xp: 1000, pts: 1000 }, { xp: 1500, pack: 'legend' },
+      { xp: 2100, pts: 2000 }, { xp: 2800, title: 'veteran' }, { xp: 3600, pack: 'legend', n: 2 }, { xp: 4500, mythic: true },
+    ],
+  };
+  const seasonNow = (t = Date.now(), epoch = SEASON.epoch) => (t < epoch ? 0 : Math.floor((t - epoch) / (SEASON.days * DAY)) + 1);
+  const seasonSpan = (n, epoch = SEASON.epoch) => ({ starts: epoch + (n - 1) * SEASON.days * DAY, ends: epoch + n * SEASON.days * DAY });
+  // what a milestone gives, in words
+  const milestoneText = (m, n) => (m.pts ? `${m.pts.toLocaleString()} points` : m.pack ? `${m.n > 1 ? m.n + ' ' : ''}${PACKS[m.pack].name}${m.n > 1 ? 's' : ''}` : m.title ? `"Season ${n} Veteran" title` : `Season ${n} Mythic`);
+  // each season's two Mythic editions, the same for everyone: one for finishing the milestones, one for the champion
+  function seasonCards(pools, n) {
+    // a position first (so it isn't always a defender: they have the most 98+ seasons), then one of its 98+ seasons
+    const groups = ['QB', 'RB', 'WR', 'TE', 'DL', 'LB', 'DB'], r = rng(n * 7919 + 17);
+    const pick = () => { const g = groups.splice(Math.floor(r() * groups.length), 1)[0], list = [...pools[g].legendary, ...pools[g].mythic].filter(c => c.gr >= 98).sort((a, b) => (a.k < b.k ? -1 : 1)); return list[Math.floor(r() * list.length)]; };
+    const a = pick(), b = pick();
+    return { track: { ...a, k: `${a.k}|S${n}`, gr: 99, ed: `Season ${n}` }, champ: { ...b, k: `${b.k}|S${n}C`, gr: 99, ed: `Season ${n} Champion` } };
+  }
+
+  const out = { SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
     planOf, randomPlan, makePools, openPack, ratings, expected, simGame, makeBot, simSeason };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_UT = out;
 })(typeof window !== 'undefined' ? window : globalThis);

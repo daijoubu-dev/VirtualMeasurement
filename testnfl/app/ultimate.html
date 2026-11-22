@@ -181,6 +181,18 @@
   table.ts td:nth-child(2) { text-align: center; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
   table.ts td:first-child { text-align: right; } table.ts td:last-child { text-align: left; }
   .note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px; }
+  /* 🗓️ the mode switch and the season tab */
+  .modebar { display: flex; justify-content: center; margin: 0 0 12px; } .modebar .seg button { padding: 8px 16px; font-weight: 750; }
+  .modebar .seg button[disabled] { opacity: .55; cursor: default; } .modebar .sub { font-weight: 500; font-size: 12px; opacity: .8; margin-left: 4px; }
+  .track { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin: 14px 0 6px; }
+  @media (max-width: 760px) { .track { grid-template-columns: repeat(4, 1fr); } }
+  .ms { border: 1px solid var(--border); border-radius: 10px; padding: 8px; text-align: center; background: var(--soft); font-size: 12px; }
+  .ms .x { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; } .ms .g { font-weight: 750; margin-top: 3px; line-height: 1.25; }
+  .ms.got { border-color: #16a34a; background: color-mix(in srgb, #16a34a 14%, transparent); } .ms.got .x::before { content: '✓ '; color: #16a34a; font-weight: 800; }
+  .ms.myth { border-color: #e879f9; }
+  .xpbar { height: 10px; border-radius: 5px; background: var(--soft); overflow: hidden; border: 1px solid var(--border); } .xpbar div { height: 100%; background: linear-gradient(90deg, #6366f1, #ec4899); }
+  .seamyth { display: grid; grid-template-columns: repeat(2, minmax(0, 200px)); gap: 16px; justify-content: center; margin: 14px 0 4px; text-align: left; }
+  .seamyth .boxh { text-align: center; }
   .filters { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 </style>
 </head>
@@ -191,8 +203,9 @@
     <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html" class="on">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">⭐ My profile</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
   </header>
 
+  <div class="modebar" id="modebar"></div>
   <div class="panel" id="hero"></div>
-  <div class="tabs"><div class="seg" id="tabs"><button data-t="play" class="on">⚔ Play</button><button data-t="bots">🤖 Bots</button><button data-t="season">📅 Season</button><button data-t="lineup">🃏 Lineup</button><button data-t="packs">📦 Packs</button><button data-t="cols">🏆 Collections</button><button data-t="coll">🗂 Cards</button><button data-t="leaders">🏅 Leaders</button></div></div>
+  <div class="tabs"><div class="seg" id="tabs"><button data-t="sea">🗓️ Season</button><button data-t="play" class="on">⚔ Play</button><button data-t="bots">🤖 Bots</button><button data-t="season">📅 Schedule</button><button data-t="lineup">🃏 Lineup</button><button data-t="packs">📦 Packs</button><button data-t="cols">🏆 Collections</button><button data-t="coll">🗂 Cards</button><button data-t="leaders">🏅 Leaders</button></div></div>
 
   <div class="panel" id="game" hidden></div>
   <section id="t-play">
@@ -202,6 +215,7 @@
       <div class="panel"><h2>📜 Recent results</h2><div id="results"></div></div>
     </div>
   </section>
+  <section id="t-sea" hidden><div class="panel" id="sea"></div></section>
   <section id="t-lineup" hidden><div class="panel" id="lineup"></div></section>
   <section id="t-packs" hidden><div class="panel" id="packs"></div></section>
   <section id="t-cols" hidden><div class="panel" id="cols"></div></section>
@@ -232,6 +246,10 @@ const BAL_BADGE = '<span class="balbadge" data-tip="<b>⚖️ Balanced game</b>N
 const ago = iso => { const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} hr ago` : new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
 const post = (url, body) => fetch(url, { method: 'POST', headers: VM.headers(), body: JSON.stringify(body || {}) }).then(r => { if (r.status === 401) VM.signedOut(); return r.json(); });
 let S = { me: null, queue: [], games: [] }, TAB = (() => { try { return sessionStorage.getItem('vm.utTab') || 'play'; } catch { return 'play'; } })();
+// 🗓️ which mode the page is in: 'main' (permanent) or 'season' (this two-week season's own cards and coins)
+let MODE = (() => { try { return sessionStorage.getItem('vm.utMode') || 'main'; } catch { return 'main'; } })();
+const SEA = () => MODE === 'season';
+const unit = () => (SEA() ? 'coins' : 'points');
 let FILTER = 'All', LIVE = null, HOLD = null, AFTER = null; // HOLD: the game being watched live; AFTER: what to do when it ends
  // LIVE = the game on screen (its timer, while it plays out)
 
@@ -240,15 +258,17 @@ async function load() {
   if (!location.protocol.startsWith('http')) { $('hero').innerHTML = '<p class="empty">Ultimate Team needs the server: open the site with start.bat.</p>'; return; }
   const me = VM.profile();
   const lite = !!S.collections; // after the first load, the static parts (collections, logos, teams) are kept
-  const r = await fetch((me ? `${API}/${me}` : API) + (lite ? '?lite=1' : '')).then(r => r.json()).catch(() => null);
+  const qs = [lite && 'lite=1', SEA() && 'mode=season'].filter(Boolean).join('&');
+  const r = await fetch((me ? `${API}/${me}` : API) + (qs ? '?' + qs : '')).then(r => r.json()).catch(() => null);
   if (!r?.ok) { if (me) { S = { ...S, me: null, queue: [], games: [] }; drawAll(); } return; }
+  if (SEA() && !r.seasonInfo?.n) { MODE = 'main'; return load(); } // no season on yet
   S = lite ? { ...r, collections: S.collections, logos: S.logos, colors: S.colors, teams: S.teams } : r;
   VMCards.logos = S.logos || {}; VMCards.colors = S.colors || {}; // team logos and colors for the cards
   drawAll();
 }
 // defer: hold the new record, points and unlocks back (a game being watched live mustn't give its result away)
 async function act(action, body, errEl, defer = false) {
-  const r = await post(`${API}/${VM.profile()}/${action}`, body).catch(() => ({ ok: false, error: 'The server didn\'t answer.' }));
+  const r = await post(`${API}/${VM.profile()}/${action}`, { ...(body || {}), mode: MODE }).catch(() => ({ ok: false, error: 'The server didn\'t answer.' }));
   if (!r.ok) { if (errEl) errEl.textContent = r.error; else alert(r.error); return null; }
   if (!defer) apply(r);
   return r;
@@ -258,13 +278,18 @@ function apply(r) {
   (r.unlocked || []).forEach((a, i) => setTimeout(() => VM.toast(a), 600 + i * 700));
 }
 // the 👤 header shows the same points as this page (VM.adjust takes the unwatched games out of it)
-function syncHeader() { const me = S.me, d = me ? me.balance - shown(me).balance : 0; VM.adjust = b => b - d; if (me) VM.setBalance(me.balance); }
+function syncHeader() {
+  const me = S.me; if (!me) return;
+  if (SEA()) { VM.adjust = null; if (me.points != null) VM.setBalance(me.points); return; } // the header shows points, not season coins
+  const d = me.balance - shown(me).balance; VM.adjust = b => b - d; VM.setBalance(me.balance);
+}
 // your record and points without the games you haven't watched yet (someone played your queued team): no spoilers
 function shown(me) {
   let { w, l } = me.rec, balance = me.balance;
   for (const id of me.unseen || []) {
     const g = S.games.find(x => x.gid === id); if (!g) continue;
-    g[g.winner].pid === VM.profile() ? (w--, balance -= UT.REWARD.win) : (l--, balance -= UT.REWARD.loss);
+    const m = g.competitive ? UT.COMP.mult : 1, won = g[g.winner].pid === VM.profile();
+    if (won) { w--; balance -= SEA() ? UT.SEASON.win : UT.REWARD.win * m; } else { l--; balance -= SEA() ? UT.SEASON.loss : UT.REWARD.loss * m; }
   }
   return { w: Math.max(0, w), l: Math.max(0, l), balance };
 }
@@ -277,17 +302,33 @@ const compCards = me => Object.fromEntries(Object.entries(me.comp || {}).map(([s
 const heldIds = me => new Set([...Object.values(me.lineup), ...Object.values(me.comp || {})]); // cards in either lineup
 const COMP_BADGE = '<span class="balbadge comp" data-tip="<b>⚔ Competitive</b>Competitive lineups: the eleven players within a rarity budget, no coach or stadium. Double points for both teams.">⚔ Competitive</span>';
 let LMODE = 'main'; // which lineup the Lineup tab shows
+const daysLeft = t => { const h = (t - Date.now()) / 36e5; return h < 24 ? `${Math.max(1, Math.round(h))}h` : `${Math.round(h / 24)}d`; };
+function drawModebar() {
+  const I = S.seasonInfo || { n: 0 };
+  const sub = I.n ? `Season ${I.n} · ends in ${daysLeft(I.ends)}` : `starts ${new Date(I.starts).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`;
+  $('modebar').innerHTML = `<div class="seg"><button data-mode="main" class="${SEA() ? '' : 'on'}">🃏 Permanent</button><button data-mode="season" class="${SEA() ? 'on' : ''}" ${I.n ? '' : 'disabled'}
+    data-tip="<b>🗓️ Seasonal mode</b>Every two weeks everyone starts from nothing: new cards, coins and record. Games fill a milestone track with permanent rewards (points, packs, a title and that season's Mythic), and the best record against players wins the season and another Mythic.">🗓️ Seasonal<span class="sub">${sub}</span></button></div>`;
+  $('modebar').querySelectorAll('[data-mode]').forEach(b => (b.onclick = async () => {
+    if (b.disabled || b.dataset.mode === MODE) return;
+    MODE = b.dataset.mode; try { sessionStorage.setItem('vm.utMode', MODE); } catch {}
+    LMODE = 'main'; $('game').hidden = true; S.queue = []; S.games = [];
+    await load();
+    setTab(S.me && !S.me.starter ? 'packs' : SEA() ? 'sea' : TAB);
+  }));
+}
 function drawHero() {
   const me = S.me;
   if (!me) { $('hero').innerHTML = '<p class="empty">Sign in or create a profile with the 👤 button at the top right to get your free starter pack and build a team. You can still watch the games below.</p>'; return; }
-  const R = UT.ratings(lineupCards(me)), V = shown(me);
+  const R = UT.ratings(lineupCards(me)), V = shown(me), Z = me.season;
   syncHeader();
+  const rank = Z ? Z.board.findIndex(r => r.pid === VM.profile()) + 1 : 0;
   $('hero').innerHTML = `<div class="hero">
     <div class="tile" id="teamTile"><div class="k">Your team <button class="edit" id="editTeam" title="Rename your team">✏️</button></div><div class="v">${esc(me.team.abbr)} · ${esc(me.team.name)}</div><div class="s">${esc(VM_PROFILE_NAME())}</div></div>
-    <div class="tile" data-tip="<b>Record</b>Games against other players (+${UT.REWARD.win} points a win, +${UT.REWARD.loss} a loss). Bot games and seasons are kept apart."><div class="k">Record</div><div class="v">${V.w}-${V.l}</div><div class="s">Bots ${botRec(me)} · 🏆 ${me.titles} season title${me.titles === 1 ? '' : 's'}</div></div>
+    ${Z ? `<div class="tile" data-tip="<b>Season record</b>Games against other players this season (+${UT.SEASON.win} coins a win, +${UT.SEASON.loss} a loss). The best record when the season ends wins it."><div class="k">Season ${Z.n} record</div><div class="v">${V.w}-${V.l}</div><div class="s">${rank ? `#${rank} of ${Z.board.length}` : 'Not ranked yet'} · Bots ${botRec(me)} · ✨ ${Z.xp.toLocaleString()} XP</div></div>`
+      : `<div class="tile" data-tip="<b>Record</b>Games against other players (+${UT.REWARD.win} points a win, +${UT.REWARD.loss} a loss). Bot games and seasons are kept apart."><div class="k">Record</div><div class="v">${V.w}-${V.l}</div><div class="s">Bots ${botRec(me)} · 💍 ${me.titles} ring${me.titles === 1 ? '' : 's'}</div></div>`}
     <div class="tile" data-tip="<b>Team rating</b>Your lineup's grades rolled up like the 17-0 page: offense (QB 36%, O-line 22%, receivers 24%, RB 10%, TE 8%) and defense (pass rush 50%, secondary 32%, linebacker 18%). Empty spots play like a grade-25 backup."><div class="k">Overall</div><div class="v">${R.ovr}</div><div class="s">Offense ${Math.round(R.o)} · Defense ${Math.round(R.d)}</div></div>
-    <div class="tile"><div class="k">Points</div><div class="v gold">${V.balance.toLocaleString()}</div>
-      <div class="s">${me.dailyReady ? `<button class="btn sm go" id="daily">🎁 Claim ${UT.DAILY} free points</button>` : '✓ Daily points claimed. More tomorrow.'}</div>
+    <div class="tile"><div class="k">${Z ? '🪙 Season coins' : 'Points'}</div><div class="v gold">${V.balance.toLocaleString()}</div>
+      <div class="s">${me.dailyReady ? `<button class="btn sm go" id="daily">🎁 Claim ${me.daily} free ${unit()}</button>` : `✓ Daily ${unit()} claimed. More tomorrow.`}</div>
       ${me.rookie && me.rookie.earned < me.rookie.until ? `<div class="s" data-tip="<b>🐣 Rookie boost</b>Game, daily, bot, season and pick'em points pay double until you've earned ${me.rookie.until.toLocaleString()}.">🐣 2× points · ${(me.rookie.until - me.rookie.earned).toLocaleString()} to go</div>` : ''}</div></div>`;
   $('editTeam').onclick = () => {
     $('teamTile').innerHTML = `<div class="k">Team name and abbreviation</div><form class="teamform" id="teamForm"><input name="name" maxlength="24" value="${esc(me.team.name)}"><input name="abbr" maxlength="4" value="${esc(me.team.abbr)}"><button class="btn sm go">Save</button></form><div class="err" id="teamErr" style="text-align:left"></div>`;
@@ -306,6 +347,7 @@ function drawLineup() {
   const me = S.me;
   if (!me) { $('lineup').innerHTML = '<p class="empty">Sign in to build a lineup.</p>'; return; }
   if (!me.cards.length) { $('lineup').innerHTML = '<p class="empty">No cards yet. Open your free starter pack in 📦 Packs.</p>'; return; }
+  if (SEA()) LMODE = 'main';
   const comp = LMODE === 'comp', C = comp ? compCards(me) : lineupCards(me), R = UT.ratings(C);
   const cost = comp ? UT.compCost(C) : 0, myth = comp ? UT.REQUIRED.filter(([s]) => C[s]?.gr >= 99).length : 0;
   // each spot where it lines up: [slot, grid column, grid row] on a 5-column field
@@ -317,7 +359,7 @@ function drawLineup() {
   const meter = comp ? `<div class="budget ${cost > UT.COMP.budget || myth > UT.COMP.maxMythic ? 'over' : ''}"><div><b>Budget ${cost} / ${UT.COMP.budget}</b> · Mythics ${myth} / ${UT.COMP.maxMythic}</div>
       <div class="bbar"><div style="width:${Math.min(100, 100 * cost / UT.COMP.budget)}%"></div></div>
       <div class="s">Each card costs by rarity: ${Object.entries(UT.COMP.cost).map(([k, v]) => `${UT.RARITY.find(r => r.key === k).name} ${v}`).join(' · ')}. No coach or stadium. Competitive games pay double for both teams.${me.compErr ? ` <b>${esc(me.compErr)}</b>` : ' ✓ Ready to play.'}</div></div>` : '';
-  $('lineup').innerHTML = `<h2>🃏 Lineup · Overall ${R.ovr}</h2>${tabs}${meter}
+  $('lineup').innerHTML = `<h2>🃏 ${SEA() ? `Season ${me.season.n} lineup` : 'Lineup'} · Overall ${R.ovr}</h2>${SEA() ? '' : tabs}${meter}
     <div class="field">
       <div class="half"><h3><span>🛡️ Defense</span><b>${Math.round(R.d)}</b></h3>${DEF.map(spot).join('')}</div>
       <div class="los"><span>Line of scrimmage</span></div>
@@ -353,13 +395,15 @@ function drawPacks() {
   const me = S.me;
   if (!me) { $('packs').innerHTML = '<p class="empty">Sign in to open packs.</p>'; return; }
   const odds = o => `<div class="odds">${UT.RARITY.filter(r => o[r.key]).map(r => `<span style="color:${r.color};font-weight:700">${r.name}</span><div class="b"><div style="width:${Math.max(o[r.key] * 100, 1.5)}%;background:${r.color}"></div></div><span>${o[r.key] < 0.01 ? (o[r.key] * 100).toFixed(2) : Math.round(o[r.key] * 100)}%</span>`).join('')}</div>`;
-  $('packs').innerHTML = `<h2>📦 Packs · ${me.balance.toLocaleString()} points</h2>
+  const cur = SEA() ? 'coins' : 'pts';
+  $('packs').innerHTML = `<h2>📦 ${SEA() ? `Season ${me.season.n} packs` : 'Packs'} · ${me.balance.toLocaleString()} ${unit()}</h2>
     ${!me.starter ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.starter.icon}</div><b>${UT.PACKS.starter.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.starter.desc}</div><button class="btn go" data-open="starter">Open it</button></div>`
       : me.rookie?.bundle ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.rookie.icon}</div><b>${UT.PACKS.rookie.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.rookie.desc} Plus double points until you've earned ${me.rookie.until.toLocaleString()}.</div><button class="btn go" data-open="rookie">Open it</button></div>`
       : !me.staff ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.staff.icon}</div><b>New: ${UT.PACKS.staff.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.staff.desc} Coaches and stadiums now have their own spots on the sideline.</div><button class="btn go" data-open="staff">Open it</button></div>` : ''}
-    <div class="packs">${['standard', 'premium', 'legend'].map(k => { const p = UT.PACKS[k]; return `<div class="pack"><div class="ic">${p.icon}</div><div class="nm">${p.name}</div><div class="pr">${p.price.toLocaleString()} pts</div><div class="d">${p.desc}</div>${odds(p.odds)}
+    <div class="packs">${(me.packs || ['standard', 'premium', 'legend']).map(k => { const p = UT.PACKS[k]; return `<div class="pack"><div class="ic">${p.icon}</div><div class="nm">${p.name}</div><div class="pr">${p.price.toLocaleString()} ${cur}</div><div class="d">${p.desc}</div>${odds(p.odds || UT.PACKS.standard.odds)}
       <button class="btn ${me.balance >= p.price ? 'go' : ''}" data-open="${k}" ${me.balance < p.price ? 'disabled' : ''}>${me.balance >= p.price ? 'Open' : `Need ${(p.price - me.balance).toLocaleString()} more`}</button></div>`; }).join('')}</div>
-    <p class="note">Rarity goes by grade (how good that season was, like 17-0): Common under 60, Rare 60–79, Epic 80–89, Legendary 90–98 and <b style="color:${UT.RARITY[4].color}">Mythic 99</b>, the best seasons ever. Every position comes up as often as it's in the lineup (coaches and stadiums too). Team packs for the 🏆 legendary teams are in Collections. Points come from 🏆 achievements, games (+${UT.REWARD.win} a win, +${UT.REWARD.loss} a loss) and ${UT.DAILY} free a day.</p>`;
+    ${SEA() ? `<p class="note">Seasonal mode: everyone starts from the same free starter pack and ${UT.SEASON.coins} coins. Coins come from games (+${UT.SEASON.win} a win, +${UT.SEASON.loss} a loss against players, more for beating bots) and ${UT.SEASON.daily} free a day. Season cards and coins are gone when the season ends; the milestone rewards are permanent.</p>` : ''}
+    <p class="note" ${SEA() ? 'hidden' : ''}>Rarity goes by grade (how good that season was, like 17-0): Common under 60, Rare 60–79, Epic 80–89, Legendary 90–98 and <b style="color:${UT.RARITY[4].color}">Mythic 99</b>, the best seasons ever. Every position comes up as often as it's in the lineup (coaches and stadiums too). Team packs for the 🏆 legendary teams are in Collections. Points come from 🏆 achievements, games (+${UT.REWARD.win} a win, +${UT.REWARD.loss} a loss) and ${UT.DAILY} free a day.</p>`;
   $('packs').querySelectorAll('[data-open]').forEach(b => (b.onclick = () => openPack(b.dataset.open)));
 }
 async function openPack(key) {
@@ -390,21 +434,21 @@ function drawColl() {
   const dupes = [...groups.values()].flatMap(cs => cs.sort((a, b) => inLineup.has(b.u) - inLineup.has(a.u)).slice(1)).filter(c => !inLineup.has(c.u));
   const dupePts = dupes.reduce((a, c) => a + UT.rarityOf(c.gr).sell, 0);
   const shown = [...groups.values()].map(cs => cs[0]).filter(c => FILTER === 'All' || c.g === FILTER).sort((a, b) => b.gr - a.gr);
-  $('coll').innerHTML = `<h2>🗂 Collection · ${me.cards.length} cards, ${groups.size} different</h2>
+  $('coll').innerHTML = `<h2>🗂 ${SEA() ? `Season ${me.season.n} cards` : 'Collection'} · ${me.cards.length} cards, ${groups.size} different</h2>
     <div class="filters"><div class="seg" id="fseg">${['All', ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div>
-      <div class="trade">${Object.entries(UT.TRADE_UP).map(([f, t]) => { const n = tradeable(me, f).length, R = k => UT.RARITY.find(r => r.key === k);
+      <div class="trade" ${SEA() ? 'hidden' : ''}>${Object.entries(UT.TRADE_UP).map(([f, t]) => { const n = tradeable(me, f).length, R = k => UT.RARITY.find(r => r.key === k);
         return `<button class="btn" data-trade="${f}" ${n >= UT.TRADE_N ? '' : 'disabled'} title="You have ${n} tradeable">♻️ ${UT.TRADE_N} <b style="color:${R(f).color}">${R(f).name}</b> → 1 <b style="color:${R(t).color}">${R(t).name}</b></button>`; }).join('')}</div>
-      <button class="btn" id="sellDupes" ${dupes.length ? '' : 'disabled'}>💰 Sell ${dupes.length} duplicate${dupes.length === 1 ? '' : 's'}${dupes.length ? ` · ${dupePts} pts` : ''}</button></div>
+      <button class="btn" id="sellDupes" ${dupes.length ? '' : 'disabled'}>💰 Sell ${dupes.length} duplicate${dupes.length === 1 ? '' : 's'}${dupes.length ? ` · ${dupePts} ${SEA() ? 'coins' : 'pts'}` : ''}</button></div>
     ${shown.length ? `<div class="cards">${shown.map(c => { const copies = groups.get(c.k), free = copies.find(x => !inLineup.has(x.u));
       return cardHtml(c, { count: copies.length, cls: copies.some(x => inLineup.has(x.u)) ? 'in' : '', sell: free?.u }); }).join('')}</div>`
       : '<p class="empty">No cards here yet.</p>'}
     <p class="note">Cards in your lineup have a blue outline and can't be sold.</p>`;
   $('fseg').querySelectorAll('[data-f]').forEach(b => (b.onclick = () => { FILTER = b.dataset.f; drawColl(); }));
   $('coll').querySelectorAll('[data-trade]').forEach(b => (b.onclick = () => tradeUp(b.dataset.trade)));
-  $('sellDupes').onclick = async () => { if (confirm(`Sell ${dupes.length} duplicate cards for ${dupePts} points?`) && await act('sell', { uids: dupes.map(c => c.u) })) drawAll(); };
+  $('sellDupes').onclick = async () => { if (confirm(`Sell ${dupes.length} duplicate cards for ${dupePts} ${unit()}?`) && await act('sell', { uids: dupes.map(c => c.u) })) drawAll(); };
   $('coll').querySelectorAll('button[data-sell]').forEach(b => (b.onclick = async e => {
     e.stopPropagation(); const c = me.cards.find(x => x.u === b.dataset.sell); if (!c) return;
-    if (confirm(`Sell ${c.n} (${c.s}) for ${UT.rarityOf(c.gr).sell} points?`) && await act('sell', { uids: [c.u] })) drawAll();
+    if (confirm(`Sell ${c.n} (${c.s}) for ${UT.rarityOf(c.gr).sell} ${unit()}?`) && await act('sell', { uids: [c.u] })) drawAll();
   }));
 }
 
@@ -504,8 +548,8 @@ function drawPlay() {
   const tipOf = q => esc(`<b>${esc(q.team)} · OVR ${q.ovr}</b>` + q.lineup.map(([s, n, gr]) => `${s} ${esc(n)} (${gr})`).join('<br>'));
   $('queue').innerHTML = `<div class="queuebox">${!me ? '<span class="muted">Sign in to queue up a team.</span>'
       : mine ? `<button class="btn" id="unqueue">✕ Take my team off the queue</button><div class="s">${mine.competitive ? `${COMP_BADGE} ` : ''}${mine.balanced ? `${BAL_BADGE} ` : ''}Your team is waiting for a challenger (queued ${ago(mine.at)}). You'll get a replay when someone plays it.</div>`
-      : `<button class="btn go" id="enqueue" ${isFull(me) || !me.compErr ? '' : 'disabled'}>📣 Queue up my team</button>
-        <label class="balchk" data-tip="<b>⚔ Competitive game</b>Plays your competitive lineup (the 🃏 Lineup tab), against the challenger's. Double points for both teams. Your team is marked ⚔ on the queue."><input type="checkbox" id="competitive" ${me.competitive ? 'checked' : ''} ${me.compErr ? 'disabled' : ''}> ⚔ Competitive (double points)${me.compErr ? ` <span class="muted">· set up your competitive lineup first</span>` : ''}</label>
+      : `<button class="btn go" id="enqueue" ${isFull(me) || (!SEA() && !me.compErr) ? '' : 'disabled'}>📣 Queue up my team</button>
+        ${SEA() ? '' : `<label class="balchk" data-tip="<b>⚔ Competitive game</b>Plays your competitive lineup (the 🃏 Lineup tab), against the challenger's. Double points for both teams. Your team is marked ⚔ on the queue."><input type="checkbox" id="competitive" ${me.competitive ? 'checked' : ''} ${me.compErr ? 'disabled' : ''}> ⚔ Competitive (double points)${me.compErr ? ` <span class="muted">· set up your competitive lineup first</span>` : ''}</label>`}
         <label class="balchk" data-tip="<b>⚖️ Balanced game</b>No game plans for either side: you skip the plan screen, and so does whoever challenges you. Your team is marked ⚖️ on the queue."><input type="checkbox" id="balanced" ${me.balanced ? 'checked' : ''}> ⚖️ Balanced game (no game plans)</label><div class="s">${isFull(me) ? 'Anyone can challenge it. You host (home field), and the game is played the moment they accept.' : 'Fill every spot in your lineup first.'}</div>`}</div>
     ${others.length ? others.map(q => `<div class="row" data-tip="${tipOf(q)}"><div><div class="t">${sideName(q)}</div><div class="s">${q.competitive ? `${COMP_BADGE} · ` : ''}${q.balanced ? `${BAL_BADGE} · ` : ''}<a href="profiles.html?id=${encodeURIComponent(q.pid)}" data-vmuser="${esc(q.pid)}" style="color:inherit">${esc(q.name)}</a> · OVR ${q.ovr} · queued ${ago(q.at)}</div></div>
       <div class="acts">${me && !canPlay(q) && q.competitive ? '<span class="muted" style="font-size:12px">Needs a competitive lineup</span>' : ''}${me && canPlay(q) ? `<span class="odd" data-tip="<b>Your chances</b>From both lineups' ratings, on the road.">${Math.round(100 * odds(q))}%</span><button class="btn go sm" data-ch="${q.qid}" data-bal="${q.balanced ? 1 : ''}">⚔ Challenge</button>` : ''}</div></div>`).join('')
@@ -521,9 +565,10 @@ function drawPlay() {
     const tactics = b.dataset.bal ? null : await pickPlan('Your game plan (theirs is secret too)', '⚔ Play the game'); if (!b.dataset.bal && !tactics) return;
     b.disabled = true;
     const r = await act('challenge', { qid: b.dataset.ch, tactics }, $('qErr'), true);
-    if (r) { HOLD = r.game.gid; S.queue = S.queue.filter(q => q.qid !== b.dataset.ch); drawPlay(); showGame(r.game, true, () => { apply(r); load(); }); } else { b.disabled = false; load(); }
+    if (r) { r.game.xp = r.xp; HOLD = r.game.gid; S.queue = S.queue.filter(q => q.qid !== b.dataset.ch); drawPlay(); showGame(r.game, true, () => { apply(r); load(); }); } else { b.disabled = false; load(); }
   }));
   // results
+  if (SEA()) $('queue').querySelector('.queuebox').insertAdjacentHTML('afterbegin', `<div class="s" style="margin:0 0 8px">🗓️ Season ${me.season.n} games: only seasonal teams are on this queue, and wins count for the season standings.</div>`);
   $('results').innerHTML = S.games.length ? S.games.slice(0, 25).map(g => {
     const mineG = g.home.pid === myId || g.away.pid === myId, W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'];
     const res = mineG ? ((g[g.winner].pid === myId) ? '<b class="W">W</b> ' : '<b class="L">L</b> ') : '';
@@ -613,8 +658,10 @@ function edgesHtml(g) {
 function finalHtml(g) {
   const W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'], myId = VM.profile();
   const mine = g.home.pid === myId ? 'home' : g.away.pid === myId ? 'away' : null;
-  const you = g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! +${g.reward} points` : 'The bot wins this one. No points for a loss.')
-    : mine ? (g.winner === mine ? `🎉 You win! +${UT.REWARD.win * (g.competitive ? UT.COMP.mult : 1)} points${g.competitive ? ' (⚔ double)' : ''}` : `Tough loss. +${UT.REWARD.loss * (g.competitive ? UT.COMP.mult : 1)} points for playing`) : '';
+  const xp = g.xp ? ` · ✨ +${g.xp.xp} XP${g.xp.reached.length ? ` · 🎁 Milestone: ${g.xp.reached.map(esc).join(', ')}` : ''}` : '';
+  const you = (g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! +${g.reward} ${g.seasonal ? 'coins' : 'points'}` : `The bot wins this one. No ${g.seasonal ? 'coins' : 'points'} for a loss.`)
+    : mine && g.seasonal ? (g.winner === mine ? `🎉 You win! +${UT.SEASON.win} coins` : `Tough loss. +${UT.SEASON.loss} coins for playing`)
+    : mine ? (g.winner === mine ? `🎉 You win! +${UT.REWARD.win * (g.competitive ? UT.COMP.mult : 1)} points${g.competitive ? ' (⚔ double)' : ''}` : `Tough loss. +${UT.REWARD.loss * (g.competitive ? UT.COMP.mult : 1)} points for playing`) : '') + (mine || g.bot ? xp : '');
   return `<div class="final"><div class="t">🏆 ${esc(W.team)} ${Math.max(g.hs, g.as)}, ${esc(L.team)} ${Math.min(g.hs, g.as)}${g.ot ? ' (OT)' : ''}</div>
     <div class="s">⭐ Player of the game: ${esc(g.mvp.name)} (${esc(g.mvp.line)})${g.comeback ? ` · came back from ${g.comeback} down` : ''}</div>
     ${you ? `<div class="s" style="margin-top:4px;font-weight:700;color:var(--text)">${you}</div>` : ''}</div>
@@ -644,20 +691,20 @@ const botRec = me => { const r = Object.values(me.bot?.rec || {}).reduce((a, x) 
 function drawBots() {
   const me = S.me;
   if (!me) { $('bots').innerHTML = '<p class="empty">Sign in to play the bots.</p>'; return; }
-  const C = lineupCards(me), today = me.bot.ptsToday;
-  $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} bot points today</h2>
+  const C = lineupCards(me), today = me.bot.ptsToday, boost = !SEA() && me.rookie && me.rookie.earned < me.rookie.until;
+  $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} bot ${unit()} today</h2>
     <div class="packs">${Object.entries(UT.BOTS).map(([k, B]) => { const r = me.bot.rec[k] || { w: 0, l: 0 };
       return `<div class="pack"><div class="ic">🤖</div><div class="nm">${B.name}</div><div class="d">${B.team} · ${B.ovr[0] === B.ovr[1] ? B.ovr[0] : `${B.ovr[0]}–${B.ovr[1]}`} overall</div>
-        <div class="pr">+${isFull(me) ? UT.botPay(C, k) * (me.rookie && me.rookie.earned < me.rookie.until ? 2 : 1) : '–'} a win${me.rookie && me.rookie.earned < me.rookie.until ? ' 🐣' : ''}</div>
+        <div class="pr">+${isFull(me) ? UT.botPay(C, k) * (boost ? 2 : 1) : '–'} ${SEA() ? 'coins ' : ''}a win${boost ? ' 🐣' : ''}</div>
         <div class="d">Your chances ≈ ${isFull(me) ? Math.round(100 * UT.botOdds(C, k)) + '%' : '–'} · you're ${r.w}-${r.l} against it</div>
         <button class="btn go" data-bot="${k}" ${isFull(me) ? '' : 'disabled'}>Play</button></div>`; }).join('')}</div>
     <div class="err" id="botErr"></div>
-    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. A win pays more the tougher that bot is for your team, with no limit. Losses pay nothing. Bot games don't count toward your record or the leaderboards.</p>`;
+    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. A win pays more the tougher that bot is for your team, with no limit. Losses pay nothing${SEA() ? `, but every game earns XP (${UT.SEASON.xp.botWin} a win, ${UT.SEASON.xp.botLoss} a loss; games against players earn more)` : ''}. Bot games don't count toward your record or the ${SEA() ? 'season standings' : 'leaderboards'}.</p>`;
   $('bots').querySelectorAll('[data-bot]').forEach(b => (b.onclick = async () => {
     const tactics = await pickPlan(`Game plan vs the ${UT.BOTS[b.dataset.bot].name} bot`, '▶ Play'); if (!tactics) return;
     $('bots').querySelectorAll('[data-bot]').forEach(x => (x.disabled = true));
     const r = await act('bot', { level: b.dataset.bot, tactics }, $('botErr'), true);
-    if (r) { HOLD = 'bot'; showGame(r.game, true, () => { apply(r); drawAll(); }); } else drawBots();
+    if (r) { r.game.xp = r.xp; HOLD = 'bot'; showGame(r.game, true, () => { apply(r); drawAll(); }); } else drawBots();
   }));
 }
 
@@ -719,6 +766,28 @@ function revealSeason(r) {
   timer = setTimeout(step, 300);
 }
 
+// ---------- 🗓️ the season tab: the milestone track, the two Mythics, the standings and last season ----------
+function drawSea() {
+  const me = S.me, Z = me?.season;
+  if (!me || !Z) { $('sea').innerHTML = '<p class="empty">Sign in to play the season.</p>'; return; }
+  const M = UT.SEASON.milestones, top = M[M.length - 1].xp, next = M.find((m, i) => !Z.got.includes(i)), myId = VM.profile();
+  const ms = M.map((m, i) => `<div class="ms ${Z.got.includes(i) ? 'got' : ''} ${m.mythic ? 'myth' : ''}"><div class="x">${m.xp.toLocaleString()} XP</div><div class="g">${m.pts ? '💰' : m.pack ? UT.PACKS[m.pack].icon : m.title ? '🎖️' : '🌈'} ${esc(UT.milestoneText(m, Z.n))}</div></div>`).join('');
+  const rows = Z.board.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td><b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· <a href="profiles.html?id=${encodeURIComponent(r.pid)}" data-vmuser="${esc(r.pid)}" style="color:inherit">${esc(r.name)}</a></span></td><td class="num">${r.w}-${r.l}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="num">${r.xp.toLocaleString()}</td></tr>`).join('');
+  const L = Z.last;
+  $('sea').innerHTML = `<h2>🗓️ Season ${Z.n} · ends in ${daysLeft(Z.ends)}</h2>
+    <p class="muted" style="text-align:center;margin:0 0 10px;font-size:13px">Everyone started this season from nothing. Every game earns ✨ XP (${UT.SEASON.xp.win} a win, ${UT.SEASON.xp.loss} a loss against players; ${UT.SEASON.xp.botWin} / ${UT.SEASON.xp.botLoss} against bots), and your first ${UT.SEASON.doubleXp} games each day count double.
+      The milestone rewards are <b>permanent</b>: they go to your main collection and points. Ends ${new Date(Z.ends).toLocaleString(undefined, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.</p>
+    <div class="xpbar"><div style="width:${Math.min(100, 100 * Z.xp / top)}%"></div></div>
+    <div class="s muted" style="font-size:12.5px;text-align:center;margin-top:5px">✨ ${Z.xp.toLocaleString()} XP${next ? ` · ${(next.xp - Z.xp).toLocaleString()} to the next reward` : ' · track complete! 🎉'} · ${Z.doubleLeft ? `⚡ ${Z.doubleLeft} double-XP game${Z.doubleLeft === 1 ? '' : 's'} left today` : 'Double XP is used up for today'}</div>
+    <div class="track">${ms}</div>
+    <div class="seamyth"><div><div class="boxh">🌈 Finish the track</div>${cardHtml(Z.cards.track, { cls: Z.got.includes(M.length - 1) ? '' : 'missing' })}</div><div><div class="boxh">🏆 The champion's</div>${cardHtml(Z.cards.champ, { cls: 'missing' })}</div></div>
+    <p class="note">The best record against players when the season ends wins it (then point differential), with a 🏆 Season ${Z.n} Champion title and the champion's Mythic. Everyone who plays gets their final rank on their profile.</p>
+    <h2 style="margin-top:18px">📊 Standings</h2>
+    ${rows ? `<table class="board"><tr><th>#</th><th>Team</th><th class="num">W-L</th><th class="num">Diff</th><th class="num">XP</th></tr>${rows}</table>` : '<p class="empty">Nobody has played yet this season. Queue up a team!</p>'}
+    ${L ? `<h2 style="margin-top:18px">⏮ Season ${L.n} final</h2>${L.champion ? `<p style="text-align:center;margin:0 0 8px">🏆 Champion: <b>${esc(L.champion.team)}</b> · <a href="profiles.html?id=${encodeURIComponent(L.champion.pid)}" data-vmuser="${esc(L.champion.pid)}" style="color:inherit">${esc(L.champion.name)}</a> (${L.champion.w}-${L.champion.l})</p>` : ''}
+      <table class="board"><tr><th>#</th><th>Team</th><th class="num">W-L</th><th class="num">XP</th></tr>${L.top.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r.team)} <span class="muted">· ${esc(r.name)}</span></td><td class="num">${r.w}-${r.l}</td><td class="num">${r.xp.toLocaleString()}</td></tr>`).join('')}</table>` : ''}`;
+}
+
 // ---------- 🏅 leaders ----------
 function drawLeaders() {
   const myId = VM.profile(), B = S.boards || { record: [], overall: [] };
@@ -727,7 +796,7 @@ function drawLeaders() {
   const pct = r => (r.w / (r.w + r.l)).toFixed(3).replace(/^0/, '');
   const table = (head, rows) => `<table class="board"><tr>${head.map((h, i) => `<th class="${i > 1 ? 'num' : ''}">${h}</th>`).join('')}</tr>${rows.join('')}</table>`;
   const who = r => `<b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· <a href="profiles.html?id=${encodeURIComponent(r.pid)}" data-vmuser="${esc(r.pid)}" style="color:inherit">${esc(r.name)}</a></span>`;
-  $('bRecord').innerHTML = rec.length ? table(['#', 'Team', 'W-L', 'Pct', '🏆'], rec.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num">${r.w}-${r.l}</td><td class="num">${pct(r)}</td><td class="num" title="Season titles">${r.titles}</td></tr>`))
+  $('bRecord').innerHTML = rec.length ? table(['#', 'Team', 'W-L', 'Pct', '💍'], rec.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num">${r.w}-${r.l}</td><td class="num">${pct(r)}</td><td class="num" title="Super Bowl rings from schedule runs">${r.titles}</td></tr>`))
     : '<p class="empty">No games between players yet.</p>';
   $('bOverall').innerHTML = B.overall.length ? table(['#', 'Team', 'OVR', 'Off', 'Def'], B.overall.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num"><b>${r.ovr}</b></td><td class="num">${r.o}</td><td class="num">${r.d}</td></tr>`))
     : '<p class="empty">No full lineups yet.</p>';
@@ -739,24 +808,28 @@ function drawLeaders() {
 }
 
 // ---------- tabs, modal, refresh ----------
+// the tabs each mode has (seasonal mode: no schedule runs, collections, trade-ups or all-time leaderboards)
+const TABS = { main: ['play', 'bots', 'season', 'lineup', 'packs', 'cols', 'coll', 'leaders'], season: ['sea', 'play', 'bots', 'lineup', 'packs', 'coll'] };
 function setTab(t) {
-  TAB = t; try { sessionStorage.setItem('vm.utTab', t); } catch {}
-  $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  for (const k of ['play', 'bots', 'season', 'lineup', 'packs', 'cols', 'coll', 'leaders']) $('t-' + k).hidden = k !== t;
+  const list = TABS[MODE] || TABS.main; if (!list.includes(t)) t = list[0];
+  if (!SEA()) { TAB = t; try { sessionStorage.setItem('vm.utTab', t); } catch {} }
+  $('tabs').querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.t === t); b.hidden = !list.includes(b.dataset.t); });
+  for (const k of [...TABS.main, 'sea']) $('t-' + k).hidden = k !== t;
 }
 $('tabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b) setTab(b.dataset.t); };
 const closeModal = () => { $('modal').hidden = true; if (PLAN_DONE) { const f = PLAN_DONE; PLAN_DONE = null; f(null); } }; // closing the plan picker cancels
 $('mx').onclick = closeModal; $('modal').onclick = e => { if (e.target === $('modal')) closeModal(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 function drawAll() {
-  drawHero(); drawLineup(); drawPacks(); drawCols(); drawColl(); drawPlay(); drawBots(); drawSeason(); drawLeaders();
+  drawModebar(); drawHero(); drawLineup(); drawPacks(); drawColl(); drawPlay(); drawBots();
+  if (SEA()) drawSea(); else { drawCols(); drawSeason(); drawLeaders(); }
 }
 async function start() {
   VM.adjust = null; // (set again for the profile that just signed in)
   const me = VM.profile();
   NAME = me ? VM.name() || await fetch('/api/profiles/' + me).then(r => r.json()).then(r => r.profile?.name || '').catch(() => '') : '';
   await load();
-  if (S.me && !S.me.starter) setTab('packs'); else setTab(TAB);
+  if (S.me && !S.me.starter) setTab('packs'); else setTab(SEA() ? 'sea' : TAB);
 }
 start();
 // signing in or out in the 👤 menu

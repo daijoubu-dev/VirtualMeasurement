@@ -47,6 +47,8 @@
     { key: 'ut_tradeup', group: 'Ultimate Team', name: 'Moving up', desc: 'Trade 5 cards up for a better one.', tier: 'bronze' },
     { key: 'ut_collection', group: 'Ultimate Team', name: 'Set collector', desc: 'Turn in a 🏆 legendary team collection.', tier: 'gold' },
     { key: 'ut_collections_5', group: 'Ultimate Team', name: 'Curator', desc: 'Turn in 5 legendary team collections.', tier: 'legendary' },
+    { key: 'sea_track', group: 'Ultimate Team', name: 'Full Season', desc: "Finish a season's milestone track in seasonal mode.", tier: 'platinum' },
+    { key: 'sea_champ', group: 'Ultimate Team', name: 'Season Champion', desc: 'Finish a season of seasonal mode with the best record.', tier: 'legendary' },
     { key: 'ut_collector', group: 'Ultimate Team', name: 'Collector', desc: 'Collect 100 different cards.', tier: 'silver', set: 'ut_cards', goal: 100 },
     { key: 'ut_win', group: 'Ultimate Team', name: 'First W', desc: 'Win an Ultimate Team game.', tier: 'bronze' },
     { key: 'ut_wins_10', group: 'Ultimate Team', name: 'Contender', desc: 'Win 10 Ultimate Team games.', tier: 'silver', counter: 'ut_wins', goal: 10 },
