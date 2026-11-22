@@ -242,7 +242,7 @@
   .bcell > * { direction: ltr; }
   .bcell .none { grid-column: 1 / -1; text-align: center; }
   .md { overflow: hidden; text-overflow: ellipsis; text-align: center; }
-  .md.ghost { opacity: .32; border-style: dashed; filter: grayscale(1); font-weight: 400; font-style: normal; background: none; }
+  .md.ghost { display: none; } /* (what a team doesn't have isn't shown: just its own chips) */
   .md-avg { color: var(--muted); }
   .bcell .none { color: var(--faint); font-size: 12px; }
   .blbl { text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; display: flex; flex-direction: column; justify-content: center; }
@@ -1016,7 +1016,7 @@ const WORD = { pf: 'Points', pass: 'Air yards', rush: 'Ground yards', pass_epa: 
   to_diff: 'Turnovers', pen_yds: 'Discipline', fg_pct: 'Kicking' };
 const MEDAL = { top3: '🥇', great: '🥈', good: '🥉', bad: '🔻', bottom3: '💀' };
 // Every row has a fixed set of slots, the same on both sides and mirrored (slot 1 sits next to the middle on both).
-// A team without something gets an empty "ghost" slot, so the same thing is always in the same spot.
+// A team without something gets a "ghost" slot, which is hidden (CSS), so each side shows only its own chips.
 const slot = (cls, text, tip, ghost = false) => `<span class="md md-${cls}${ghost ? ' ghost' : ''}" data-tip="${esc(tip)}">${text}</span>`;
 const ghost = (text, tip) => slot('plain', text, tip, true);
 // Stat ranks as medals, one slot per stat: 🥇 1–3, 🥈 4–5, 🥉 6–10, · 11–22, 🔻 23–29, 💀 30–32
