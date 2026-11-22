@@ -188,7 +188,7 @@
 <main>
   <header>
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
-    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html" class="on">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">👥 Profiles</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html" class="on">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">⭐ My profile</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
   </header>
 
   <div class="panel" id="hero"></div>
@@ -507,7 +507,7 @@ function drawPlay() {
       : `<button class="btn go" id="enqueue" ${isFull(me) || !me.compErr ? '' : 'disabled'}>📣 Queue up my team</button>
         <label class="balchk" data-tip="<b>⚔ Competitive game</b>Plays your competitive lineup (the 🃏 Lineup tab), against the challenger's. Double points for both teams. Your team is marked ⚔ on the queue."><input type="checkbox" id="competitive" ${me.competitive ? 'checked' : ''} ${me.compErr ? 'disabled' : ''}> ⚔ Competitive (double points)${me.compErr ? ` <span class="muted">· set up your competitive lineup first</span>` : ''}</label>
         <label class="balchk" data-tip="<b>⚖️ Balanced game</b>No game plans for either side: you skip the plan screen, and so does whoever challenges you. Your team is marked ⚖️ on the queue."><input type="checkbox" id="balanced" ${me.balanced ? 'checked' : ''}> ⚖️ Balanced game (no game plans)</label><div class="s">${isFull(me) ? 'Anyone can challenge it. You host (home field), and the game is played the moment they accept.' : 'Fill every spot in your lineup first.'}</div>`}</div>
-    ${others.length ? others.map(q => `<div class="row" data-tip="${tipOf(q)}"><div><div class="t">${sideName(q)}</div><div class="s">${q.competitive ? `${COMP_BADGE} · ` : ''}${q.balanced ? `${BAL_BADGE} · ` : ''}${esc(q.name)} · OVR ${q.ovr} · queued ${ago(q.at)}</div></div>
+    ${others.length ? others.map(q => `<div class="row" data-tip="${tipOf(q)}"><div><div class="t">${sideName(q)}</div><div class="s">${q.competitive ? `${COMP_BADGE} · ` : ''}${q.balanced ? `${BAL_BADGE} · ` : ''}<a href="profiles.html?id=${encodeURIComponent(q.pid)}" data-vmuser="${esc(q.pid)}" style="color:inherit">${esc(q.name)}</a> · OVR ${q.ovr} · queued ${ago(q.at)}</div></div>
       <div class="acts">${me && !canPlay(q) && q.competitive ? '<span class="muted" style="font-size:12px">Needs a competitive lineup</span>' : ''}${me && canPlay(q) ? `<span class="odd" data-tip="<b>Your chances</b>From both lineups' ratings, on the road.">${Math.round(100 * odds(q))}%</span><button class="btn go sm" data-ch="${q.qid}" data-bal="${q.balanced ? 1 : ''}">⚔ Challenge</button>` : ''}</div></div>`).join('')
       : '<p class="empty">No one else is queued right now.</p>'}<div class="err" id="qErr"></div>`;
   if ($('enqueue')) $('enqueue').onclick = async () => {
@@ -726,15 +726,15 @@ function drawLeaders() {
   const rec = B.record.map(r => r.pid === myId && me ? { ...r, w: me.w, l: me.l } : r).filter(r => r.w + r.l);
   const pct = r => (r.w / (r.w + r.l)).toFixed(3).replace(/^0/, '');
   const table = (head, rows) => `<table class="board"><tr>${head.map((h, i) => `<th class="${i > 1 ? 'num' : ''}">${h}</th>`).join('')}</tr>${rows.join('')}</table>`;
-  const who = r => `<b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· <a href="profiles.html?id=${encodeURIComponent(r.pid)}" style="color:inherit">${esc(r.name)}</a></span>`;
+  const who = r => `<b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· <a href="profiles.html?id=${encodeURIComponent(r.pid)}" data-vmuser="${esc(r.pid)}" style="color:inherit">${esc(r.name)}</a></span>`;
   $('bRecord').innerHTML = rec.length ? table(['#', 'Team', 'W-L', 'Pct', '🏆'], rec.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num">${r.w}-${r.l}</td><td class="num">${pct(r)}</td><td class="num" title="Season titles">${r.titles}</td></tr>`))
     : '<p class="empty">No games between players yet.</p>';
   $('bOverall').innerHTML = B.overall.length ? table(['#', 'Team', 'OVR', 'Off', 'Def'], B.overall.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${who(r)}</td><td class="num"><b>${r.ovr}</b></td><td class="num">${r.o}</td><td class="num">${r.d}</td></tr>`))
     : '<p class="empty">No full lineups yet.</p>';
   const card = c => `<b>${esc(c.n)}</b> ${c.s} ${esc(c.t)} <span class="muted">${c.g}</span> <b style="color:${UT.rarityOf(c.gr).color}">${c.gr}</b>${c.gr >= 99 ? ' 🌈 Mythic' : ''}${c.ed ? ` <span class="muted">· ${esc(c.ed)} edition</span>` : ''}`;
-  $('pulls').innerHTML = (S.pulls || []).length ? (S.pulls || []).map(x => `<div class="row"><div><div>${x.card.gr >= 99 ? '🌈' : '👑'} ${card(x.card)}</div><div class="s">${esc(x.name)}${x.pack ? ` · ${esc(x.pack)}` : ''} · ${x.at ? ago(x.at) : 'before the log started'}</div></div></div>`).join('')
+  $('pulls').innerHTML = (S.pulls || []).length ? (S.pulls || []).map(x => `<div class="row"><div><div>${x.card.gr >= 99 ? '🌈' : '👑'} ${card(x.card)}</div><div class="s"><a href="profiles.html?id=${encodeURIComponent(x.pid)}" data-vmuser="${esc(x.pid)}" style="color:inherit">${esc(x.name)}</a>${x.pack ? ` · ${esc(x.pack)}` : ''} · ${x.at ? ago(x.at) : 'before the log started'}</div></div></div>`).join('')
     : '<p class="empty">No Legendary pulls yet. Grade 90+ cards are 3% of a Standard pack.</p>';
-  $('pullers').innerHTML = (S.pullers || []).length ? table(['#', 'Profile', 'Pulls', 'Best'], S.pullers.map((x, i) => `<tr class="${x.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${esc(x.name)}</td><td class="num">${x.n}</td><td class="num">${esc(x.best.n)} ${x.best.gr}</td></tr>`))
+  $('pullers').innerHTML = (S.pullers || []).length ? table(['#', 'Profile', 'Pulls', 'Best'], S.pullers.map((x, i) => `<tr class="${x.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td><a href="profiles.html?id=${encodeURIComponent(x.pid)}" data-vmuser="${esc(x.pid)}" style="color:inherit">${esc(x.name)}</a></td><td class="num">${x.n}</td><td class="num">${esc(x.best.n)} ${x.best.gr}</td></tr>`))
     : '<p class="empty">Nobody yet.</p>';
 }
 

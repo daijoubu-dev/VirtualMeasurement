@@ -45,18 +45,19 @@
 <main>
   <header>
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
-    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html" class="on">👥 Profiles</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html" class="on">⭐ My profile</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
   </header>
   <div id="view"></div>
 </main>
 
 <script>
-// 👥 Profiles: everybody (profiles.html), or one person's page (profiles.html?id=ham): their title, records, a showcase of
-// five cards and their whole collection. On your own page you choose the showcase and your title.
+// ⭐ A player's page (profiles.html?id=ham; without an id, your own): their title, records, a showcase of five cards and
+// their whole collection. On your own page you choose the showcase and your title. Other players' pages open from their
+// names (queues, leaderboards), which also show a hover card (profile.js).
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const UT = window.VM_UT, A = window.VM_ACHIEVEMENTS;
-const id = new URLSearchParams(location.search).get('id');
+let id = new URLSearchParams(location.search).get('id');
 let EDIT = null, FILTER = 'All'; // EDIT: the showcase being chosen ({ cards: [uids], title })
 
 async function art() { // team logos and colors for the cards
@@ -64,19 +65,16 @@ async function art() { // team logos and colors for the cards
 }
 const titleOf = key => { const a = A.isTitle(key) && A.BY_KEY[key]; return a ? `${a.icon} ${a.name}` : ''; }; // titles: the hard achievements
 
-async function everyone() {
-  document.title = 'Profiles · Virtual Measurement';
-  const r = await fetch('/api/profiles').then(r => r.json()).catch(() => null);
-  if (!r?.ok) { $('view').innerHTML = '<p class="panel empty">Profiles need the server: open the site with start.bat.</p>'; return; }
-  $('view').innerHTML = `<div class="panel"><h2>👥 Everybody · ${r.profiles.length}</h2><div class="plist">${r.profiles.map(p => `<a class="pcard" href="profiles.html?id=${encodeURIComponent(p.id)}">
-      <div class="top"><span class="nm">${esc(p.name)}</span><span class="pts">${p.earned.toLocaleString()} pts</span></div>
-      <div class="title">${esc(titleOf(p.title) || 'No title yet')} · ${p.unlocked} achievements</div>
-      <div class="mini">${(p.showcase || []).map(c => VMCards.html(c)).join('')}</div></a>`).join('')}</div></div>`;
+// no id: your own page, once you're signed in
+function yours() {
+  id = window.VM?.profile();
+  if (id) { history.replaceState(null, '', `profiles.html?id=${encodeURIComponent(id)}`); return one(); }
+  $('view').innerHTML = '<p class="panel empty">Sign in with 👤 at the top right to see your profile.</p>';
 }
 
 async function one() {
   const r = await fetch('/api/profiles/' + encodeURIComponent(id)).then(r => r.json()).catch(() => null);
-  if (!r?.ok) { $('view').innerHTML = `<p class="panel empty">${esc(r?.error || "Couldn't load that profile.")} <a href="profiles.html">See everybody</a></p>`; return; }
+  if (!r?.ok) { $('view').innerHTML = `<p class="panel empty">${esc(r?.error || "Couldn't load that profile.")}</p>`; return; }
   const p = r.profile, ut = p.ut || {}, cards = ut.cards || [], mine = window.VM?.profile() === p.id;
   document.title = `${p.name} · Virtual Measurement`;
   const earned = p.ledger.filter(l => l.pts > 0 && !l.sale && !l.refund).reduce((s, l) => s + l.pts, 0);
@@ -94,7 +92,7 @@ async function one() {
   $('view').innerHTML = `
     <div class="panel"><div class="phead"><div><div class="title">${esc(titleOf(title) || (mine && unlocked.some(A.isTitle) ? 'Pick a title below' : ''))}</div><h2>${esc(p.name)}</h2>
       <div class="muted" style="font-size:13px">${ut.team ? `${esc(ut.team.abbr)} · ${esc(ut.team.name)} · ` : ''}joined ${new Date(p.created).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</div></div>
-      <div>${mine && !EDIT ? '<button class="btn go" id="edit">✏️ Edit showcase and title</button>' : ''} <a class="btn" href="profiles.html" style="text-decoration:none">👥 Everybody</a></div></div>
+      <div>${mine && !EDIT ? '<button class="btn go" id="edit">✏️ Edit showcase and title</button>' : ''}</div></div>
       <div class="tiles">
         <div class="tile"><div class="k">Points earned</div><div class="v" style="color:var(--gold)">${earned.toLocaleString()}</div><div class="s">${p.balance.toLocaleString()} to spend</div></div>
         <div class="tile"><div class="k">vs players</div><div class="v">${ut.rec ? `${ut.rec.w}-${ut.rec.l}` : '–'}</div><div class="s">🏆 ${ut.titles || 0} season title${ut.titles === 1 ? '' : 's'}</div></div>
@@ -131,8 +129,8 @@ async function one() {
 (async () => {
   if (!location.protocol.startsWith('http')) { $('view').innerHTML = '<p class="panel empty">Profiles need the server: open the site with start.bat.</p>'; return; }
   await art();
-  id ? one() : everyone();
-  window.addEventListener('vm:profile', () => (id ? one() : everyone()));
+  id ? one() : yours();
+  window.addEventListener('vm:profile', () => (new URLSearchParams(location.search).get('id') && id !== window.VM?.profile() ? one() : yours()));
 })();
 </script>
 <script src="glossary.js"></script>

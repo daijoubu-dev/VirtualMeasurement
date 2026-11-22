@@ -10,6 +10,8 @@
 // ⚙ Per-profile settings (favorite team, the matchup page's stats…) live on the server: VM.pref('fav') reads them right
 // away from this browser's copy, VM.setPref('fav', 'KC') saves them, and a 'vm:prefs' event fires when they change
 // (signing in or out, or the server's copy arriving). Signing in or out also fires 'vm:profile'.
+// 🪪 Any element with data-vmuser="<profile id>" (a player's name on a queue or leaderboard) shows that player's card on
+// hover: title, records and showcase. Clicking the name (a link to profiles.html?id=…) opens their page.
 (function () {
   const API = '/api/profiles', canTrack = location.protocol.startsWith('http');
   const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
@@ -84,7 +86,13 @@
     .vmtoasts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }
     .vmtoast { background: var(--panel); border: 1px solid var(--gold); border-radius: 12px; padding: 10px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); min-width: 260px; animation: vmin .35s ease; }
     .vmtoast .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--gold); font-weight: 700; } .vmtoast .n { font-weight: 800; font-size: 15px; } .vmtoast .d { font-size: 12px; color: var(--muted); }
-    @keyframes vmin { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }`;
+    @keyframes vmin { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+    [data-vmuser] { cursor: pointer; } a[data-vmuser] { text-decoration: none; } a[data-vmuser]:hover { text-decoration: underline; }
+    .vmcard { position: fixed; z-index: 70; width: 300px; max-width: calc(100vw - 16px); background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); pointer-events: none; font-size: 13px; }
+    .vmcard .t { font-size: 11.5px; font-weight: 800; color: var(--gold); } .vmcard .n { font-size: 17px; font-weight: 850; line-height: 1.15; } .vmcard .tm { color: var(--muted); font-size: 12px; }
+    .vmcard .st { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 9px 0; } .vmcard .st div { background: var(--soft); border-radius: 8px; padding: 4px 7px; } .vmcard .st b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; } .vmcard .st span { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .vmcard .sc { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; } .vmcard .sc div { position: relative; aspect-ratio: 4 / 5; border-radius: 8px; border: 2px solid; background: #0b0f18; overflow: hidden; }
+    .vmcard .sc img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; } .vmcard .sc b { position: absolute; left: 3px; top: 1px; color: #fff; font-size: 13px; font-weight: 850; text-shadow: 0 1px 3px #000; }`;
   let box, panelOpen = false, profilesCache = [], pinFor = null, pinErr = '';
   function toast(a) {
     let t = document.querySelector('.vmtoasts'); if (!t) { t = Object.assign(document.createElement('div'), { className: 'vmtoasts' }); document.body.appendChild(t); }
@@ -140,6 +148,31 @@
     window.VM.add('pages', page);
   }
   const page = (location.pathname.split('/').pop() || 'index.html').replace('.html', '') || 'index';
+
+  // ---------- 🪪 the hover card on a player's name ----------
+  const cards = new Map(); let hoverEl = null, hoverTimer = null, pop = null;
+  const getCard = id => { const c = cards.get(id); if (c && Date.now() - c.at < 60e3) return c.p; const p = fetch(`/api/ut/user/${encodeURIComponent(id)}`).then(r => r.json()).then(r => (r.ok ? r.user : null)).catch(() => null); cards.set(id, { at: Date.now(), p }); return p; };
+  function showCard(el, u) {
+    if (!u || hoverEl !== el) return;
+    pop ||= document.body.appendChild(Object.assign(document.createElement('div'), { className: 'vmcard' }));
+    const rec = (r, t) => `<div><b>${r.w}-${r.l}</b><span>${t}</span></div>`;
+    pop.innerHTML = `${u.title ? `<div class="t">${esc(u.title)}</div>` : ''}<div class="n">${esc(u.name)}</div><div class="tm">${esc(u.team?.abbr || '')} · ${esc(u.team?.name || '')} · ${u.earned.toLocaleString()} pts earned</div>
+      <div class="st">${rec(u.rec, 'vs players')}${rec(u.bot, 'vs bots')}${rec(u.pickem, "pick'em")}</div>
+      <div class="sc">${u.showcase.map(c => `<div style="border-color:${esc(c.color)}" title="${esc(c.n)}">${c.pic ? `<img src="${esc(c.pic)}" alt="" onerror="this.remove()">` : ''}<b>${c.gr}</b></div>`).join('')}</div>`;
+    pop.hidden = false;
+    const r = el.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+    pop.style.top = (r.bottom + 8 + h > innerHeight ? Math.max(8, r.top - h - 8) : r.bottom + 8) + 'px';
+  }
+  const hideCard = () => { clearTimeout(hoverTimer); hoverEl = null; if (pop) pop.hidden = true; };
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest?.('[data-vmuser]');
+    if (el === hoverEl) return;
+    hideCard(); if (!el || !canTrack) return;
+    hoverEl = el;
+    hoverTimer = setTimeout(async () => showCard(el, await getCard(el.dataset.vmuser)), 220);
+  });
+  window.addEventListener('scroll', hideCard, { passive: true });
   function init() {
     if (!canTrack) return;
     const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);

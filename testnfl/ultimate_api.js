@@ -101,6 +101,18 @@ function boards() {
     overall: rows.filter(r => r.full).sort((a, b) => b.ovr - a.ovr || b.o - a.o),
   };
 }
+// what the hover popup on a player's name shows: title, records, points and their showcase (pictures included)
+function userCard(id) {
+  const p = profiles.load(id); if (!p) throw new Error('No such profile.');
+  const ut = utOf(p), byU = new Map(ut.cards.map(c => [c.u, c])), ACH = require('./app/achievements.js');
+  const chosen = (p.showcase?.cards || []).map(u => byU.get(u)).filter(Boolean), show = chosen.length ? chosen : ut.cards.slice().sort((a, b) => b.gr - a.gr).slice(0, 5);
+  pools(); const title = ACH.isTitle(p.showcase?.title) ? ACH.BY_KEY[p.showcase.title] : null;
+  const bot = Object.values(ut.bot.rec).reduce((s, x) => ({ w: s.w + x.w, l: s.l + x.l }), { w: 0, l: 0 });
+  const picks = Object.values(p.pickem?.[Object.keys(p.pickem || {}).sort().pop()] || {}).filter(x => x.res);
+  return { id: p.id, name: p.name, title: title ? `${title.icon} ${title.name}` : '', team: ut.team, earned: profiles.earnedOf(p), rec: ut.rec, bot, titles: ut.titles,
+    pickem: { w: picks.filter(x => x.res === 'W').length, l: picks.filter(x => x.res === 'L').length }, achievements: Object.keys(p.achievements).length,
+    showcase: show.map(c => ({ n: c.n, gr: c.gr, g: c.g, color: UT.rarityOf(c.gr).color, pic: UT.photos(c, LOGOS)[0] || '' })) };
+}
 function need(id) { const p = profiles.load(id); if (!p) throw new Error('No such profile.'); utOf(p); return p; }
 
 // the best lineup from a collection: the highest grade at every spot, one card per player
@@ -324,12 +336,14 @@ const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, wi
 //   GET  /api/ut/<id>                the same, plus that profile's team, cards and lineup
 //   GET  /api/ut/game/<game id>      one game in full (to replay it)
 //   GET  /api/ut/art                 team logos and colors for drawing cards
+//   GET  /api/ut/user/<profile id>   a player's name, title, records and showcase, for the hover popup on their name
 //   POST /api/ut/<id>/<action>       team {name, abbr} · daily · open {pack} · lineup {lineup | 'best'} · sell {uids} · tradeup {uids}
 //                                    queue {cancel?, tactics, balanced?} · challenge {qid, tactics} · seen {gid} · bot {level, tactics} · season {team}
 //                                    teampack {id} · collect {id}        (tactics = { off, def, tempo }, see UT.TACTICS)
 function handle(req, url, body) {
   const [, , , a, b] = url.split('/'); // '', 'api', 'ut', a, b
   if (req.method === 'GET') {
+    if (a === 'user') return { user: userCard(b) }; // the hover popup on a player's name
     if (a === 'art') return { logos: (pools(), LOGOS), colors: COLORS }; // the cards' team logos and colors (the profile pages)
     if (a === 'game') { const g = /^[a-z0-9]{1,32}$/.test(b) && readJson(path.join(GDIR, b + '.json'), null); if (!g) throw new Error('No such game.'); return { game: g }; }
     const P = pulls(), who = {};

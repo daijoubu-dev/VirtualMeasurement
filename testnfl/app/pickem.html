@@ -56,7 +56,7 @@
 <main>
   <header>
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
-    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html" class="on">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">👥 Profiles</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
+    <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html" class="on">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html">⭐ My profile</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
   </header>
 
   <div class="panel phero">
@@ -120,7 +120,7 @@ function draw() {
     html += `<div class="gm ${x.mine ? 'picked' : ''}">${side(x.away)}${side(x.home)}<div class="meta"><span>${status}</span>${x.line === null ? '<span>No line yet</span>' : ''}${stake}${res}${crowd}</div></div>`;
   }
   $('games').innerHTML = html || '<p class="panel empty">No games this week.</p>';
-  $('board').innerHTML = P.board.length ? `<table class="board"><tr><th>#</th><th>Player</th><th>W-L-P</th><th>Week</th><th>Points</th></tr>${P.board.map((r, n) => `<tr class="${r.pid === me ? 'me' : ''}"><td>${n + 1}</td><td><a href="profiles.html?id=${encodeURIComponent(r.pid)}" style="color:inherit">${esc(r.name)}</a></td><td>${r.w}-${r.l}${r.p ? '-' + r.p : ''}</td><td>${r.ww}-${r.wl}</td><td class="${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}">${r.net > 0 ? '+' : ''}${r.net}</td></tr>`).join('')}</table>`
+  $('board').innerHTML = P.board.length ? `<table class="board"><tr><th>#</th><th>Player</th><th>W-L-P</th><th>Week</th><th>Points</th></tr>${P.board.map((r, n) => `<tr class="${r.pid === me ? 'me' : ''}"><td>${n + 1}</td><td><a href="profiles.html?id=${encodeURIComponent(r.pid)}" data-vmuser="${esc(r.pid)}" style="color:inherit">${esc(r.name)}</a></td><td>${r.w}-${r.l}${r.p ? '-' + r.p : ''}</td><td>${r.ww}-${r.wl}</td><td class="${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}">${r.net > 0 ? '+' : ''}${r.net}</td></tr>`).join('')}</table>`
     : '<p class="empty">No settled picks yet this season.</p>';
 }
 async function send(game, team, stake) {
