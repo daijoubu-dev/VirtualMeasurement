@@ -103,7 +103,7 @@ function draw() {
   $('tiles').innerHTML = me ? `<div class="tile"><div class="k">This week</div><div class="v">${w}-${l}</div></div><div class="tile"><div class="k">At stake</div><div class="v">${atStake}</div></div>
     <div class="tile"><div class="k">Won this week</div><div class="v ${won > 0 ? 'pos' : won < 0 ? 'neg' : ''}">${won > 0 ? '+' : ''}${won}</div></div><div class="tile"><div class="k">Your points</div><div class="v gold">${(P.balance ?? 0).toLocaleString()}</div></div>`
     : '<div class="tile"><div class="k">Sign in</div><div class="v" style="font-size:14px">👤 top right to pick</div></div>';
-  $('rules').innerHTML = `Pick each game against the spread. A right pick pays <b>${P.base} points</b> for free, and you can stake as many points as you like on top: a win pays the stake back doubled, a push gives it back, a loss keeps it. <b>Locking in is final.</b> Once you have, you'll see everyone else's pick on that game.`;
+  $('rules').innerHTML = `Pick each game against the spread. A right pick pays <b>${P.base} points</b> for free (plus <b>${P.coins} 🪙 coins</b> for your Ultimate Team season), and you can stake as many points as you like on top: a win pays the stake back doubled, a push gives it back, a loss keeps it. <b>Locking in is final.</b> Once you have, you'll see everyone else's pick on that game.`;
   // the games, by day
   let html = '', lastDay = '';
   for (const x of g) {
@@ -112,7 +112,7 @@ function draw() {
     const side = t => { const on = x.mine ? x.mine.team === t : SEL[x.id] === t, score = x.state === 'final' ? (t === x.home ? x.hs : x.as) : lv && lv.state !== 'pre' ? (t === x.home ? lv.home.score : lv.away.score) : null;
       return `<button type="button" class="side ${on ? 'on' : ''}" style="--tc:${esc(P.teams[t]?.color || 'var(--accent)')}" data-g="${x.id}" data-t="${t}" ${canPick ? '' : 'disabled'} aria-pressed="${on}">
         ${logo(t)}<span class="who"><span class="ab">${t}</span><div class="nm">${esc(P.teams[t]?.name || '')}</div></span>${score !== null ? `<span class="sc">${score}</span>` : `<span class="ln">${lineFor(t, x, x.mine ? x.mine.line : x.line)}</span>`}</button>`; };
-    const res = x.mine?.res ? `<span class="res ${x.mine.res}">${{ W: '✓ Right', L: '✗ Wrong', P: '– Push' }[x.mine.res]} · ${x.mine.res === 'L' ? (x.mine.stake ? `−${x.mine.stake}` : '0') : `+${(x.mine.paid || 0) - (x.mine.res === 'P' ? x.mine.stake : 0) - (x.mine.res === 'W' ? x.mine.stake : 0)}`}</span>` : '';
+    const res = x.mine?.res ? `<span class="res ${x.mine.res}">${{ W: '✓ Right', L: '✗ Wrong', P: '– Push' }[x.mine.res]} · ${x.mine.res === 'L' ? (x.mine.stake ? `−${x.mine.stake}` : '0') : `+${(x.mine.paid || 0) - (x.mine.res === 'P' ? x.mine.stake : 0) - (x.mine.res === 'W' ? x.mine.stake : 0)}${x.mine.coins ? ` · +${x.mine.coins} 🪙` : ''}`}</span>` : '';
     const status = x.state === 'final' ? 'Final' : lv?.state === 'in' ? `<span class="live">● ${esc(lv.detail)}</span>` : x.state === 'locked' ? 'Locked' : when(x.kick);
     const crowd = x.crowd?.length ? `<span class="crowd">${[x.away, x.home].map(t => `${x.crowd.filter(c => c.team === t).length} on ${t}`).join(' · ')}</span>` : '';
     const stake = canPick ? `<div class="lockrow"><input type="number" min="0" step="1" inputmode="numeric" placeholder="Stake" data-stake="${x.id}" aria-label="Stake (points)"><button type="button" class="lockbtn" data-lock="${x.id}" ${SEL[x.id] ? '' : 'disabled'}>🔒 Lock in</button></div>`

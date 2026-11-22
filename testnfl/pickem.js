@@ -1,5 +1,6 @@
 // 🎯 Pick'em: pick every game of the week against the spread.
-// A correct pick pays BASE points for free. You can also stake any number of points on a pick: the stake comes off your
+// A correct pick pays BASE points for free, plus SEASON_COINS 🪙 coins for the current Ultimate Team season (a small
+// edge in seasonal mode for good pickers). You can also stake any number of points on a pick: the stake comes off your
 // balance when you lock in (so nobody ends up below zero), a win pays it back doubled, a push gives it back, and a loss
 // keeps it. A pick is final once it's locked in: no changes, and the line at that moment is the one that counts. Locking
 // in a game shows everyone else's picks on it (before kickoff, only to people who've locked in that game themselves).
@@ -11,7 +12,7 @@ const path = require('path');
 const profiles = require('./profiles');
 const { currentSeason } = require('./fetch');
 
-const BASE = 100;
+const BASE = 100, SEASON_COINS = 25;
 const ROUND = { WC: 'Wild Card', DIV: 'Divisional round', CON: 'Conference Championships', SB: 'Super Bowl' };
 const RAW = path.join(__dirname, 'data', 'raw');
 
@@ -73,6 +74,7 @@ function settle() {
         if (pk.stake) { profiles.credit(p, pk.stake, `Pick'em: stake back, ${label}`, { refund: true }); profiles.credit(p, pk.stake, `Pick'em: stake won, ${label}`); }
         profiles.credit(p, BASE, `Pick'em: correct pick, ${label}`, { boost: true });
         pk.paid = BASE + 2 * (pk.stake || 0);
+        pk.coins = require('./ultimate_api').seasonCoins(p, SEASON_COINS); // (required here: ultimate_api loads after this file)
         p.counters.pe_wins = (p.counters.pe_wins || 0) + 1;
         if (pk.stake >= 250) profiles.award(p, 'pe_big', unlocked);
       } else if (pk.res === 'P' && pk.stake) { profiles.credit(p, pk.stake, `Pick'em: push, stake back, ${label}`, { refund: true }); pk.paid = pk.stake; }
@@ -114,7 +116,7 @@ function view(pid, authed, wantWeek) {
     return { pid: p.id, name: p.name, w: n('W'), l: n('L'), p: n('P'), net: done.reduce((s, [, x]) => s + (x.paid || 0) - (x.stake || 0), 0),
       ww: inWeek.filter(([, x]) => x.res === 'W').length, wl: inWeek.filter(([, x]) => x.res === 'L').length };
   }).filter(r => r.w + r.l + r.p > 0).sort((a, b) => b.net - a.net || b.w - a.w || a.l - b.l);
-  return { season: currentSeason(), week, label: wk[0]?.label || `Week ${week}`, weeks, games: out, board, base: BASE, teams: TEAMS, balance: me?.balance ?? null };
+  return { season: currentSeason(), week, label: wk[0]?.label || `Week ${week}`, weeks, games: out, board, base: BASE, coins: SEASON_COINS, teams: TEAMS, balance: me?.balance ?? null };
 }
 
 // locking in a pick: { game, team, stake (any whole number of points, 0 for none) }. It can't be changed afterwards.

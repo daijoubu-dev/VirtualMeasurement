@@ -530,4 +530,6 @@ function handle(req, url, body) {
   }
   throw new Error('Unknown Ultimate Team request.');
 }
-module.exports = { handle, finalizeSeasons };
+// 🎯 season coins from outside Ultimate Team (a right pick'em pick): into this season's section, if a season is on
+function seasonCoins(p, n) { const sea = seaOf(p); if (!sea) return 0; sea.coins += n; return n; }
+module.exports = { handle, finalizeSeasons, seasonCoins };
