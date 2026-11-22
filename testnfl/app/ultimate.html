@@ -205,6 +205,14 @@
   .mres .t { font-weight: 800; font-size: 15px; } .mres .s { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
   .mres.good { border-color: #16a34a; background: color-mix(in srgb, #16a34a 12%, transparent); } .mres.bad { border-color: #dc2626; background: color-mix(in srgb, #dc2626 10%, transparent); }
   .recap { max-width: 760px; margin: 12px auto 0; font-size: 13px; } .recap div { padding: 3px 0; border-top: 1px solid var(--border); }
+  .mread { margin: -4px 0 10px; padding: 7px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-size: 13.5px; }
+  /* 🤝 trades and 🏪 the market */
+  .trow { display: flex; gap: 14px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border); } .trow .tx { flex: 1; min-width: 0; font-size: 14px; } .trow .s { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .mini { width: 112px; flex: none; } .tcards { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .lst .lp { font-weight: 850; color: var(--gold); margin-top: 6px; } .lst .s { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .ownbtn { display: block; width: 100%; margin-top: 5px; font-size: 11.5px; padding: 3px 4px; }
+  .pickrow { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; } .pickrow input[type=radio] { width: 16px; height: 16px; }
+  .card.sel { outline: 3px solid var(--gold); outline-offset: 2px; }
   .filters { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 </style>
 </head>
@@ -217,7 +225,7 @@
 
   <div class="modebar" id="modebar"></div>
   <div class="panel" id="hero"></div>
-  <div class="tabs"><div class="seg" id="tabs"><button data-t="sea">🗓️ Season</button><button data-t="play" class="on">⚔ Play</button><button data-t="bots">🤖 Bots</button><button data-t="season">📅 Schedule</button><button data-t="lineup">🃏 Lineup</button><button data-t="packs">📦 Packs</button><button data-t="cols">🏆 Collections</button><button data-t="coll">🗂 Cards</button><button data-t="leaders">🏅 Leaders</button></div></div>
+  <div class="tabs"><div class="seg" id="tabs"><button data-t="sea">🗓️ Season</button><button data-t="play" class="on">⚔ Play</button><button data-t="bots">🤖 Bots</button><button data-t="season">📅 Schedule</button><button data-t="lineup">🃏 Lineup</button><button data-t="packs">📦 Packs</button><button data-t="cols">🏆 Collections</button><button data-t="coll">🗂 Cards</button><button data-t="market">🤝 Market</button><button data-t="leaders">🏅 Leaders</button></div></div>
 
   <div class="panel" id="game" hidden></div>
   <section id="t-play">
@@ -232,6 +240,7 @@
   <section id="t-packs" hidden><div class="panel" id="packs"></div></section>
   <section id="t-cols" hidden><div class="panel" id="cols"></div></section>
   <section id="t-coll" hidden><div class="panel" id="coll"></div></section>
+  <section id="t-market" hidden><div class="panel" id="market"></div></section>
   <section id="t-bots" hidden><div class="panel" id="bots"></div></section>
   <section id="t-season" hidden><div class="panel" id="season"></div><div class="panel" id="seasonHist"></div></section>
   <section id="t-leaders" hidden>
@@ -274,7 +283,7 @@ async function load() {
   const r = await fetch((me ? `${API}/${me}` : API) + (qs ? '?' + qs : '')).then(r => r.json()).catch(() => null);
   if (!r?.ok) { if (me) { S = { ...S, me: null, queue: [], games: [] }; drawAll(); } return; }
   if (SEA() && !r.seasonInfo?.n) { MODE = 'main'; return load(); } // no season on yet
-  S = lite ? { ...r, collections: S.collections, logos: S.logos, colors: S.colors, teams: S.teams } : r;
+  S = lite ? { ...r, collections: S.collections, logos: S.logos, colors: S.colors, teams: S.teams, owners: S.owners } : r;
   VMCards.logos = S.logos || {}; VMCards.colors = S.colors || {}; // team logos and colors for the cards
   drawAll();
 }
@@ -414,7 +423,7 @@ function drawPacks() {
       : !me.staff ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.staff.icon}</div><b>New: ${UT.PACKS.staff.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.staff.desc} Coaches and stadiums now have their own spots on the sideline.</div><button class="btn go" data-open="staff">Open it</button></div>` : ''}
     <div class="packs">${(me.packs || ['standard', 'premium', 'legend']).map(k => { const p = UT.PACKS[k]; return `<div class="pack"><div class="ic">${p.icon}</div><div class="nm">${p.name}</div><div class="pr">${p.price.toLocaleString()} ${cur}</div><div class="d">${p.desc}</div>${odds(p.odds || UT.PACKS.standard.odds)}
       <button class="btn ${me.balance >= p.price ? 'go' : ''}" data-open="${k}" ${me.balance < p.price ? 'disabled' : ''}>${me.balance >= p.price ? 'Open' : `Need ${(p.price - me.balance).toLocaleString()} more`}</button></div>`; }).join('')}</div>
-    ${SEA() ? `<p class="note">Seasonal mode: everyone starts from the same free starter pack and ${UT.SEASON.coins} coins. Coins come from games (+${UT.SEASON.win} a win, +${UT.SEASON.loss} a loss against players, more for beating bots), ${UT.SEASON.daily} free a day and 25 for every right 🎯 Pick'em pick. Season cards and coins are gone when the season ends; the milestone rewards are permanent.</p>` : ''}
+    ${SEA() ? `<p class="note">Seasonal mode: everyone starts from the same free starter pack and ${UT.SEASON.coins} coins. Coins come from games (+${UT.SEASON.win} a win, +${UT.SEASON.loss} a loss against players, more for beating bots), ${UT.SEASON.daily} free a day and 50 for every right 🎯 Pick'em pick. Season cards and coins are gone when the season ends; the milestone rewards are permanent.</p>` : ''}
     <p class="note" ${SEA() ? 'hidden' : ''}>Rarity goes by grade (how good that season was, like 17-0): Common under 60, Rare 60–79, Epic 80–89, Legendary 90–98 and <b style="color:${UT.RARITY[4].color}">Mythic 99</b>, the best seasons ever. Every position comes up as often as it's in the lineup (coaches and stadiums too). Team packs for the 🏆 legendary teams are in Collections. Points come from 🏆 achievements, games (+${UT.REWARD.win} a win, +${UT.REWARD.loss} a loss) and ${UT.DAILY} free a day.</p>`;
   $('packs').querySelectorAll('[data-open]').forEach(b => (b.onclick = () => openPack(b.dataset.open)));
 }
@@ -506,11 +515,15 @@ function drawCols() {
         <div class="acts2">${fin ? `<b style="color:var(--gold)">✓ Turned in ${ago(fin)}</b>` : `<button class="btn go" data-collect="${col.id}" ${full ? '' : 'disabled'}>🏆 Turn in</button>`}
           <button class="btn" data-tpack="${col.id}" ${me.balance >= UT.TEAM_PACK.price ? '' : 'disabled'}>${UT.TEAM_PACK.icon} Team pack · ${UT.TEAM_PACK.price}</button></div></div>
         <div class="prog"><div style="width:${100 * k / col.cards.length}%"></div></div><div class="s muted" style="font-size:12px"><button class="edit" data-opencol="${col.id}" style="padding:0;margin-right:6px">${OPENCOL.has(col.id) ? '▾ Hide cards' : '▸ Show cards'}</button>${fin ? 'Complete' : `${k} of ${col.cards.length} cards`}</div>
-        ${OPENCOL.has(col.id) ? `<div class="cards">${col.cards.map(c => cardHtml(c, { cls: got(c) || fin ? '' : 'missing' })).join('')}
+        ${OPENCOL.has(col.id) ? `<div class="cards">${col.cards.map(c => { const own = !got(c) && !fin ? (S.owners?.[UT.baseKey(c.k)] || []) : []; return `<div>${cardHtml(c, { cls: got(c) || fin ? '' : 'missing' })}${own.length ? `<button class="btn sm ownbtn" data-ask="${esc(UT.baseKey(c.k))}" data-askcol="${col.id}">🤝 ${own.length === 1 ? `${esc(own[0].name)} has it` : `${own.length} players have it`}</button>` : ''}</div>`; }).join('')}
           <div title="The reward">${cardHtml(col.edition, { cls: fin ? '' : 'missing' })}</div></div>` : ''}</div>`; }).join('') || '<p class="empty">No collections yet.</p>'}</div>
     <div class="err" id="colErr"></div>`;
   $('colseg').querySelectorAll('[data-cf]').forEach(b => (b.onclick = () => { COLF = b.dataset.cf; drawCols(); }));
   $('cols').querySelectorAll('[data-opencol]').forEach(b => (b.onclick = () => { const id = b.dataset.opencol; OPENCOL.has(id) ? OPENCOL.delete(id) : OPENCOL.add(id); drawCols(); }));
+  $('cols').querySelectorAll('[data-ask]').forEach(b => (b.onclick = () => {
+    const col = cols.find(c => c.id === b.dataset.askcol), card = col.cards.find(c => UT.baseKey(c.k) === b.dataset.ask);
+    askTrade(card, S.owners[b.dataset.ask] || []);
+  }));
   $('cols').querySelectorAll('[data-tpack]').forEach(b => (b.onclick = async () => {
     const col = cols.find(c => c.id === b.dataset.tpack), r = await act('teampack', { id: col.id }, $('colErr'));
     if (r) { OPENCOL.add(col.id); revealCards({ icon: UT.TEAM_PACK.icon, name: `${col.name} pack` }, r.cards); }
@@ -678,7 +691,7 @@ function finalHtml(g) {
     <div class="s">⭐ Player of the game: ${esc(g.mvp.name)} (${esc(g.mvp.line)})${g.comeback ? ` · came back from ${g.comeback} down` : ''}</div>
     ${you ? `<div class="s" style="margin-top:4px;font-weight:700;color:var(--text)">${you}</div>` : ''}</div>
     ${mine && g.reward?.[mine] ? `<div style="max-width:190px;margin:10px auto 0;text-align:left"><div class="boxh">🎁 Your card for playing</div>${cardHtml(g.reward[mine])}</div>` : ''}
-    ${g.moments ? `<div class="recap"><h3 class="boxh">🎮 Your calls</h3>${g.moments.map(x => `<div><b>Q${x.q} ${clock(x.t)} ${esc(UT.MOMENTS[x.kind].name)}</b> · ${x.vs ? `${esc(x.vs)} (${x.odds}%)` : 'Punted'} · <span class="muted">${esc(x.text)}</span></div>`).join('')}</div>` : ''}
+    ${g.moments ? `<div class="recap"><h3 class="boxh">🎮 Your calls</h3>${g.moments.map(x => `<div><b>Q${x.q} ${clock(x.t)} ${esc(UT.MOMENTS[x.kind].name)}</b> · ${x.vs ? `${esc(x.vs)} (${x.odds}%)` : 'Punted'}${x.read ? ` · 🔎 read ${x.readOk ? 'right' : 'wrong'}` : ''} · <span class="muted">${esc(x.text)}</span></div>`).join('')}</div>` : ''}
     ${edgesHtml(g)}`;
 }
 function boxHtml(g) {
@@ -786,6 +799,7 @@ function showLive(L, res = null) {
     const you = L.h - L.a, sit = you > 0 ? `You're up ${L.h}-${L.a}` : you < 0 ? `You're down ${L.a}-${L.h}` : `Tied ${L.h}-${L.a}`;
     $('moment').innerHTML = `<div class="moment"><div class="mh"><span class="mq">Q${m.q} ${clock(m.t)}</span><b>${m.side === 'off' ? '🏈' : '🛡️'} ${esc(m.name)}</b><span>${esc(m.text)}</span></div>
       <div class="ms">${sit}. ${m.side === 'off' ? 'Your ball: pick the play.' : 'Their ball: pick the defense.'} The bot's call is hidden; the % is your chance against a random one.</div>
+      ${m.read ? `<div class="mread">🔎 Pre-snap read: <b>${esc(m.read.look)}</b> <span class="muted">· ${esc(m.read.by)} reads it right about ${m.read.odds}% of the time</span></div>` : ''}
       <div class="calls">${m.calls.map(c => { const x = callInfo(L, c); return `<button class="callb" data-call="${c}"><b>${x.icon} ${esc(x.name)}</b>${x.p != null ? `<div class="p">${Math.round(100 * x.p)}%</div>` : ''}<span>${esc(x.sub)}</span></button>`; }).join('')}</div></div>`;
     $('moment').querySelectorAll('[data-call]').forEach(b => (b.onclick = () => call({ call: b.dataset.call })));
   }
@@ -871,6 +885,99 @@ function drawSea() {
       <table class="board"><tr><th>#</th><th>Team</th><th class="num">W-L</th><th class="num">XP</th></tr>${L.top.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r.team)} <span class="muted">· ${esc(r.name)}</span></td><td class="num">${r.w}-${r.l}</td><td class="num">${r.xp.toLocaleString()}</td></tr>`).join('')}</table>` : ''}`;
 }
 
+// ---------- 🤝 trade offers and 🏪 the marketplace (the permanent collection only) ----------
+const mini = c => `<div class="mini">${cardHtml(c)}</div>`;
+const whoLink = (pid, name) => `<a href="profiles.html?id=${encodeURIComponent(pid)}" data-vmuser="${esc(pid)}" style="color:inherit"><b>${esc(name)}</b></a>`;
+const ptsB = n => `<b style="color:var(--gold)">${n.toLocaleString()} points</b>`;
+// trades waiting on you: requests for your cards, and answers to your requests
+const tradeTodo = () => { const id = VM.profile(); return (S.trades || []).filter(t => (t.to.pid === id && t.status === 'open') || (t.from.pid === id && t.status === 'countered')).length; };
+function drawMarket() {
+  const me = S.me, myId = VM.profile(), T = S.trades || [], M = S.market || [], todo = tradeTodo();
+  const tab = $('tabs').querySelector('[data-t="market"]'); tab.textContent = `🤝 Market${todo ? ` (${todo})` : ''}`;
+  if (!me) { $('market').innerHTML = '<p class="empty">Sign in to trade and use the market.</p>'; return; }
+  const gets = t => [...(t.askCards || []).map(c => esc(c.n)), t.ask?.pts ? ptsB(t.ask.pts) : ''].filter(Boolean).join(' + ');
+  const Bt = (act, id, label, go = '') => `<button class="btn sm ${go}" data-tact="${act}" data-tid="${id}">${label}</button>`;
+  const row = (t, text, btns) => `<div class="trow">${mini(t.wantCard)}<div class="tx"><div>${text}</div>${t.status === 'countered' && t.askCards?.length ? `<div class="tcards">${t.askCards.map(mini).join('')}</div>` : ''}<div class="s">${ago(t.upd || t.at)}</div>${btns ? `<div class="bar2" style="justify-content:flex-start;margin:6px 0 0">${btns}</div>` : ''}</div></div>`;
+  const inbox = T.filter(t => t.to.pid === myId && t.status === 'open').map(t => row(t, `${whoLink(t.from.pid, t.from.name)} wants your <b>${esc(t.wantCard.n)}</b>${t.offer ? ` and offers ${ptsB(t.offer)}` : ''}.`,
+    `${t.offer ? Bt('accept', t.id, `✓ Sell it for ${t.offer.toLocaleString()}`, 'go') : ''}<button class="btn sm ${t.offer ? '' : 'go'}" data-counter="${t.id}">🃏 Pick what you want from their cards${t.offer ? '' : ' / points'}</button>${Bt('decline', t.id, '✕ Decline')}`));
+  const answers = T.filter(t => t.from.pid === myId && t.status === 'countered').map(t => row(t, `${whoLink(t.to.pid, t.to.name)} will trade you <b>${esc(t.wantCard.n)}</b> for ${gets(t)}.`, `${Bt('accept', t.id, '✓ Accept the trade', 'go')}${Bt('decline', t.id, '✕ No thanks')}`));
+  const waiting = T.filter(t => (t.from.pid === myId && t.status === 'open') || (t.to.pid === myId && t.status === 'countered')).map(t => t.from.pid === myId
+    ? row(t, `You asked ${whoLink(t.to.pid, t.to.name)} for <b>${esc(t.wantCard.n)}</b>${t.offer ? `, offering ${ptsB(t.offer)}` : ''}. Waiting on them.`, Bt('cancel', t.id, 'Withdraw'))
+    : row(t, `You asked ${whoLink(t.from.pid, t.from.name)} for ${gets(t)} for your <b>${esc(t.wantCard.n)}</b>. Waiting on them.`, Bt('decline', t.id, 'Withdraw')));
+  const past = T.filter(t => !['open', 'countered'].includes(t.status)).slice(0, 8).map(t => `<div class="row"><div><div class="t">${{ done: '✅ Traded', declined: '✕ Declined', cancelled: '✕ Withdrawn' }[t.status]}: ${esc(t.wantCard.n)} from ${esc(t.to.name)} to ${esc(t.from.name)}${t.status === 'done' ? ` for ${[...(t.got?.cards || []).map(c => esc(c.n)), t.got?.pts ? `${t.got.pts.toLocaleString()} points` : ''].filter(Boolean).join(' + ')}` : ''}</div><div class="s">${ago(t.upd || t.at)}</div></div></div>`);
+  const lst = x => `<div class="lst">${cardHtml(x.card)}<div class="lp">${x.price.toLocaleString()} pts</div><div class="s">${whoLink(x.pid, x.name)} · ${ago(x.at)}</div>${x.pid === myId ? `<button class="btn sm" data-unlist="${x.id}">Take it back</button>` : `<button class="btn sm ${me.balance >= x.price ? 'go' : ''}" data-buy="${x.id}" ${me.balance >= x.price ? '' : 'disabled'}>Buy</button>`}</div>`;
+  $('market').innerHTML = `<h2>🤝 Trades</h2>
+    <p class="muted" style="text-align:center;margin:0 0 8px;font-size:13px">Ask for someone's card from 🏆 Collections ("🤝 … has it") or their profile's collection, with points if you like. They can take the points, or pick the cards (and points) they want from your collection for it, and you accept or not. Cards in a lineup can't change hands.</p>
+    ${inbox.length || answers.length ? `<h3 class="boxh" style="text-align:left">Waiting on you</h3>${answers.join('')}${inbox.join('')}` : '<p class="empty">No trades waiting on you.</p>'}
+    ${waiting.length ? `<h3 class="boxh" style="text-align:left;margin-top:12px">Waiting on them</h3>${waiting.join('')}` : ''}
+    ${past.length ? `<h3 class="boxh" style="text-align:left;margin-top:12px">Recent</h3>${past.join('')}` : ''}
+    <div class="err" id="tradeErr"></div>
+    <h2 style="margin-top:20px">🏪 Marketplace</h2>
+    <p class="muted" style="text-align:center;margin:0 0 8px;font-size:13px">Legendary and Mythic cards for points. A listed card leaves your collection until it sells or you take it back. You have ${ptsB(me.balance)}.</p>
+    <div class="bar2" style="margin:0 0 10px"><button class="btn go" id="listCard">➕ List a card</button></div>
+    ${M.length ? `<div class="cards">${[...M.filter(x => x.pid !== myId), ...M.filter(x => x.pid === myId)].map(lst).join('')}</div>` : '<p class="empty">Nothing on the market yet.</p>'}
+    <div class="err" id="mktErr"></div>
+    ${S.news?.length ? `<h3 class="boxh" style="text-align:left;margin-top:16px">📰 Your news</h3>${S.news.slice(0, 8).map(n => `<div class="row"><div><div>${esc(n.text)}</div><div class="s">${ago(n.at)}</div></div></div>`).join('')}` : ''}`;
+  $('market').querySelectorAll('[data-tact]').forEach(b => (b.onclick = async () => {
+    const t = T.find(x => x.id === b.dataset.tid);
+    if (b.dataset.tact === 'accept' && !confirm(t.from.pid === myId ? `Trade ${[...(t.askCards || []).map(c => c.n), t.ask?.pts ? `${t.ask.pts} points` : ''].filter(Boolean).join(' + ')} for ${t.wantCard.n}?` : `Sell ${t.wantCard.n} to ${t.from.name} for ${t.offer} points?`)) return;
+    b.disabled = true;
+    const r = await act('tradeact', { id: b.dataset.tid, act: b.dataset.tact }, $('tradeErr'));
+    if (r) load(); else b.disabled = false;
+  }));
+  $('market').querySelectorAll('[data-counter]').forEach(b => (b.onclick = () => counterTrade(T.find(x => x.id === b.dataset.counter))));
+  $('market').querySelectorAll('[data-buy]').forEach(b => (b.onclick = async () => {
+    const x = M.find(l => l.id === b.dataset.buy);
+    if (!confirm(`Buy ${x.card.n} (${x.card.s}, ${x.card.gr}) from ${x.name} for ${x.price.toLocaleString()} points?`)) return;
+    const r = await act('buy', { id: x.id }, $('mktErr')); if (r) { revealCards({ icon: '🏪', name: `Bought from ${x.name}` }, r.cards); load(); }
+  }));
+  $('market').querySelectorAll('[data-unlist]').forEach(b => (b.onclick = async () => { if (await act('unlist', { id: b.dataset.unlist }, $('mktErr'))) load(); }));
+  $('listCard').onclick = listCard;
+}
+// 🏪 pick a Legendary or Mythic (not in a lineup) and a price
+function listCard() {
+  const me = S.me, held = heldIds(me), ok = me.cards.filter(c => UT.rarityOf(c.gr).min >= 90 && !held.has(c.u)).sort((a, b) => b.gr - a.gr);
+  $('mbody').innerHTML = `<h2 style="margin:0 0 4px">➕ List a card</h2><p class="muted" style="font-size:13px;margin:0 0 10px">Legendary and Mythic cards that aren't in a lineup. Click one, then set the price.</p>
+    ${ok.length ? `<div class="cards" style="text-align:left">${ok.map(c => cardHtml(c, { cls: 'pickable', extra: `data-lc="${c.u}"` })).join('')}</div>` : '<p class="empty">No Legendary or Mythic cards free to list.</p>'}
+    <div class="bar2" id="lprice" hidden><label>Price <input id="lpts" type="number" min="1" step="10" style="width:120px"> points</label><button class="btn go" id="lgo">🏪 List it</button></div><div class="err" id="lerr"></div>`;
+  $('modal').hidden = false;
+  let pick = null;
+  $('mbody').querySelectorAll('[data-lc]').forEach(el => (el.onclick = () => {
+    pick = me.cards.find(c => c.u === el.dataset.lc);
+    $('mbody').querySelectorAll('[data-lc]').forEach(x => x.classList.toggle('sel', x === el));
+    $('lprice').hidden = false; $('lpts').min = UT.rarityOf(pick.gr).sell; $('lpts').value ||= UT.rarityOf(pick.gr).sell * 10; $('lpts').focus();
+  }));
+  if ($('lgo')) $('lgo').onclick = async () => { if (pick && await act('list', { uid: pick.u, price: +$('lpts').value }, $('lerr'))) { closeModal(); load(); } };
+}
+// 🤝 ask for a card: pick whose copy (if more than one player has it) and an optional points offer
+function askTrade(card, owners) {
+  $('mbody').innerHTML = `<h2 style="margin:0 0 4px">🤝 Ask for ${esc(card.n)}</h2><p class="muted" style="font-size:13px;margin:0 0 10px">They'll see your request and can take your points offer, or pick cards and points they want from your collection instead.</p>
+    ${owners.map((o, i) => `<label class="pickrow"><input type="radio" name="own" value="${i}" ${o.held ? 'disabled' : ''} ${i === owners.findIndex(x => !x.held) ? 'checked' : ''}> <span><b>${esc(o.name)}</b>'s copy · grade ${o.gr}${o.held ? ' · <span class="muted">in their lineup, not tradeable now</span>' : ''}</span></label>`).join('')}
+    <div class="bar2" style="margin-top:12px"><label>Offer <input id="apts" type="number" min="0" step="10" placeholder="0" style="width:110px"> points (optional)</label><button class="btn go" id="ago">🤝 Send request</button></div><div class="err" id="aerr"></div>`;
+  $('modal').hidden = false;
+  $('ago').onclick = async () => {
+    const i = $('mbody').querySelector('input[name=own]:checked')?.value; if (i == null) { $('aerr').textContent = 'Nobody can trade it right now.'; return; }
+    const o = owners[+i];
+    if (await act('trade', { to: o.pid, uid: o.u, pts: +$('apts').value || 0 }, $('aerr'))) { closeModal(); load(); setTab('market'); }
+  };
+}
+// 🤝 answer a request for your card: pick up to 5 of their cards and/or some points
+async function counterTrade(t) {
+  const r = await fetch('/api/profiles/' + encodeURIComponent(t.from.pid)).then(r => r.json()).catch(() => null);
+  if (!r?.ok) return alert("Couldn't load their collection.");
+  const ut = r.profile.ut || {}, held = new Set([...Object.values(ut.lineup || {}), ...Object.values(ut.comp || {})]);
+  const cards = (ut.cards || []).filter(c => !held.has(c.u)).sort((a, b) => b.gr - a.gr), sel = new Set();
+  $('mbody').innerHTML = `<h2 style="margin:0 0 4px">🃏 What do you want for ${esc(t.wantCard.n)}?</h2><p class="muted" style="font-size:13px;margin:0 0 10px">Click up to 5 of ${esc(t.from.name)}'s cards (not the ones in their lineup), add points if you like, and send it. They accept or decline.</p>
+    <div class="bar2" style="margin:0 0 10px"><label>Plus <input id="cpts" type="number" min="0" step="10" placeholder="0" style="width:110px"> points</label><button class="btn go" id="cgo">Send to ${esc(t.from.name)}</button></div><div class="err" id="cerr"></div>
+    <div class="cards" style="text-align:left">${cards.map(c => cardHtml(c, { cls: 'pickable', extra: `data-cc="${c.u}"` })).join('') || '<p class="empty">They have no free cards: ask for points.</p>'}</div>`;
+  $('modal').hidden = false;
+  $('mbody').querySelectorAll('[data-cc]').forEach(el => (el.onclick = () => {
+    const u = el.dataset.cc; if (sel.has(u)) sel.delete(u); else if (sel.size < 5) sel.add(u);
+    el.classList.toggle('sel', sel.has(u));
+  }));
+  $('cgo').onclick = async () => { if (await act('tradeact', { id: t.id, act: 'counter', uids: [...sel], pts: +$('cpts').value || 0 }, $('cerr'))) { closeModal(); load(); } };
+}
+
 // ---------- 🏅 leaders ----------
 function drawLeaders() {
   const myId = VM.profile(), B = S.boards || { record: [], overall: [] };
@@ -892,7 +999,7 @@ function drawLeaders() {
 
 // ---------- tabs, modal, refresh ----------
 // the tabs each mode has (seasonal mode: no schedule runs, collections, trade-ups or all-time leaderboards)
-const TABS = { main: ['play', 'bots', 'season', 'lineup', 'packs', 'cols', 'coll', 'leaders'], season: ['sea', 'play', 'bots', 'lineup', 'packs', 'coll'] };
+const TABS = { main: ['play', 'bots', 'season', 'lineup', 'packs', 'cols', 'coll', 'market', 'leaders'], season: ['sea', 'play', 'bots', 'lineup', 'packs', 'coll'] };
 function setTab(t) {
   const list = TABS[MODE] || TABS.main; if (!list.includes(t)) t = list[0];
   if (!SEA()) { TAB = t; try { sessionStorage.setItem('vm.utTab', t); } catch {} }
@@ -905,7 +1012,7 @@ $('mx').onclick = closeModal; $('modal').onclick = e => { if (e.target === $('mo
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 function drawAll() {
   drawModebar(); drawHero(); drawLineup(); drawPacks(); drawColl(); drawPlay(); drawBots();
-  if (SEA()) drawSea(); else { drawCols(); drawSeason(); drawLeaders(); }
+  if (SEA()) drawSea(); else { drawCols(); drawSeason(); drawLeaders(); drawMarket(); }
 }
 async function start() {
   VM.adjust = null; // (set again for the profile that just signed in)

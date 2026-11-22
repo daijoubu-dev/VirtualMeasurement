@@ -88,6 +88,7 @@ async function one() {
   const picks = Object.values(p.pickem?.[Object.keys(p.pickem || {}).sort().pop()] || {}).filter(x => x.res), pw = picks.filter(x => x.res === 'W').length, pl = picks.filter(x => x.res === 'L').length;
   const count = k => cards.filter(c => UT.rarityOf(c.gr).key === k).length;
   CUSTOM = p.titles || [];
+  const heldU = new Set([...Object.values(ut.lineup || {}), ...Object.values(ut.comp || {})]); // cards in their lineups can't be traded
   const title = EDIT ? EDIT.title : p.showcase?.title, titles = [...unlocked.filter(A.isTitle), ...CUSTOM.map(t => t.key)], hist = p.seasonHistory || [];
   // the collection, one card per kind with how many copies
   const groups = new Map(); for (const c of cards) { if (!groups.has(c.k)) groups.set(c.k, []); groups.get(c.k).push(c); }
@@ -111,9 +112,17 @@ async function one() {
         <button class="btn go" id="saveShow">Save</button><button class="btn" id="cancelShow">Cancel</button><span class="muted" style="font-size:12px">Pick up to 5 cards. Titles come from the gold, platinum and legendary achievements you've unlocked, and from seasonal mode.</span></div><div style="color:var(--loss);text-align:center;font-size:13px" id="showErr"></div>` : ''}</div>
     <div class="panel"><h2>🗂 Collection · ${cards.length} cards, ${groups.size} different</h2>
       <div class="filters"><div class="seg" id="fseg">${['All', ...UT.RARITY.slice().reverse().map(r => r.name), ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div></div>
-      ${list.length ? `<div class="cards">${list.map(c => VMCards.html(c, { count: groups.get(c.k).length, cls: EDIT ? `pickme ${EDIT.cards.includes(c.u) ? 'chosen' : ''}` : '', extra: EDIT ? `data-add="${c.u}"` : '' })).join('')}</div>` : '<p class="empty">No cards here.</p>'}</div>
+      ${list.length ? `<div class="cards">${list.map(c => { const free = !mine && window.VM?.profile() && groups.get(c.k).find(x => !heldU.has(x.u)); return `<div>${VMCards.html(c, { count: groups.get(c.k).length, cls: EDIT ? `pickme ${EDIT.cards.includes(c.u) ? 'chosen' : ''}` : '', extra: EDIT ? `data-add="${c.u}"` : '' })}${free ? `<button class="btn sm" style="width:100%;margin-top:5px;font-size:12px" data-ask="${free.u}">🤝 Ask for it</button>` : ''}</div>`; }).join('')}</div>` : '<p class="empty">No cards here.</p>'}</div>
     <div class="panel"><h2>🏆 Achievements</h2><div class="achs">${unlocked.map(k => `<span class="ach" title="${esc(A.BY_KEY[k].desc)}">${esc(titleOf(k))}</span>`).join('') || '<span class="muted">None yet.</span>'}</div></div>`;
   $('fseg').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { FILTER = b.dataset.f; one(); } };
+  // 🤝 ask for one of their cards (with an optional points offer); the answer comes in Ultimate Team's 🤝 Market tab
+  $('view').querySelectorAll('[data-ask]').forEach(b => (b.onclick = async () => {
+    const c = cards.find(x => x.u === b.dataset.ask), v = prompt(`Ask ${p.name} for ${c.n} (${c.s}, ${c.gr}).\nOffer points with it? (optional: leave it empty and they'll pick from your cards)`, '');
+    if (v === null) return;
+    b.disabled = true;
+    const r = await fetch(`/api/ut/${encodeURIComponent(window.VM.profile())}/trade`, { method: 'POST', headers: VM.headers(), body: JSON.stringify({ to: p.id, uid: c.u, pts: Math.max(0, Math.round(+v || 0)) }) }).then(r => r.json()).catch(() => ({ ok: false, error: "The server didn't answer." }));
+    if (r.ok) { b.textContent = '✓ Asked: see 🤝 Market in Ultimate Team'; } else { alert(r.error); b.disabled = false; }
+  }));
   if ($('edit')) $('edit').onclick = () => { EDIT = { cards: (p.showcase?.cards || show.map(c => c.u)).slice(0, 5), title: p.showcase?.title || '' }; one(); };
   if (!EDIT) return;
   $('view').onclick = e => {

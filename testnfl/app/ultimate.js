@@ -653,9 +653,22 @@
   }
   // a moment played out: { off, def (the two calls), ok (did the offense's call work), text, extras (scoring plays) }
   // me / them: { cards, abbr, team: 'home' | 'away' }
+  // 🔎 pre-snap reads: what the bot's call looks like before the snap. The read is right READ_OK of the time, more with a
+  // better QB (reading the defense) or linebacker (reading the offense); otherwise it shows another call's look.
+  const LOOKS = {
+    blitz: 'Safeties creeping down, linebackers walked up to the line', box: 'Eight in the box', zone: 'Two deep safeties, corners playing off', man: 'Corners pressed up on the receivers, one deep safety',
+    run: 'Heavy set: two tight ends and a fullback', pass: 'Four wide, shotgun', quick: 'Receivers bunched tight, a quick snap count', deep: 'Max protect: the back and tight end stay in to block',
+  };
+  const readOdds = (kind, cards) => Math.min(0.88, 0.6 + (cards[MOMENTS[kind].side === 'off' ? 'QB' : 'LB']?.gr ?? BACKUP) * 0.0028);
+  // the bot's (hidden) call for a moment, and the read you get of it
+  function liveRead(kind, myCards, rand = Math.random) {
+    const theirs = MOMENTS[kind].side === 'off' ? DEF_CALLS : OFF_CALLS, bot = theirs[Math.floor(rand() * 4)];
+    const others = theirs.filter(x => x !== bot), read = rand() < readOdds(kind, myCards) ? bot : others[Math.floor(rand() * others.length)];
+    return { bot, read };
+  }
   function liveResolve(m, call, me, them, rand = Math.random) {
     const M = MOMENTS[m.kind], mineOff = M.side === 'off', rnd = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
-    const botCall = (mineOff ? DEF_CALLS : OFF_CALLS)[Math.floor(rand() * 4)];
+    const botCall = m.bot || (mineOff ? DEF_CALLS : OFF_CALLS)[Math.floor(rand() * 4)]; // (set ahead of time with its read)
     const atk = mineOff ? me : them, dfn = mineOff ? them : me, extras = [], at = (dt = 0) => ({ q: m.q, t: Math.max(2, m.t - dt) });
     const T = TACTICS, nm = (side, s) => side.cards[s]?.n || `${side.abbr} ${s === 'K' ? 'kicker' : 'backup'}`;
     const td = (side, c, lo, hi, dt) => { const y = rnd(lo, hi), p = scorePlay(side.cards, side.abbr, c, y); extras.push({ team: side.team, pts: 7, yds: y, ...p, ...at(dt), note: '🎮' }); return p.text; };
@@ -685,7 +698,7 @@
     return out;
   }
 
-  const out = { LIVE, MOMENTS, OFF_CALLS, DEF_CALLS, liveMoments, finalKind, callsFor, callOdds, liveResolve, cardFits, coachMult, OFF_FIT, DEF_FIT, avgGr, SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
+  const out = { LOOKS, readOdds, liveRead, LIVE, MOMENTS, OFF_CALLS, DEF_CALLS, liveMoments, finalKind, callsFor, callOdds, liveResolve, cardFits, coachMult, OFF_FIT, DEF_FIT, avgGr, SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
     planOf, randomPlan, makePools, openPack, ratings, expected, simGame, makeBot, simSeason };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_UT = out;
 })(typeof window !== 'undefined' ? window : globalThis);

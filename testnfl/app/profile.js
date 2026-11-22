@@ -88,11 +88,11 @@
     .vmtoast .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--gold); font-weight: 700; } .vmtoast .n { font-weight: 800; font-size: 15px; } .vmtoast .d { font-size: 12px; color: var(--muted); }
     @keyframes vmin { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
     [data-vmuser] { cursor: pointer; } a[data-vmuser] { text-decoration: none; } a[data-vmuser]:hover { text-decoration: underline; }
-    .vmcard { position: fixed; z-index: 70; width: 300px; max-width: calc(100vw - 16px); background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); pointer-events: none; font-size: 13px; }
-    .vmcard .t { font-size: 11.5px; font-weight: 800; color: var(--gold); } .vmcard .n { font-size: 17px; font-weight: 850; line-height: 1.15; } .vmcard .tm { color: var(--muted); font-size: 12px; }
-    .vmcard .st { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 9px 0; } .vmcard .st div { background: var(--soft); border-radius: 8px; padding: 4px 7px; } .vmcard .st b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; } .vmcard .st span { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-    .vmcard .sc { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; } .vmcard .sc div { position: relative; aspect-ratio: 4 / 5; border-radius: 8px; border: 2px solid; background: #0b0f18; overflow: hidden; }
-    .vmcard .sc img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; } .vmcard .sc b { position: absolute; left: 3px; top: 1px; color: #fff; font-size: 13px; font-weight: 850; text-shadow: 0 1px 3px #000; }`;
+    .vmucard { position: fixed; z-index: 70; width: 300px; max-width: calc(100vw - 16px); background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); pointer-events: none; font-size: 13px; }
+    .vmucard .t { font-size: 11.5px; font-weight: 800; color: var(--gold); } .vmucard .n { font-size: 17px; font-weight: 850; line-height: 1.15; } .vmucard .tm { color: var(--muted); font-size: 12px; }
+    .vmucard .st { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 9px 0; } .vmucard .st div { background: var(--soft); border-radius: 8px; padding: 4px 7px; } .vmucard .st b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; } .vmucard .st span { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .vmucard .sc { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; } .vmucard .sc div { position: relative; aspect-ratio: 4 / 5; border-radius: 8px; border: 2px solid; background: #0b0f18; overflow: hidden; }
+    .vmucard .sc img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; } .vmucard .sc b { position: absolute; left: 3px; top: 1px; color: #fff; font-size: 13px; font-weight: 850; text-shadow: 0 1px 3px #000; }`;
   let box, panelOpen = false, profilesCache = [], pinFor = null, pinErr = '';
   function toast(a) {
     let t = document.querySelector('.vmtoasts'); if (!t) { t = Object.assign(document.createElement('div'), { className: 'vmtoasts' }); document.body.appendChild(t); }
@@ -154,7 +154,7 @@
   const getCard = id => { const c = cards.get(id); if (c && Date.now() - c.at < 60e3) return c.p; const p = fetch(`/api/ut/user/${encodeURIComponent(id)}`).then(r => r.json()).then(r => (r.ok ? r.user : null)).catch(() => null); cards.set(id, { at: Date.now(), p }); return p; };
   function showCard(el, u) {
     if (!u || hoverEl !== el) return;
-    pop ||= document.body.appendChild(Object.assign(document.createElement('div'), { className: 'vmcard' }));
+    pop ||= document.body.appendChild(Object.assign(document.createElement('div'), { className: 'vmucard' }));
     const rec = (r, t) => `<div><b>${r.w}-${r.l}</b><span>${t}</span></div>`;
     pop.innerHTML = `${u.title ? `<div class="t">${esc(u.title)}</div>` : ''}<div class="n">${esc(u.name)}</div><div class="tm">${esc(u.team?.abbr || '')} · ${esc(u.team?.name || '')} · ${u.earned.toLocaleString()} pts earned</div>
       <div class="st">${rec(u.rec, 'vs players')}${rec(u.bot, 'vs bots')}${rec(u.pickem, "pick'em")}</div>

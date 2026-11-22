@@ -24,6 +24,10 @@ const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8'))
 const writeJson = (f, v) => { fs.writeFileSync(f + '.tmp', JSON.stringify(v)); fs.renameSync(f + '.tmp', f); };
 const QUEUE = path.join(UDIR, 'queue.json'), GAMES = path.join(UDIR, 'games.json'), PULLS = path.join(UDIR, 'pulls.json'), SEASONS = path.join(UDIR, 'seasons.json');
 const KEEP_GAMES = 500; // results listed (every game file is kept)
+// 🏪 the marketplace (market.json: listings, each holding its card until it's bought or taken back) and 🤝 trade offers
+// (trades.json). Both are for the permanent collection only.
+const MARKET = path.join(UDIR, 'market.json'), TRADES = path.join(UDIR, 'trades.json');
+const MARKET_RARITIES = ['legendary', 'mythic'], MAX_LISTINGS = 10, MAX_PRICE = 1e6, MAX_OPEN = 20;
 // VM_SEASON_EPOCH (milliseconds) moves the season calendar, for testing; normally Season 1 starts on UT.SEASON.epoch
 const EPOCH = +process.env.VM_SEASON_EPOCH || UT.SEASON.epoch;
 const seasonNow = () => UT.seasonNow(Date.now(), EPOCH), span = n => UT.seasonSpan(n, EPOCH);
@@ -219,18 +223,48 @@ function bestLineup(ut) {
 const side = (p, ut, which = 'main') => ({ pid: p.id, name: p.name, team: ut.team.name, abbr: ut.team.abbr, cards: cardsOf(ut, which), ovr: UT.ratings(cardsOf(ut, which)).ovr });
 // the game plan a request picked (and remember it as the profile's last one)
 function planFrom(p, b) { const t = UT.planOf(b.tactics); (p.prefs ||= {}).tactics = t; return t; }
-// new permanent cards go into the collection (and the 🏆 set, the pull log and the achievements)
-function addCards(p, cards, how, out) {
+// new permanent cards go into the collection (and the 🏆 set, the pull log and the achievements; log: false for cards
+// that came from another player, which aren't pulls)
+function addCards(p, cards, how, out, log = true) {
   utOf(p).cards.push(...cards);
   const set = p.sets.ut_cards ||= [];
   for (const c of cards) if (!set.includes(c.k) && set.length < 2000) set.push(c.k);
-  const chase = cards.filter(isChase);
+  const chase = log ? cards.filter(isChase) : [];
   if (chase.length) {
     profiles.award(p, 'ut_legend', out);
     if (chase.some(c => c.gr >= 99)) profiles.award(p, 'ut_mythic', out);
     const at = new Date().toISOString(), before = pulls(); // (pulls() first, so a first-ever log doesn't count these twice)
     writeJson(PULLS, [...chase.map(c => ({ at, pid: p.id, name: p.name, pack: how, card: { n: c.n, s: c.s, t: c.t, g: c.g, gr: c.gr, ed: c.ed } })), ...before].slice(0, 1000));
   }
+}
+// points from one player to another (a sale: it doesn't count as "earned" for the seller)
+function pay(from, to, pts, why) {
+  if (pts > from.balance) throw new Error(`${from.name} doesn't have ${pts.toLocaleString()} points.`);
+  from.ledger.push({ at: new Date().toISOString(), pts: -pts, reason: why.slice(0, 80) }); from.balance -= pts;
+  profiles.credit(to, pts, why, { sale: true });
+}
+const news = (p, text) => { const ut = utOf(p); ut.news = [{ at: new Date().toISOString(), text }, ...(ut.news || [])].slice(0, 30); };
+const cardName = c => `${c.n} (${c.s} ${c.t}, ${c.gr})`;
+const liveTrade = t => t.status === 'open' || t.status === 'countered';
+// a trade going through: the asker gets the card they wanted; the owner gets the points and cards agreed on
+function execTrade(t, me, out) {
+  const A = t.from.pid === me.id ? me : need(t.from.pid), B = t.to.pid === me.id ? me : need(t.to.pid);
+  const ask = t.status === 'countered' ? t.ask : { uids: [], pts: t.offer };
+  const want = B.ut.cards.find(c => c.u === t.want);
+  if (!want) throw new Error(`${B.name} doesn't have ${t.wantCard.n} any more.`);
+  if (held(B.ut).has(want.u)) throw new Error(`${t.wantCard.n} is in ${B.name}'s lineup: it has to come out first.`);
+  const give = ask.uids.map(u => A.ut.cards.find(c => c.u === u));
+  if (give.some(c => !c)) throw new Error(`${A.name} doesn't have all of those cards any more.`);
+  if (give.some(c => held(A.ut).has(c.u))) throw new Error(`One of the cards is in ${A.name}'s lineup: it has to come out first.`);
+  if (ask.pts > A.balance) throw new Error(`${A.name} doesn't have ${ask.pts.toLocaleString()} points.`);
+  B.ut.cards = B.ut.cards.filter(c => c !== want); A.ut.cards = A.ut.cards.filter(c => !give.includes(c));
+  addCards(A, [want], 'Trade', A === me ? out.unlocked : [], false);
+  if (give.length) addCards(B, give, 'Trade', B === me ? out.unlocked : [], false);
+  if (ask.pts) pay(A, B, ask.pts, `Trade: ${want.n} to ${A.name}`);
+  t.status = 'done'; t.upd = new Date().toISOString(); t.got = { pts: ask.pts, cards: give };
+  const other = A === me ? B : A;
+  news(other, `🤝 Trade done: ${A.name} got ${cardName(want)}, ${B.name} got ${[...give.map(cardName), ask.pts ? `${ask.pts.toLocaleString()} points` : ''].filter(Boolean).join(' + ')}.`);
+  profiles.save(other);
 }
 const permanentOnly = ctx => { if (ctx.mode === 'season') throw new Error("That's for the permanent collection, not seasonal mode."); };
 
@@ -414,6 +448,7 @@ const ACTIONS = {
     const home = { ...side(p, ut), tactics: planFrom(p, b) }, away = { pid: null, ...bot };
     if (b.live) {
       ut.live = { level: b.level, seed, at: new Date().toISOString(), home, away, moments: UT.liveMoments(seed), i: 0, done: [], extras: [] };
+      prepMoment(ut.live);
       out.live = livePublic(ut.live);
       return;
     }
@@ -430,9 +465,10 @@ const ACTIONS = {
       const me = { cards: L.home.cards, abbr: L.home.abbr, team: 'home' }, them = { cards: L.away.cards, abbr: L.away.abbr, team: 'away' };
       const r = UT.liveResolve(m, call, me, them);
       L.extras.push(...r.extras);
-      L.done.push({ kind: m.kind, q: m.q, t: m.t, call, off: r.off, def: r.def, ok: r.ok, good: r.good, odds: r.odds, vs: r.vs, text: r.text });
+      L.done.push({ kind: m.kind, q: m.q, t: m.t, call, off: r.off, def: r.def, ok: r.ok, good: r.good, odds: r.odds, vs: r.vs, text: r.text, ...(m.read ? { read: m.read, readOk: m.read === m.bot } : {}) });
       L.i++;
       if (L.i < L.moments.length && !L.moments[L.i].kind) L.moments[L.i].kind = UT.finalKind(scoreAt(L, L.moments[L.i]).diff);
+      prepMoment(L);
     };
     if (b.sim) while (L.i < L.moments.length) { const m = L.moments[L.i], c = UT.callsFor(m.kind || UT.finalKind(scoreAt(L, m).diff)).filter(x => x !== 'punt'); step(c[Math.floor(Math.random() * c.length)]); }
     else step(String(b.call || ''));
@@ -442,6 +478,75 @@ const ACTIONS = {
     const sim = UT.simGame(L.home, L.away, L.seed, { live: { scale: UT.LIVE.scale, extras: L.extras, final: true } });
     delete ut.live;
     settleBot(p, ut, ctx, L.level, L.home, L.away, L.seed, sim, L.done, out);
+  },
+  // 🏪 put a Legendary or Mythic card on the market ({ uid, price }): it leaves your collection until it sells or you take it back
+  list(p, b, out, ctx) {
+    permanentOnly(ctx);
+    const ut = p.ut, c = ut.cards.find(x => x.u === b.uid), price = Math.round(Number(b.price));
+    if (!c) throw new Error("That card isn't in your collection.");
+    if (held(ut).has(c.u)) throw new Error('Take it out of your lineups first.');
+    const r = UT.rarityOf(c.gr);
+    if (!MARKET_RARITIES.includes(r.key)) throw new Error('Only Legendary and Mythic cards go on the market. Trade the rest with 🤝 trade offers.');
+    if (!(price >= r.sell && price <= MAX_PRICE)) throw new Error(`Price it between ${r.sell} and ${MAX_PRICE.toLocaleString()} points.`);
+    const m = readJson(MARKET, []);
+    if (m.filter(x => x.pid === p.id).length >= MAX_LISTINGS) throw new Error(`You can have ${MAX_LISTINGS} cards on the market at once.`);
+    ut.cards = ut.cards.filter(x => x !== c);
+    writeJson(MARKET, [{ id: uid(), at: new Date().toISOString(), pid: p.id, name: p.name, card: c, price }, ...m]);
+  },
+  unlist(p, b, out, ctx) {
+    permanentOnly(ctx);
+    const m = readJson(MARKET, []), x = m.find(l => l.id === b.id && l.pid === p.id); if (!x) throw new Error('That listing is gone.');
+    p.ut.cards.push(x.card);
+    writeJson(MARKET, m.filter(l => l !== x));
+  },
+  buy(p, b, out, ctx) {
+    permanentOnly(ctx);
+    const m = readJson(MARKET, []), x = m.find(l => l.id === b.id); if (!x) throw new Error('That card just sold (or was taken off the market).');
+    if (x.pid === p.id) throw new Error("That's your own listing.");
+    const seller = need(x.pid);
+    pay(p, seller, x.price, `Market: ${x.card.n} from ${seller.name} to ${p.name}`);
+    writeJson(MARKET, m.filter(l => l !== x));
+    addCards(p, [x.card], 'Market', out.unlocked, false);
+    news(seller, `🏪 ${p.name} bought your ${cardName(x.card)} for ${x.price.toLocaleString()} points.`);
+    profiles.save(seller);
+    out.cards = [x.card];
+  },
+  // 🤝 ask a player for one of their cards ({ to, uid, pts? }: an optional points offer they can just accept)
+  trade(p, b, out, ctx) {
+    permanentOnly(ctx);
+    if (b.to === p.id) throw new Error("That's your own card.");
+    const q = need(b.to), c = q.ut.cards.find(x => x.u === b.uid), pts = Math.max(0, Math.round(Number(b.pts) || 0));
+    if (!c) throw new Error(`${q.name} doesn't have that card any more.`);
+    if (held(q.ut).has(c.u)) throw new Error(`${q.name} has ${c.n} in a lineup, so it can't be traded right now.`);
+    if (pts > p.balance) throw new Error(`You only have ${p.balance.toLocaleString()} points.`);
+    const T = readJson(TRADES, []);
+    if (T.some(t => liveTrade(t) && t.from.pid === p.id && t.want === c.u)) throw new Error('You already asked for that card.');
+    if (T.filter(t => liveTrade(t) && t.from.pid === p.id).length >= MAX_OPEN) throw new Error(`You can have ${MAX_OPEN} trade requests open at once.`);
+    const at = new Date().toISOString();
+    writeJson(TRADES, [{ id: uid(), at, upd: at, from: { pid: p.id, name: p.name }, to: { pid: q.id, name: q.name }, want: c.u, wantCard: c, offer: pts, status: 'open' }, ...T].slice(0, 400));
+  },
+  // 🤝 answer a trade ({ id, act, uids?, pts? }). The card's owner: accept (the points offered), counter (the cards and/or
+  // points they want from the asker) or decline. The asker: accept or decline a counter, or cancel.
+  tradeact(p, b, out, ctx) {
+    permanentOnly(ctx);
+    const T = readJson(TRADES, []), t = T.find(x => x.id === b.id);
+    if (!t || !liveTrade(t)) throw new Error('That trade is closed.');
+    const owner = t.to.pid === p.id, asker = t.from.pid === p.id, at = new Date().toISOString();
+    if (!owner && !asker) throw new Error("That's not your trade.");
+    if (owner && b.act === 'accept') { if (t.status !== 'open' || !t.offer) throw new Error('There are no points offered to accept: counter with what you want.'); execTrade(t, p, out); }
+    else if (owner && b.act === 'counter') {
+      const A = need(t.from.pid), uids = [...new Set(Array.isArray(b.uids) ? b.uids : [])], pts = Math.max(0, Math.round(Number(b.pts) || 0));
+      const cards = uids.map(u => A.ut.cards.find(c => c.u === u));
+      if (cards.some(c => !c)) throw new Error(`${A.name} doesn't have all of those cards.`);
+      if (cards.some(c => held(A.ut).has(c.u))) throw new Error(`Some of those cards are in ${A.name}'s lineup.`);
+      if (!cards.length && !pts) throw new Error('Ask for at least one card or some points.');
+      if (cards.length > 5) throw new Error('Ask for up to 5 cards.');
+      Object.assign(t, { status: 'countered', ask: { uids, pts }, askCards: cards, upd: at });
+    }
+    else if (asker && b.act === 'accept') { if (t.status !== 'countered') throw new Error(`${t.to.name} hasn't answered yet.`); execTrade(t, p, out); }
+    else if (b.act === 'decline' || b.act === 'cancel') Object.assign(t, { status: owner ? 'declined' : 'cancelled', upd: at });
+    else throw new Error('Unknown trade answer.');
+    writeJson(TRADES, T);
   },
   // 📅 one schedule run a day with your lineup, on a real franchise's schedule
   season(p, b, out, ctx) {
@@ -474,6 +579,8 @@ function settleBot(p, ut, ctx, level, home, away, seed, sim, moments, out) {
   else if (won && level === 'hard') profiles.award(p, 'ut_bot_hard', out.unlocked);
   out.game = { gid: null, at: new Date().toISOString(), seed, home, away, ...sim, bot: level, reward, ...(moments ? { live: true, moments } : {}), ...(ctx.mode === 'season' ? { seasonal: ut.n } : {}) };
 }
+// 🔎 the current moment's hidden bot call and the pre-snap read of it (set once, so a refresh shows the same read)
+function prepMoment(L) { const m = L.moments[L.i]; if (m?.kind && !m.bot) Object.assign(m, UT.liveRead(m.kind, L.home.cards)); }
 // 🎮 a live game so far: the scoring plays before the current moment (never the ones after it), the moment and its calls
 const liveSim = L => UT.simGame(L.home, L.away, L.seed, { live: { scale: UT.LIVE.scale, extras: L.extras } });
 const before = (p, m) => p.q < m.q || (p.q === m.q && p.t > m.t);
@@ -483,7 +590,8 @@ function livePublic(L) {
   const info = x => ({ name: x.name, team: x.team, abbr: x.abbr, ovr: x.ovr });
   return { level: L.level, at: L.at, home: info(L.home), away: info(L.away), cards: { home: L.home.cards, away: L.away.cards }, plan: L.home.tactics,
     plays: s.shown.map(({ team, text, when, h, a, note }) => ({ team, text, when, h, a, note: note === '🎮' ? '🎮' : undefined })), h: s.h, a: s.a,
-    moment: { i: L.i, n: L.moments.length, q: m.q, t: m.t, kind: m.kind, side: M.side, name: M.name, text: M.text, calls: UT.callsFor(m.kind) }, done: L.done };
+    moment: { i: L.i, n: L.moments.length, q: m.q, t: m.t, kind: m.kind, side: M.side, name: M.name, text: M.text, calls: UT.callsFor(m.kind),
+      read: m.read ? { look: UT.LOOKS[m.read], odds: Math.round(100 * UT.readOdds(m.kind, L.home.cards)), by: L.home.cards[M.side === 'off' ? 'QB' : 'LB']?.n || 'your backup' } : null }, done: L.done };
 }
 const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, winner: g.winner, ...(g.balanced ? { balanced: true } : {}), ...(g.competitive ? { competitive: true } : {}), ...(g.seasonal ? { seasonal: g.seasonal } : {}),
   home: { pid: g.home.pid, name: g.home.name, team: g.home.team, abbr: g.home.abbr, ovr: g.home.ovr },
@@ -498,6 +606,7 @@ const summaryOf = g => ({ gid: g.gid, at: g.at, hs: g.hs, as: g.as, ot: g.ot, wi
 //                                       queue {cancel?, tactics, balanced?, competitive?} · challenge {qid, tactics} · seen {gid} · bot {level, tactics}
 //                                       season {team} · teampack {id} · collect {id}        (tactics = { off, def, tempo }, see UT.TACTICS)
 //                                       bot {level, tactics, live: true} starts a 🎮 live game · live {call} | live {sim: true} plays it
+//                                       🏪 list {uid, price} · unlist {id} · buy {id}    🤝 trade {to, uid, pts?} · tradeact {id, act, uids?, pts?}
 //                                       Every action takes mode: 'season' to act on this season's cards instead.
 function handle(req, url, body) {
   finalizeSeasons();
@@ -519,6 +628,16 @@ function handle(req, url, body) {
       boards: boards(), pulls: P.slice(0, 40), pullers: Object.values(who).sort((a, b) => b.n - a.n || b.best.gr - a.best.gr),
       ...(lite ? {} : { teams: league().teams.map(({ t, name }) => ({ t, name })).sort((a, b) => a.name.localeCompare(b.name)) }) };
     if (a) out.me = state(need(a), mode);
+    if (a && mode === 'main') { // 🏪 the market, 🤝 your trades and your news, and (not on the quick check) who owns which card
+      out.market = readJson(MARKET, []);
+      out.trades = readJson(TRADES, []).filter(t => t.from.pid === a || t.to.pid === a).slice(0, 60);
+      out.news = utOf(need(a)).news || [];
+      if (!lite) {
+        const own = {};
+        for (const q of profiles.all()) if (q.id !== a && q.ut?.cards) { const h = held(q.ut); for (const c of q.ut.cards) (own[UT.baseKey(c.k)] ||= []).push({ pid: q.id, name: q.name, u: c.u, gr: c.gr, held: h.has(c.u) }); }
+        out.owners = own;
+      }
+    }
     return out;
   }
   if (req.method === 'POST' && a && ACTIONS[b]) {

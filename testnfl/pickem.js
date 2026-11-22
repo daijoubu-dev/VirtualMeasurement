@@ -12,7 +12,7 @@ const path = require('path');
 const profiles = require('./profiles');
 const { currentSeason } = require('./fetch');
 
-const BASE = 100, SEASON_COINS = 25;
+const BASE = 100, SEASON_COINS = 50;
 const ROUND = { WC: 'Wild Card', DIV: 'Divisional round', CON: 'Conference Championships', SB: 'Super Bowl' };
 const RAW = path.join(__dirname, 'data', 'raw');
 
