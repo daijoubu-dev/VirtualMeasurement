@@ -92,7 +92,9 @@
     .vmucard .t { font-size: 11.5px; font-weight: 800; color: var(--gold); } .vmucard .n { font-size: 17px; font-weight: 850; line-height: 1.15; } .vmucard .tm { color: var(--muted); font-size: 12px; }
     .vmucard .st { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 9px 0; } .vmucard .st div { background: var(--soft); border-radius: 8px; padding: 4px 7px; } .vmucard .st b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; } .vmucard .st span { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
     .vmucard .sc { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; } .vmucard .sc div { position: relative; aspect-ratio: 4 / 5; border-radius: 8px; border: 2px solid; background: #0b0f18; overflow: hidden; }
-    .vmucard .sc img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; } .vmucard .sc b { position: absolute; left: 3px; top: 1px; color: #fff; font-size: 13px; font-weight: 850; text-shadow: 0 1px 3px #000; }`;
+    .vmucard .sc img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; } .vmucard .sc b { position: absolute; left: 3px; top: 1px; color: #fff; font-size: 13px; font-weight: 850; text-shadow: 0 1px 3px #000; }
+    .vmfoot { max-width: 1180px; margin: 28px auto 8px; padding: 14px 16px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
+    .vmfoot a { color: inherit; } .vmfoot b { color: var(--text); font-weight: 700; }`;
   let box, panelOpen = false, profilesCache = [], pinFor = null, pinErr = '';
   function toast(a) {
     let t = document.querySelector('.vmtoasts'); if (!t) { t = Object.assign(document.createElement('div'), { className: 'vmtoasts' }); document.body.appendChild(t); }
@@ -148,6 +150,9 @@
     window.VM.add('pages', page);
   }
   const page = (location.pathname.split('/').pop() || 'index.html').replace('.html', '') || 'index';
+  // the footer on every page: who made it and where the numbers come from
+  const foot = Object.assign(document.createElement('footer'), { className: 'vmfoot' });
+  foot.innerHTML = 'Created by <b>daijoubu-dev</b> and <b>Claude</b> · <a href="https://github.com/daijoubu-dev/VirtualMeasurement" target="_blank" rel="noopener">GitHub</a><br>Stats and schedules from <a href="https://github.com/nflverse" target="_blank" rel="noopener">nflverse</a> (play-by-play, rosters and pass-rush data from Pro Football Reference) · live scores and player photos from ESPN and NFL.com · team logos from ESPN<br>Just for fun: not affiliated with the NFL or any team. Predictions are for entertainment, not betting advice.';
 
   // ---------- 🪪 the hover card on a player's name ----------
   const cards = new Map(); let hoverEl = null, hoverTimer = null, pop = null;
@@ -175,6 +180,7 @@
   });
   window.addEventListener('scroll', hideCard, { passive: true });
   function init() {
+    (document.querySelector('main') || document.body).appendChild(foot); // (once the page is there)
     if (!canTrack) return;
     const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     box = Object.assign(document.createElement('div'), { className: 'vmprof' });

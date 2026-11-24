@@ -23,8 +23,8 @@
     else if (c.g === 'ST') { const h = U.ratings({ ST: c }).hfa; body = `<div class="bk-s">🏟️ Stadium</div><div class="bk-r"><span>Home field</span><b>+${h.toFixed(1)} pts</b></div><div class="bk-r"><span>Weather</span><b>${c.x?.roof && c.x.roof !== 'outdoors' ? 'Indoors' : `~${c.x?.dec ?? 55}° in Dec`}</b></div><div class="bk-n">Counts when you host: every bot game, and the games you queue. Snow, wind and cold hurt passing.</div>`; }
     else {
       const fits = U.cardFits(c);
-      body = `<div class="bk-s">📋 Game plans &amp; 🎮 live calls</div>${fits.map(f => `<div class="bk-r ${f.pts >= 0 ? 'up' : 'dn'}"><span>${f.icon} ${esc(f.name)}${f.as ? ` <i>(${f.as})</i>` : ''}</span><b>${sign(f.pts)}</b></div>`).join('') || '<div class="bk-n">Plays in every plan, with no favorite.</div>'}
-        <div class="bk-n">Points a game this card adds to those plans (from its grade, against a 65 average), and the same calls in live games.</div>`;
+      body = `<div class="bk-s">📋 Game plans &amp; 🎮 live calls</div>${fits.map(f => `<div class="bk-r ${f.pts >= 0 ? 'up' : 'dn'}"><span>${f.icon} ${esc(f.name)}${f.as ? ` <i>(${f.as})</i>` : ''}${f.style ? ` <i class="${f.style > 0 ? 'su' : 'sd'}">style ${f.style > 0 ? '+' : '−'}${Math.abs(f.style)}</i>` : ''}</span><b>${sign(f.pts)}</b></div>`).join('') || '<div class="bk-n">Plays in every plan, with no favorite.</div>'}
+        <div class="bk-n">Points a game this card adds to those plans: its grade against a 65 average, plus its style (from its real season: a deep threat is better at shot plays, a sack artist at the blitz…). The same goes for live calls.</div>`;
     }
     return `<div class="cback"><div class="bk-h"><b>${esc(c.n)}</b><span>${c.s} ${esc(c.t)} · ${esc(POS_LABEL[c.g] || c.g)} · <b style="color:var(--rc)">${c.gr}</b> ${r.name}</span></div>${body}
       ${c.l ? `<div class="bk-l">${esc(c.l)}</div>` : ''}<div class="bk-f">Sells for ${r.sell} · ↻ to flip back</div></div>`;
@@ -39,7 +39,7 @@
         ${pics.length ? `<div class="ph ${isLogo ? 'tlogo' : ''}"><img src="${esc(pics[0])}" data-alt="${esc(pics.slice(1).join(' '))}" alt="" loading="lazy" onerror="nextPic(this)"></div>` : ''}
         ${full ? '<div class="holo"></div><div class="spark"></div>' : ''}
         <div class="cbadge"><span class="gr">${c.gr}</span><span class="pos">${esc(slot || POS_LABEL[c.g] || c.g)}</span>${logo && !isLogo ? `<img class="tm" src="${esc(logo.replace('/i/teamlogos/', '/combiner/i?img=/i/teamlogos/').replace(/\.png$/, '.png&w=64&h=64'))}" alt="${esc(c.t)}" loading="lazy" onerror="this.remove()">` : ''}</div>
-        <div class="plate"><div class="nm ${c.n.length > 17 ? 'long' : ''}">${split ? `<span class="fn">${esc(words[0])} </span>${esc(words.slice(1).join(' '))}` : esc(c.n)}</div><div class="yr">${c.s} ${esc(c.t)}</div>${c.ed ? `<div class="ed">🏆 ${esc(c.ed)} edition</div>` : c.set ? `<div class="ed set">${esc(c.set)} set card</div>` : ''}<div class="ln">${esc(c.l)}</div>
+        <div class="plate"><div class="nm ${c.n.length > 17 ? 'long' : ''}">${split ? `<span class="fn">${esc(words[0])} </span>${esc(words.slice(1).join(' '))}` : esc(c.n)}</div><div class="yr">${c.s} ${esc(c.t)}</div>${c.ed ? `<div class="ed">🏆 ${esc(c.ed)} edition</div>` : c.set ? `<div class="ed set">${esc(c.set)} set card</div>` : ''}<div class="ln">${esc(c.l)}</div>${(() => { const k = window.VM_UT.mainStyle?.(c), T = k && (window.VM_UT.TACTICS.off[k] || window.VM_UT.TACTICS.def[k]); return T ? `<div class="sty" title="Plays best in ${esc(T.name)} (its stats)">${T.icon} ${esc(T.name)}</div>` : ''; })()}
           <div class="ft"><span>${full ? '✦ ' : ''}${r.name}</span>${sell ? `<button class="btn sm" data-sell="${sell}">Sell · ${r.sell}</button>` : ''}</div></div>
       </div></div>`;
   }

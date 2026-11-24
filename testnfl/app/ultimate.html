@@ -213,6 +213,13 @@
   .ownbtn { display: block; width: 100%; margin-top: 5px; font-size: 11.5px; padding: 3px 4px; }
   .pickrow { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; } .pickrow input[type=radio] { width: 16px; height: 16px; }
   .card.sel { outline: 3px solid var(--gold); outline-offset: 2px; }
+  /* 📊 the lineup's plan panel, beside the field */
+  .lgrid { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 16px; align-items: start; } @media (max-width: 900px) { .lgrid { grid-template-columns: 1fr; } }
+  .lstats { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--soft); font-size: 13px; position: sticky; top: 10px; }
+  .lstats h3 { margin: 10px 0 4px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); } .lstats h3:first-child { margin-top: 0; }
+  .lstats .r { display: grid; grid-template-columns: 1fr 60px 44px; gap: 6px; align-items: center; padding: 2px 0; } .lstats .r b { text-align: right; font-variant-numeric: tabular-nums; }
+  .lstats .bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; } .lstats .bar div { height: 100%; background: var(--accent); }
+  .lstats .r.best span:first-child { font-weight: 800; } .lstats .kv { display: flex; justify-content: space-between; padding: 2px 0; } .lstats .kv b { font-variant-numeric: tabular-nums; }
   .filters { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 </style>
 </head>
@@ -381,6 +388,7 @@ function drawLineup() {
       <div class="bbar"><div style="width:${Math.min(100, 100 * cost / UT.COMP.budget)}%"></div></div>
       <div class="s">Each card costs by rarity: ${Object.entries(UT.COMP.cost).map(([k, v]) => `${UT.RARITY.find(r => r.key === k).name} ${v}`).join(' · ')}. No coach or stadium. Competitive games pay double for both teams.${me.compErr ? ` <b>${esc(me.compErr)}</b>` : ' ✓ Ready to play.'}</div></div>` : '';
   $('lineup').innerHTML = `<h2>🃏 ${SEA() ? `${esc(me.season.plan.name)} lineup` : 'Lineup'} · Overall ${R.ovr}</h2>${SEA() ? '' : tabs}${meter}
+    <div class="lgrid"><div>
     <div class="field">
       <div class="half"><h3><span>🛡️ Defense</span><b>${Math.round(R.d)}</b></h3>${DEF.map(spot).join('')}</div>
       <div class="los"><span>Line of scrimmage</span></div>
@@ -389,10 +397,26 @@ function drawLineup() {
     ${comp ? '' : `<div class="sideline"><div class="lbl2">Sideline (optional)</div>${spot(['HC', 1, 2, 'Head coach'])}${spot(['ST', 2, 2, 'Stadium'])}</div>`}
     <div class="bar2"><button class="btn" id="best">⚡ Best lineup</button></div>
     <p class="note">Click a spot to choose its card. One card per player. ≈ ${R.ppg.toFixed(1)} points scored and ${R.pa.toFixed(1)} allowed against an average team.
-      🧢 Coach ${C.HC ? C.HC.gr : `none (plays like a ${UT.NO_COACH})`}: a little better on both sides and bigger game-plan edges. 🏟️ Home field when you host: ${R.hfa.toFixed(1)} points${C.ST ? `, ${esc(C.ST.x?.roof === 'outdoors' ? `outdoor weather (about ${C.ST.x.dec}° in December)` : 'indoors')}` : ''}.</p>`;
+      🧢 Coach ${C.HC ? C.HC.gr : `none (plays like a ${UT.NO_COACH})`}: a little better on both sides and bigger game-plan edges. 🏟️ Home field when you host: ${R.hfa.toFixed(1)} points${C.ST ? `, ${esc(C.ST.x?.roof === 'outdoors' ? `outdoor weather (about ${C.ST.x.dec}° in December)` : 'indoors')}` : ''}.</p>
+    </div>${lineupStats(C, R)}</div>`;
   $('best').onclick = async () => { if (await act('lineup', { lineup: 'best', which: LMODE })) drawAll(); };
   $('lineup').querySelectorAll('[data-lm]').forEach(b => (b.onclick = () => { LMODE = b.dataset.lm; drawLineup(); }));
   $('lineup').querySelectorAll('[data-slot]').forEach(el => (el.onclick = () => openPicker(el.dataset.slot)));
+}
+// 📊 beside the lineup: the ratings, and how well the cards suit each game plan (grade + styles, as in the game)
+function lineupStats(C, R) {
+  const mult = UT.coachMult(C.HC?.gr ?? UT.NO_COACH);
+  const block = (side, FIT) => {
+    const rows = Object.keys(FIT).map(k => { const g = UT.planGr(C, k, FIT[k]); return { k, g, pts: (g - 65) * 0.06 }; }), best = rows.reduce((a, b) => (b.g > a.g ? b : a));
+    return rows.map(x => { const T = UT.TACTICS[side][x.k];
+      return `<div class="r ${x === best ? 'best' : ''}" data-tip="<b>${esc(T.name)}</b>Your ${esc(FIT[x.k].join(', '))} average ${x.g.toFixed(0)} for this plan (grades plus their styles): ${x.pts >= 0 ? '+' : '−'}${Math.abs(x.pts).toFixed(1)} points a game from fit, before the matchup.">
+        <span>${T.icon} ${esc(T.name)}${x === best ? ' ⭐' : ''}</span><div class="bar"><div style="width:${Math.max(3, Math.min(100, x.g))}%"></div></div><b>${x.pts >= 0 ? '+' : '−'}${Math.abs(x.pts).toFixed(1)}</b></div>`; }).join('');
+  };
+  return `<div class="lstats"><h3>📊 Ratings</h3>
+    <div class="kv"><span>Overall</span><b>${R.ovr}</b></div><div class="kv"><span>🏈 Offense</span><b>${Math.round(R.o)}</b></div><div class="kv"><span>🛡️ Defense</span><b>${Math.round(R.d)}</b></div>
+    <div class="kv"><span>Points for / against</span><b>${R.ppg.toFixed(1)} / ${R.pa.toFixed(1)}</b></div><div class="kv"><span>🧢 Coach edges</span><b>×${mult.toFixed(2)}</b></div><div class="kv"><span>🏟️ Home field</span><b>+${R.hfa.toFixed(1)}</b></div>
+    <h3>🏈 Offense plans</h3>${block('off', UT.OFF_FIT)}<h3>🛡️ Defense plans</h3>${block('def', UT.DEF_FIT)}
+    <div class="muted" style="font-size:11.5px;margin-top:8px">⭐ = what your cards suit best. Points a game from fit; the matchup against their plan comes on top. Live calls use the same fits.</div></div>`;
 }
 function openPicker(slot) {
   const comp = LMODE === 'comp', me = S.me, cur = comp ? me.comp || {} : me.lineup, g = UT.SLOTS.find(([s]) => s === slot)[1], here = cur[slot];
@@ -752,7 +776,7 @@ const callInfo = (L, c) => { // what a call button says: beats / loses to, your 
   const other = off ? UT.DEF_CALLS : UT.OFF_CALLS, v = x => (off ? UT.VS[c][x] : -UT.VS[x][c]);
   const nm = x => UT.TACTICS[off ? 'def' : 'off'][x].icon;
   const p = other.reduce((s, x) => s + (off ? UT.callOdds(m.kind, c, x, mine, theirs) : 1 - UT.callOdds(m.kind, x, c, theirs, mine)), 0) / other.length;
-  const fit = Math.round(UT.avgGr(mine, ...(off ? UT.OFF_FIT[c] : UT.DEF_FIT[c])));
+  const fit = Math.round(UT.planGr(mine, c, off ? UT.OFF_FIT[c] : UT.DEF_FIT[c])); // (with each card's style for that call)
   return { icon: T.icon, name: T.name, p, sub: `Beats ${other.filter(x => v(x) > 0).map(nm).join('') || '–'} · loses to ${other.filter(x => v(x) < 0).map(nm).join('') || '–'} · your fit ${fit}` };
 };
 function showLive(L, res = null) {

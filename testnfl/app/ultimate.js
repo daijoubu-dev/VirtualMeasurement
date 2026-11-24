@@ -191,6 +191,34 @@
     deep: { blitz: -2.5, box: 2.5, zone: -3, man: 2 },
   };
   const avgGr = (C, ...slots) => slots.reduce((a, s) => a + (C[s]?.gr ?? BACKUP), 0) / slots.length;
+  // 🎨 a card's playstyle: how much better or worse (in grade points, ±STYLE_MAX) it plays in each plan, from its real
+  // season. A gunslinger QB is better at shot plays than the quick game, a deep threat WR the other way round…
+  const STYLE_MAX = 10, styles = new Map();
+  function styleOf(c) {
+    if (!c?.l) return {};
+    if (styles.has(c.k + c.l)) return styles.get(c.k + c.l);
+    const n = re => { const m = String(c.l).match(re); return m ? +m[1].replace(/,/g, '') : NaN; }, cl = x => Math.max(-STYLE_MAX, Math.min(STYLE_MAX, Math.round(x * 10) / 10));
+    let s = {};
+    if (c.g === 'QB') {
+      const y = Math.max(1, n(/^([\d,]+) (?:pass )?yds/)), td = n(/([\d,]+) TD/), int = n(/([\d,]+) INT/), rush = n(/([\d,]+) rush$/);
+      const risk = (int / y) * 1000 - 3, score = (td / y) * 1000 - 6.5; // INTs and TDs per 1,000 yards against the usual
+      s = { pass: cl((y - 3800) / 90), deep: cl(score * 2 + risk * 1.5), quick: cl(-risk * 3 + (rush >= 350 ? 3 : 0)) };
+    } else if (c.g === 'WR' || c.g === 'TE') {
+      const rec = Math.max(1, n(/^([\d,]+) rec/)), y = n(/rec, ([\d,]+) yds/), ypc = y / rec, mid = c.g === 'TE' ? 11 : 13.5;
+      s = { deep: cl((ypc - mid) * 2.5), quick: cl((mid - 0.5 - ypc) * 2 + (rec - (c.g === 'TE' ? 55 : 70)) / 7), ...(c.g === 'WR' ? { pass: cl((y - 1000) / 80) } : {}) };
+    } else if (c.g === 'RB') s = { run: cl((n(/^([\d,]+) rush yds/) - 1000) / 70 + (n(/([\d,]+) TD/) - 8) * 0.5) };
+    else if (c.g === 'OL') s = { run: cl((n(/([\d.]+) yds\/carry/) - 4.3) * 9) };
+    else if (c.g === 'DL') s = { blitz: cl((n(/([\d.]+) sacks/) - 7) * 1.2), box: cl((n(/([\d,]+) TFL/) - 8) * 0.8) };
+    else if (c.g === 'LB') s = { blitz: cl((n(/([\d.]+) sacks/) - 3) * 2), box: cl((n(/^([\d,]+) tkl/) - 90) / 5), zone: cl((n(/([\d,]+) INT/) - 1) * 3) };
+    else if (c.g === 'DB') s = { zone: cl((n(/^([\d,]+) INT/) - 3) * 2), man: cl((n(/([\d,]+) PD/) - 11) * 0.8) };
+    s = Object.fromEntries(Object.entries(s).filter(([, v]) => Number.isFinite(v))); // (a stat the line doesn't have: no style for that plan)
+    styles.set(c.k + c.l, s);
+    return s;
+  }
+  // a card's main style: the plan it's best at (if it's clearly better at one)
+  const mainStyle = c => { const e = Object.entries(styleOf(c)).sort((a, b) => b[1] - a[1])[0]; return e && e[1] >= 2 ? e[0] : null; };
+  // the average grade of a plan's slots, with each card's style for that plan
+  const planGr = (C, plan, slots) => slots.reduce((a, s) => a + (C[s] ? C[s].gr + (styleOf(C[s])[plan] || 0) : BACKUP), 0) / slots.length;
   // how well the cards suit the plan: about ±1.5 points for a great or poor fit
   const OFF_FIT = { run: ['RB', 'OL'], pass: ['QB', 'WR1', 'WR2'], quick: ['QB', 'TE', 'WR2'], deep: ['QB', 'WR1'] };
   const DEF_FIT = { blitz: ['DL1', 'DL2', 'LB'], box: ['DL1', 'DL2', 'LB'], zone: ['DB1', 'DB2', 'LB'], man: ['DB1', 'DB2'] };
@@ -199,8 +227,8 @@
   function planEdge(atkCards, atkPlan, defCards, defPlan) {
     const notes = [], o = atkPlan.off, d = defPlan.def;
     const vs = VS[o]?.[d] || 0;
-    const fitO = OFF_FIT[o] ? (avgGr(atkCards, ...OFF_FIT[o]) - 65) * 0.06 : 0;
-    const fitD = DEF_FIT[d] ? (avgGr(defCards, ...DEF_FIT[d]) - 65) * 0.06 : 0;
+    const fitO = OFF_FIT[o] ? (planGr(atkCards, o, OFF_FIT[o]) - 65) * 0.06 : 0;
+    const fitD = DEF_FIT[d] ? (planGr(defCards, d, DEF_FIT[d]) - 65) * 0.06 : 0;
     const raw = vs + fitO - fitD, mult = raw > 0 ? coachMult(coachOf(atkCards)) : coachMult(coachOf(defCards));
     let pts = raw * mult, sd = 0;
     if (vs) notes.push({ kind: vs > 0 ? 'beat' : 'stuffed', pts: vs * mult, o, d });
@@ -704,7 +732,7 @@
   // the chance the offense's call works against the defense's call
   function callOdds(kind, o, d, offCards, defCards) {
     const vs = VS[o]?.[d] || 0, mult = coachMult(coachOf(vs > 0 ? offCards : defCards));
-    const fit = (avgGr(offCards, ...OFF_FIT[o]) - avgGr(defCards, ...DEF_FIT[d])) * 0.005;
+    const fit = (planGr(offCards, o, OFF_FIT[o]) - planGr(defCards, d, DEF_FIT[d])) * 0.005;
     return Math.max(0.08, Math.min(0.92, MOMENTS[kind].base + vs * 0.06 * mult + fit));
   }
   // who scores on a call, and how it reads
@@ -756,12 +784,13 @@
     const mine = slotsOf(c.g), out = [];
     for (const [side, FIT] of [['off', OFF_FIT], ['def', DEF_FIT]]) for (const [k, list] of Object.entries(FIT)) {
       const at = mine.filter(s => list.includes(s)); if (!at.length) continue;
-      out.push({ side, key: k, name: TACTICS[side][k].name, icon: TACTICS[side][k].icon, pts: (c.gr - 65) * 0.06 / list.length, as: at.length < mine.length ? at.join('/') : '' });
+      const st = styleOf(c)[k] || 0;
+      out.push({ side, key: k, name: TACTICS[side][k].name, icon: TACTICS[side][k].icon, pts: (c.gr + st - 65) * 0.06 / list.length, style: st, as: at.length < mine.length ? at.join('/') : '' });
     }
     return out;
   }
 
-  const out = { LEGENDS, legendCard, SEASONS, seasonPlan, seasonName, seasonPools, BOT_CAP, LOOKS, readOdds, liveRead, LIVE, MOMENTS, OFF_CALLS, DEF_CALLS, liveMoments, finalKind, callsFor, callOdds, liveResolve, cardFits, coachMult, OFF_FIT, DEF_FIT, avgGr, SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
+  const out = { styleOf, mainStyle, planGr, STYLE_MAX, LEGENDS, legendCard, SEASONS, seasonPlan, seasonName, seasonPools, BOT_CAP, LOOKS, readOdds, liveRead, LIVE, MOMENTS, OFF_CALLS, DEF_CALLS, liveMoments, finalKind, callsFor, callOdds, liveResolve, cardFits, coachMult, OFF_FIT, DEF_FIT, avgGr, SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
     planOf, randomPlan, makePools, openPack, ratings, expected, simGame, makeBot, simSeason };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_UT = out;
 })(typeof window !== 'undefined' ? window : globalThis);

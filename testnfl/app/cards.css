@@ -19,6 +19,8 @@
 .card .yr { font-size: 7.2cqw; font-weight: 650; color: #c6cfdd; }
 .card .ed { font-size: 6.2cqw; font-weight: 800; color: #ffc53d; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .ed.set { color: #aab6c8; }
+.card .sty { font-size: 6.2cqw; font-weight: 800; color: var(--rc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-r i.su { color: #4ade80; } .bk-r i.sd { color: #f87171; }
 .card .ln { font-size: 6.8cqw; line-height: 1.15; color: #aab6c8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .ft { display: flex; justify-content: space-between; align-items: center; gap: 4px; min-height: 12cqw; margin-top: 1.5cqw; padding-top: 2cqw; border-top: 1px solid rgba(255, 255, 255, .16); font-size: 6.4cqw; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--rc); }
 .card .ft .btn { padding: 1px 6px; font-size: max(10px, 6.4cqw); letter-spacing: 0; text-transform: none; background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .25); color: #fff; font-family: system-ui, sans-serif; white-space: nowrap; }
@@ -81,7 +83,7 @@
 
 /* small cards (a lineup on a phone): just the grade, the face and the last name */
 @container (max-width: 118px) {
-  .card .ln, .card .yr, .card .ed, .card .ft, .cbadge .tm, .card .nm .fn { display: none; }
+  .card .ln, .card .yr, .card .ed, .card .ft, .card .sty, .cbadge .tm, .card .nm .fn { display: none; }
   .card .gr, .fullart .gr { font-size: 31cqw; } .card .pos { font-size: 11cqw; padding: 1cqw 3cqw; }
   .card .nm, .fullart .nm { font-size: 15cqw; -webkit-line-clamp: 1; line-clamp: 1; white-space: nowrap; display: block; text-overflow: ellipsis; }
   .plate, .fullart .plate { padding: 14cqw 6cqw 6cqw; }
