@@ -152,7 +152,7 @@
   const page = (location.pathname.split('/').pop() || 'index.html').replace('.html', '') || 'index';
   // the footer on every page: who made it and where the numbers come from
   const foot = Object.assign(document.createElement('footer'), { className: 'vmfoot' });
-  foot.innerHTML = 'Created by <b>daijoubu-dev</b> and <b>Claude</b> · <a href="https://github.com/daijoubu-dev/VirtualMeasurement" target="_blank" rel="noopener">GitHub</a><br>Stats and schedules from <a href="https://github.com/nflverse" target="_blank" rel="noopener">nflverse</a> (play-by-play, rosters and pass-rush data from Pro Football Reference) · live scores and player photos from ESPN and NFL.com · team logos from ESPN<br>Just for fun: not affiliated with the NFL or any team. Predictions are for entertainment, not betting advice.';
+  foot.innerHTML = 'Created by <b>daijoubu-dev</b> and <b>Claude</b> · <a href="https://github.com/daijoubu-dev/VirtualMeasurement" target="_blank" rel="noopener">GitHub</a><br>Stats and schedules from <a href="https://github.com/nflverse" target="_blank" rel="noopener">nflverse</a> (play-by-play, rosters and pass-rush data from Pro Football Reference) · live scores and player photos from ESPN and NFL.com · team logos from ESPN';
 
   // ---------- 🪪 the hover card on a player's name ----------
   const cards = new Map(); let hoverEl = null, hoverTimer = null, pop = null;

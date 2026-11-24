@@ -223,7 +223,7 @@ Every page explains its abbreviations: hover CPOE, EPA, aDOT, YAC, RYOE, O/U, AT
 Similarity is based on **stats, not tags**: each stat is turned into how far a team sits above or below that season's league average at the same point in the season, and "% alike" measures how close those numbers are. Tags and archetypes are labels on top of the same numbers, so two teams can be very alike yet wear different tags if one sits just inside a cutoff. Every team is compared against all teams in the same season after the same number of games, so early-season noise and different eras are handled fairly. By default look-alikes match on all 24 stats: points, yards, turnover margin, EPA per play, the big-play, sack and situational stats, and PFR pressure/blitz rates. Turn any of them off under ⚙ Settings (each group has all / none buttons); your picks are saved to your profile. The search covers every season since 1999. Pass-rush stats (pressure, pressure allowed, blitz rate) only exist from 2018, so earlier teams are matched on the remaining stats and marked **★**. Because they're compared on fewer stats, ★ teams match a little more easily and show up somewhat more often near the top.
 
 ### Footer
-Every page ends with a footer (added by `app/profile.js`): made by daijoubu-dev and Claude, where the data comes from (nflverse, Pro Football Reference pass-rush data, ESPN and NFL.com for live scores, photos and logos), and that it's just for fun, not affiliated with the NFL and not betting advice.
+Every page ends with a footer (added by `app/profile.js`): made by daijoubu-dev and Claude, where the data comes from (nflverse, Pro Football Reference pass-rush data, ESPN and NFL.com for live scores, photos and logos).
 
 ## Rebuilding from the command line
 

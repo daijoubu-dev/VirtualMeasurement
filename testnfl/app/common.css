@@ -28,11 +28,11 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 h1 { font-size: 19px; margin: 0; display: flex; align-items: center; gap: 8px; }
 h1 img { height: 24px; }
 .nav { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 13px; }
-.nav a { padding: 5px 14px; text-decoration: none; color: var(--muted); }
+.nav a { padding: 5px 11px; text-decoration: none; color: var(--muted); }
 .nav a:hover { color: var(--text); background: var(--soft); }
 .nav a.on { background: var(--accent); color: #fff; }
 /* two groups: the stats pages and the simulators */
-.navs { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.navs { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ngrp { display: inline-flex; align-items: center; gap: 6px; }
 .ngrp.main .nav { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); font-weight: 650; } .ngrp.main .nav a:not(.on) { color: var(--text); } .ngrp.main .nlbl { color: var(--accent); }
 .nlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; }
