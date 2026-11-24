@@ -602,17 +602,80 @@
       { xp: 2100, pts: 2000 }, { xp: 2800, title: 'veteran' }, { xp: 3600, pack: 'legend', n: 2 }, { xp: 4500, mythic: true },
     ],
   };
+  // ---------- 🗓️ the season plan: every season has a name, and some have special rules ----------
+  // mods: allMythic (every pack card is a Mythic 99), compOnly (every game uses a competitive lineup), era ([from, to]
+  // seasons, or 'current': the newest season; only those cards come out of packs), superBowl (the two Super Bowl QBs are the season's Mythics,
+  // and their franchises' players come out of packs twice as often).
+  // From Season 2 on: bot wins pay coins only BOT_CAP times a day (XP always counts), and there's a 📅 Schedule run a day.
+  const SEASONS = {
+    1: { name: 'Opening Drive', icon: '🏈', desc: 'The first season: everyone starts from a starter pack and 500 coins.' },
+    2: { name: 'Mythic Madness', icon: '🌈', desc: "Every card in every pack is a Mythic 99. Every team is stacked, so game plans, coaches and live calls decide it.", mods: { allMythic: true }, legends: ['rice', 'montana'] },
+    3: { name: 'The Gauntlet', icon: '⚔', desc: 'Competitive lineups only: every game, bots included, is played with the rarity budget (24, one Mythic, no coach or stadium).', mods: { compOnly: true }, legends: ['white', 'lt'] },
+    4: { name: 'Throwback', icon: '📼', desc: 'Only player-seasons from 1999 to 2009 come out of packs.', mods: { era: [1999, 2009] }, legends: ['payton', 'marino'] },
+    5: { name: 'Prime Time', icon: '📺', desc: "Playoff season: only the newest season's cards (last year's) come out of packs.", mods: { era: 'current' }, legends: ['barry', 'deion'] },
+    6: { name: 'The Big Game', icon: '🏆', desc: "Super Bowl season: the two Super Bowl QBs are the season's Mythics (set once the conference championships are played), and the Super Bowl teams' players come out of packs twice as often.", mods: { superBowl: true } },
+  };
+  const MORE_NAMES = ['Two-Minute Warning', 'Hail Mary', 'Red Zone', 'Hard Count', 'Fourth and Long', 'Overtime', 'Gridiron', 'Blitz'];
+  // 👑 Legends: all-time greats from before the data starts (1999), at their best season, only as season rewards
+  // (the Mythic for finishing the track and the champion's). Seasons 2–5 have a themed pair; later seasons go down the list.
+  const LEGENDS = [
+    { id: 'rice', n: 'Jerry Rice', s: 1995, t: 'SF', g: 'WR', l: '122 rec, 1,848 yds, 15 TD' },
+    { id: 'montana', n: 'Joe Montana', s: 1989, t: 'SF', g: 'QB', l: '3,521 pass yds, 26 TD, 8 INT · MVP' },
+    { id: 'lt', n: 'Lawrence Taylor', s: 1986, t: 'NYG', g: 'LB', l: '20.5 sacks · MVP' },
+    { id: 'white', n: 'Reggie White', s: 1987, t: 'PHI', g: 'DL', l: '21 sacks in 12 games' },
+    { id: 'marino', n: 'Dan Marino', s: 1984, t: 'MIA', g: 'QB', l: '5,084 pass yds, 48 TD · MVP' },
+    { id: 'payton', n: 'Walter Payton', s: 1977, t: 'CHI', g: 'RB', l: '1,852 rush yds, 14 TD · MVP' },
+    { id: 'deion', n: 'Deion Sanders', s: 1994, t: 'SF', g: 'DB', l: '6 INT, 303 return yds, 3 TD · DPOY' },
+    { id: 'barry', n: 'Barry Sanders', s: 1997, t: 'DET', g: 'RB', l: '2,053 rush yds, 11 TD · MVP' },
+    { id: 'emmitt', n: 'Emmitt Smith', s: 1995, t: 'DAL', g: 'RB', l: '1,773 rush yds, 25 TD' },
+    { id: 'young', n: 'Steve Young', s: 1994, t: 'SF', g: 'QB', l: '3,969 pass yds, 35 TD, 10 INT · MVP' },
+    { id: 'jimbrown', n: 'Jim Brown', s: 1963, t: 'CLE', g: 'RB', l: '1,863 rush yds, 12 TD · MVP' },
+    { id: 'lott', n: 'Ronnie Lott', s: 1986, t: 'SF', g: 'DB', l: '10 INT' },
+    { id: 'winslow', n: 'Kellen Winslow', s: 1980, t: 'SD', g: 'TE', l: '89 rec, 1,290 yds, 9 TD' },
+    { id: 'shula', n: 'Don Shula', s: 1972, t: 'MIA', g: 'HC', l: '17-0, the perfect season' },
+    { id: 'lombardi', n: 'Vince Lombardi', s: 1962, t: 'GB', g: 'HC', l: '13-1, NFL champions' },
+    { id: 'walsh', n: 'Bill Walsh', s: 1984, t: 'SF', g: 'HC', l: '15-1, Super Bowl champions' },
+  ].map(L => ({ ...L, k: `legend-${L.id}|${L.s}`, gr: 99, legend: true }));
+  const legendCard = id => LEGENDS.find(L => L.id === id);
+  const BOT_CAP = 5;
+  function seasonPlan(n) {
+    const rest = ['emmitt', 'young', 'jimbrown', 'lott', 'winslow', 'shula', 'lombardi', 'walsh'], i = (n - 7) * 2;
+    const s = SEASONS[n] || { name: MORE_NAMES[(n - 7) % MORE_NAMES.length], icon: '🗓️', desc: 'A regular season.', legends: [rest[i % rest.length], rest[(i + 1) % rest.length]] };
+    return { n, ...s, mods: s.mods || {}, botCap: n >= 2 ? BOT_CAP : null, schedule: n >= 2 };
+  }
+  const seasonName = n => (n ? `${seasonPlan(n).icon} ${seasonPlan(n).name}` : '');
+  // the cards a season's packs come from (sb: the Super Bowl teams once known). 'current' is the newest season the cards have.
+  function seasonPools(pools, n, sb = []) {
+    const M = seasonPlan(n).mods, out = {};
+    const cy = M.era === 'current' ? Math.max(...Object.values(pools.QB).flat().map(c => +c.s).filter(Number.isFinite)) : 0;
+    for (const [g, byRar] of Object.entries(pools)) {
+      let P = byRar;
+      if (M.allMythic) { const top = byRar.mythic.length ? byRar.mythic : byRar.legendary.length ? byRar.legendary : byRar.epic; P = Object.fromEntries(Object.keys(byRar).map(k => [k, top])); }
+      if (M.era) {
+        const [a, b] = M.era === 'current' ? [cy, cy] : M.era, f = Object.fromEntries(Object.entries(byRar).map(([k, l]) => [k, l.filter(c => +c.s >= a && +c.s <= b)]));
+        if (Object.values(f).some(l => l.length)) P = f; // (a position with nothing from those years keeps every card)
+      }
+      if (M.superBowl && sb.length) P = Object.fromEntries(Object.entries(P).map(([k, l]) => [k, [...l, ...l.filter(c => sb.includes(teamKey(c.t)))]]));
+      out[g] = P;
+    }
+    return out;
+  }
   const seasonNow = (t = Date.now(), epoch = SEASON.epoch) => (t < epoch ? 0 : Math.floor((t - epoch) / (SEASON.days * DAY)) + 1);
   const seasonSpan = (n, epoch = SEASON.epoch) => ({ starts: epoch + (n - 1) * SEASON.days * DAY, ends: epoch + n * SEASON.days * DAY });
   // what a milestone gives, in words
-  const milestoneText = (m, n) => (m.pts ? `${m.pts.toLocaleString()} points` : m.pack ? `${m.n > 1 ? m.n + ' ' : ''}${PACKS[m.pack].name}${m.n > 1 ? 's' : ''}` : m.title ? `"Season ${n} Veteran" title` : `Season ${n} Mythic`);
+  const milestoneText = (m, n) => (m.pts ? `${m.pts.toLocaleString()} points` : m.pack ? `${m.n > 1 ? m.n + ' ' : ''}${PACKS[m.pack].name}${m.n > 1 ? 's' : ''}` : m.title ? `"${seasonPlan(n).name} Veteran" title` : `${seasonPlan(n).name} Mythic`);
   // each season's two Mythic editions, the same for everyone: one for finishing the milestones, one for the champion
-  function seasonCards(pools, n) {
+  // qbs: the Super Bowl season's two QB cards ([AFC champion's, NFC champion's]) once they're known
+  function seasonCards(pools, n, qbs = null) {
     // a position first (so it isn't always a defender: they have the most 98+ seasons), then one of its 98+ seasons
     const groups = ['QB', 'RB', 'WR', 'TE', 'DL', 'LB', 'DB'], r = rng(n * 7919 + 17);
     const pick = () => { const g = groups.splice(Math.floor(r() * groups.length), 1)[0], list = [...pools[g].legendary, ...pools[g].mythic].filter(c => c.gr >= 98).sort((a, b) => (a.k < b.k ? -1 : 1)); return list[Math.floor(r() * list.length)]; };
-    const a = pick(), b = pick();
-    return { track: { ...a, k: `${a.k}|S${n}`, gr: 99, ed: `Season ${n}` }, champ: { ...b, k: `${b.k}|S${n}C`, gr: 99, ed: `Season ${n} Champion` } };
+    let a = pick(), b = pick(), tbd = false;
+    const P = seasonPlan(n);
+    if (P.mods.superBowl) { if (qbs?.length === 2) [a, b] = qbs; else tbd = true; }
+    else if (P.legends) [a, b] = P.legends.map(legendCard);
+    const nm = seasonPlan(n).name;
+    return { tbd, track: { ...a, k: `${a.k}|S${n}`, gr: 99, ed: nm }, champ: { ...b, k: `${b.k}|S${n}C`, gr: 99, ed: `${nm} Champion` } };
   }
 
   // ---------- 🎮 live bot games: the sim stops at key moments and you make the call ----------
@@ -698,7 +761,7 @@
     return out;
   }
 
-  const out = { LOOKS, readOdds, liveRead, LIVE, MOMENTS, OFF_CALLS, DEF_CALLS, liveMoments, finalKind, callsFor, callOdds, liveResolve, cardFits, coachMult, OFF_FIT, DEF_FIT, avgGr, SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
+  const out = { LEGENDS, legendCard, SEASONS, seasonPlan, seasonName, seasonPools, BOT_CAP, LOOKS, readOdds, liveRead, LIVE, MOMENTS, OFF_CALLS, DEF_CALLS, liveMoments, finalKind, callsFor, callOdds, liveResolve, cardFits, coachMult, OFF_FIT, DEF_FIT, avgGr, SEASON, seasonNow, seasonSpan, milestoneText, seasonCards, SLOTS, STAFF, REQUIRED, GROUPS, NAMES, RARITY, rarityOf, PACKS, DAILY, REWARD, GAME_CARD, TEAM_PACK, COLLECTION_PTS, makeCollections, openTeamPack, gameCard, photos, teamKey, SET_CAP, baseKey, TRADE_UP, TRADE_N, tradeUpCard, BACKUP, NO_COACH, HFA, BOTS, botOdds, botPay, COMP, compCost, compCheck, compBest, SEASON_REWARD, TACTICS, DEFAULT_PLAN, VS,
     planOf, randomPlan, makePools, openPack, ratings, expected, simGame, makeBot, simSeason };
   if (typeof module !== 'undefined' && module.exports) module.exports = out; else root.VM_UT = out;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -317,7 +317,7 @@ function shown(me) {
 
 // ---------- drawing: your team ----------
 const lineupCards = me => Object.fromEntries(Object.entries(me.lineup).map(([s, u]) => [s, me.cards.find(c => c.u === u)]).filter(([, c]) => c));
-const isFull = me => UT.REQUIRED.every(([s]) => me.lineup[s]); // the eleven players (coach and stadium are optional)
+const isFull = me => (me.compOnly ? !me.compErr : UT.REQUIRED.every(([s]) => me.lineup[s])); // the eleven players (coach and stadium are optional); ⚔ The Gauntlet: a lineup that fits the budget
 // ⚔ the competitive lineup (double-point games): the eleven players within a rarity budget
 const compCards = me => Object.fromEntries(Object.entries(me.comp || {}).map(([s, u]) => [s, me.cards.find(c => c.u === u)]).filter(([, c]) => c));
 const heldIds = me => new Set([...Object.values(me.lineup), ...Object.values(me.comp || {})]); // cards in either lineup
@@ -326,8 +326,8 @@ let LMODE = 'main'; // which lineup the Lineup tab shows
 const daysLeft = t => { const h = (t - Date.now()) / 36e5; return h < 24 ? `${Math.max(1, Math.round(h))}h` : `${Math.round(h / 24)}d`; };
 function drawModebar() {
   const I = S.seasonInfo || { n: 0 };
-  const sub = I.n ? `Season ${I.n} · ends in ${daysLeft(I.ends)}` : `starts ${new Date(I.starts).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`;
-  $('modebar').innerHTML = `<div class="seg"><button data-mode="main" class="${SEA() ? '' : 'on'}">🃏 Permanent</button><button data-mode="season" class="${SEA() ? 'on' : ''}" ${I.n ? '' : 'disabled'}
+  const sub = I.n ? `${I.icon} ${esc(I.name)} · ends in ${daysLeft(I.ends)}` : `starts ${new Date(I.starts).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`;
+  $('modebar').innerHTML = `<div class="seg"><button data-mode="main" class="${SEA() ? '' : 'on'}">🃏 Permanent</button><button data-mode="season" class="${SEA() ? 'on' : ''}" ${I.n ? '' : 'disabled'} title="Season ${I.n}"
     data-tip="<b>🗓️ Seasonal mode</b>Every two weeks everyone starts from nothing: new cards, coins and record. Games fill a milestone track with permanent rewards (points, packs, a title and that season's Mythic), and the best record against players wins the season and another Mythic.">🗓️ Seasonal<span class="sub">${sub}</span></button></div>`;
   $('modebar').querySelectorAll('[data-mode]').forEach(b => (b.onclick = async () => {
     if (b.disabled || b.dataset.mode === MODE) return;
@@ -345,7 +345,7 @@ function drawHero() {
   const rank = Z ? Z.board.findIndex(r => r.pid === VM.profile()) + 1 : 0;
   $('hero').innerHTML = `<div class="hero">
     <div class="tile" id="teamTile"><div class="k">Your team <button class="edit" id="editTeam" title="Rename your team">✏️</button></div><div class="v">${esc(me.team.abbr)} · ${esc(me.team.name)}</div><div class="s">${esc(VM_PROFILE_NAME())}</div></div>
-    ${Z ? `<div class="tile" data-tip="<b>Season record</b>Games against other players this season (+${UT.SEASON.win} coins a win, +${UT.SEASON.loss} a loss). The best record when the season ends wins it."><div class="k">Season ${Z.n} record</div><div class="v">${V.w}-${V.l}</div><div class="s">${rank ? `#${rank} of ${Z.board.length}` : 'Not ranked yet'} · Bots ${botRec(me)} · ✨ ${Z.xp.toLocaleString()} XP</div></div>`
+    ${Z ? `<div class="tile" data-tip="<b>Season record</b>Games against other players this season (+${UT.SEASON.win} coins a win, +${UT.SEASON.loss} a loss). The best record when the season ends wins it."><div class="k">${esc(Z.plan.name)} record</div><div class="v">${V.w}-${V.l}</div><div class="s">${rank ? `#${rank} of ${Z.board.length}` : 'Not ranked yet'} · Bots ${botRec(me)} · ✨ ${Z.xp.toLocaleString()} XP</div></div>`
       : `<div class="tile" data-tip="<b>Record</b>Games against other players (+${UT.REWARD.win} points a win, +${UT.REWARD.loss} a loss). Bot games and seasons are kept apart."><div class="k">Record</div><div class="v">${V.w}-${V.l}</div><div class="s">Bots ${botRec(me)} · 💍 ${me.titles} ring${me.titles === 1 ? '' : 's'}</div></div>`}
     <div class="tile" data-tip="<b>Team rating</b>Your lineup's grades rolled up like the 17-0 page: offense (QB 36%, O-line 22%, receivers 24%, RB 10%, TE 8%) and defense (pass rush 50%, secondary 32%, linebacker 18%). Empty spots play like a grade-25 backup."><div class="k">Overall</div><div class="v">${R.ovr}</div><div class="s">Offense ${Math.round(R.o)} · Defense ${Math.round(R.d)}</div></div>
     <div class="tile"><div class="k">${Z ? '🪙 Season coins' : 'Points'}</div><div class="v gold">${V.balance.toLocaleString()}</div>
@@ -368,7 +368,7 @@ function drawLineup() {
   const me = S.me;
   if (!me) { $('lineup').innerHTML = '<p class="empty">Sign in to build a lineup.</p>'; return; }
   if (!me.cards.length) { $('lineup').innerHTML = '<p class="empty">No cards yet. Open your free starter pack in 📦 Packs.</p>'; return; }
-  if (SEA()) LMODE = 'main';
+  if (SEA()) LMODE = me.compOnly ? 'comp' : 'main';
   const comp = LMODE === 'comp', C = comp ? compCards(me) : lineupCards(me), R = UT.ratings(C);
   const cost = comp ? UT.compCost(C) : 0, myth = comp ? UT.REQUIRED.filter(([s]) => C[s]?.gr >= 99).length : 0;
   // each spot where it lines up: [slot, grid column, grid row] on a 5-column field
@@ -380,7 +380,7 @@ function drawLineup() {
   const meter = comp ? `<div class="budget ${cost > UT.COMP.budget || myth > UT.COMP.maxMythic ? 'over' : ''}"><div><b>Budget ${cost} / ${UT.COMP.budget}</b> · Mythics ${myth} / ${UT.COMP.maxMythic}</div>
       <div class="bbar"><div style="width:${Math.min(100, 100 * cost / UT.COMP.budget)}%"></div></div>
       <div class="s">Each card costs by rarity: ${Object.entries(UT.COMP.cost).map(([k, v]) => `${UT.RARITY.find(r => r.key === k).name} ${v}`).join(' · ')}. No coach or stadium. Competitive games pay double for both teams.${me.compErr ? ` <b>${esc(me.compErr)}</b>` : ' ✓ Ready to play.'}</div></div>` : '';
-  $('lineup').innerHTML = `<h2>🃏 ${SEA() ? `Season ${me.season.n} lineup` : 'Lineup'} · Overall ${R.ovr}</h2>${SEA() ? '' : tabs}${meter}
+  $('lineup').innerHTML = `<h2>🃏 ${SEA() ? `${esc(me.season.plan.name)} lineup` : 'Lineup'} · Overall ${R.ovr}</h2>${SEA() ? '' : tabs}${meter}
     <div class="field">
       <div class="half"><h3><span>🛡️ Defense</span><b>${Math.round(R.d)}</b></h3>${DEF.map(spot).join('')}</div>
       <div class="los"><span>Line of scrimmage</span></div>
@@ -417,7 +417,7 @@ function drawPacks() {
   if (!me) { $('packs').innerHTML = '<p class="empty">Sign in to open packs.</p>'; return; }
   const odds = o => `<div class="odds">${UT.RARITY.filter(r => o[r.key]).map(r => `<span style="color:${r.color};font-weight:700">${r.name}</span><div class="b"><div style="width:${Math.max(o[r.key] * 100, 1.5)}%;background:${r.color}"></div></div><span>${o[r.key] < 0.01 ? (o[r.key] * 100).toFixed(2) : Math.round(o[r.key] * 100)}%</span>`).join('')}</div>`;
   const cur = SEA() ? 'coins' : 'pts';
-  $('packs').innerHTML = `<h2>📦 ${SEA() ? `Season ${me.season.n} packs` : 'Packs'} · ${me.balance.toLocaleString()} ${unit()}</h2>
+  $('packs').innerHTML = `<h2>📦 ${SEA() ? `${esc(me.season.plan.name)} packs` : 'Packs'} · ${me.balance.toLocaleString()} ${unit()}</h2>
     ${!me.starter ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.starter.icon}</div><b>${UT.PACKS.starter.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.starter.desc}</div><button class="btn go" data-open="starter">Open it</button></div>`
       : me.rookie?.bundle ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.rookie.icon}</div><b>${UT.PACKS.rookie.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.rookie.desc} Plus double points until you've earned ${me.rookie.until.toLocaleString()}.</div><button class="btn go" data-open="rookie">Open it</button></div>`
       : !me.staff ? `<div class="starter"><div style="font-size:34px">${UT.PACKS.staff.icon}</div><b>New: ${UT.PACKS.staff.name}</b><div class="muted" style="font-size:13px;margin:4px 0 10px">${UT.PACKS.staff.desc} Coaches and stadiums now have their own spots on the sideline.</div><button class="btn go" data-open="staff">Open it</button></div>` : ''}
@@ -455,7 +455,7 @@ function drawColl() {
   const dupes = [...groups.values()].flatMap(cs => cs.sort((a, b) => inLineup.has(b.u) - inLineup.has(a.u)).slice(1)).filter(c => !inLineup.has(c.u));
   const dupePts = dupes.reduce((a, c) => a + UT.rarityOf(c.gr).sell, 0);
   const shown = [...groups.values()].map(cs => cs[0]).filter(c => FILTER === 'All' || c.g === FILTER).sort((a, b) => b.gr - a.gr);
-  $('coll').innerHTML = `<h2>🗂 ${SEA() ? `Season ${me.season.n} cards` : 'Collection'} · ${me.cards.length} cards, ${groups.size} different</h2>
+  $('coll').innerHTML = `<h2>🗂 ${SEA() ? `${esc(me.season.plan.name)} cards` : 'Collection'} · ${me.cards.length} cards, ${groups.size} different</h2>
     <div class="filters"><div class="seg" id="fseg">${['All', ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div>
       <div class="trade" ${SEA() ? 'hidden' : ''}>${Object.entries(UT.TRADE_UP).map(([f, t]) => { const n = tradeable(me, f).length, R = k => UT.RARITY.find(r => r.key === k);
         return `<button class="btn" data-trade="${f}" ${n >= UT.TRADE_N ? '' : 'disabled'} title="You have ${n} tradeable">♻️ ${UT.TRADE_N} <b style="color:${R(f).color}">${R(f).name}</b> → 1 <b style="color:${R(t).color}">${R(t).name}</b></button>`; }).join('')}</div>
@@ -593,7 +593,7 @@ function drawPlay() {
     if (r) { r.game.xp = r.xp; HOLD = r.game.gid; S.queue = S.queue.filter(q => q.qid !== b.dataset.ch); drawPlay(); showGame(r.game, true, () => { apply(r); load(); }); } else { b.disabled = false; load(); }
   }));
   // results
-  if (SEA()) $('queue').querySelector('.queuebox').insertAdjacentHTML('afterbegin', `<div class="s" style="margin:0 0 8px">🗓️ Season ${me.season.n} games: only seasonal teams are on this queue, and wins count for the season standings.</div>`);
+  if (SEA()) $('queue').querySelector('.queuebox').insertAdjacentHTML('afterbegin', `<div class="s" style="margin:0 0 8px">${me.season.plan.icon} ${esc(me.season.plan.name)} games: only seasonal teams are on this queue, and wins count for the season standings.</div>`);
   $('results').innerHTML = S.games.length ? S.games.slice(0, 25).map(g => {
     const mineG = g.home.pid === myId || g.away.pid === myId, W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'];
     const res = mineG ? ((g[g.winner].pid === myId) ? '<b class="W">W</b> ' : '<b class="L">L</b> ') : '';
@@ -684,7 +684,7 @@ function finalHtml(g) {
   const W = g[g.winner], L = g[g.winner === 'home' ? 'away' : 'home'], myId = VM.profile();
   const mine = g.home.pid === myId ? 'home' : g.away.pid === myId ? 'away' : null;
   const xp = g.xp ? ` · ✨ +${g.xp.xp} XP${g.xp.reached.length ? ` · 🎁 Milestone: ${g.xp.reached.map(esc).join(', ')}` : ''}` : '';
-  const you = (g.bot ? (g.winner === 'home' ? `🎉 You beat the bot! +${g.reward} ${g.seasonal ? 'coins' : 'points'}${g.live ? ' (🎮 live: double)' : ''}` : `The bot wins this one. No ${g.seasonal ? 'coins' : 'points'} for a loss.`)
+  const you = (g.bot ? (g.winner === 'home' ? (g.capped ? `🎉 You beat the bot! (No coins: only ${g.capped} bot wins a day pay this season.)` : `🎉 You beat the bot! +${g.reward} ${g.seasonal ? 'coins' : 'points'}${g.live ? ' (🎮 live: double)' : ''}`) : `The bot wins this one. No ${g.seasonal ? 'coins' : 'points'} for a loss.`)
     : mine && g.seasonal ? (g.winner === mine ? `🎉 You win! +${UT.SEASON.win} coins` : `Tough loss. +${UT.SEASON.loss} coins for playing`)
     : mine ? (g.winner === mine ? `🎉 You win! +${UT.REWARD.win * (g.competitive ? UT.COMP.mult : 1)} points${g.competitive ? ' (⚔ double)' : ''}` : `Tough loss. +${UT.REWARD.loss * (g.competitive ? UT.COMP.mult : 1)} points for playing`) : '') + (mine || g.bot ? xp : '');
   return `<div class="final"><div class="t">🏆 ${esc(W.team)} ${Math.max(g.hs, g.as)}, ${esc(L.team)} ${Math.min(g.hs, g.as)}${g.ot ? ' (OT)' : ''}</div>
@@ -719,7 +719,8 @@ function drawBots() {
   if (!me) { $('bots').innerHTML = '<p class="empty">Sign in to play the bots.</p>'; return; }
   const C = lineupCards(me), today = me.bot.ptsToday, boost = !SEA() && me.rookie && me.rookie.earned < me.rookie.until;
   const L = me.live;
-  $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} bot ${unit()} today</h2>
+  const capTxt = me.bot.cap ? ` · ${Math.min(me.bot.winsToday, me.bot.cap)} of ${me.bot.cap} paid wins today` : '';
+  $('bots').innerHTML = `<h2>🤖 Play a bot · ${today} bot ${unit()} today${capTxt}</h2>
     ${L ? `<div class="banner"><span>🎮 Live game vs the <b>${esc(UT.BOTS[L.level].name)}</b> bot: ${esc(L.home.abbr)} ${L.h}, ${esc(L.away.abbr)} ${L.a} · moment ${L.moment.i + 1} of ${L.moment.n}</span><button class="btn go sm" id="resumeLive">▶ Resume</button></div>` : ''}
     <div class="packs">${Object.entries(UT.BOTS).map(([k, B]) => { const r = me.bot.rec[k] || { w: 0, l: 0 };
       return `<div class="pack"><div class="ic">🤖</div><div class="nm">${B.name}</div><div class="d">${B.team} · ${B.ovr[0] === B.ovr[1] ? B.ovr[0] : `${B.ovr[0]}–${B.ovr[1]}`} overall</div>
@@ -727,7 +728,7 @@ function drawBots() {
         <div class="d">Your chances ≈ ${isFull(me) ? Math.round(100 * UT.botOdds(C, k)) + '%' : '–'} · you're ${r.w}-${r.l} against it</div>
         <div class="bar2" style="margin:6px 0 0"><button class="btn go" data-live="${k}" ${isFull(me) && !L ? '' : 'disabled'} title="You call the plays at the key moments: double pay">🎮 Live</button><button class="btn" data-bot="${k}" ${isFull(me) ? '' : 'disabled'} title="Straight to the result">▶ Sim</button></div></div>`; }).join('')}</div>
     <div class="err" id="botErr"></div>
-    <p class="note">${isFull(me) ? '' : 'Fill every spot in your lineup first. '}A new bot team is drawn every game, from real player-seasons near its overall. You host. 🎮 Live: the game stops at ${UT.LIVE.moments} key moments (red zone, 4th downs, goal-line stands, the two-minute drill) and you make the call against the bot's hidden one; live wins pay double. A win pays a flat amount by bot (Rookie 10, Easy 20, Medium 30, Hall of Famers 50), with no limit. Losses pay nothing${SEA() ? `, but every game earns XP (${UT.SEASON.xp.botWin} a win, ${UT.SEASON.xp.botLoss} a loss; games against players earn more)` : ''}. Bot games don't count toward your record or the ${SEA() ? 'season standings' : 'leaderboards'}.</p>`;
+    <p class="note">${isFull(me) ? '' : (me.compOnly ? `${esc(me.compErr)} ` : 'Fill every spot in your lineup first. ')}A new bot team is drawn every game, from real player-seasons near its overall. You host. 🎮 Live: the game stops at ${UT.LIVE.moments} key moments (red zone, 4th downs, goal-line stands, the two-minute drill) and you make the call against the bot's hidden one; live wins pay double. A win pays a flat amount by bot (Rookie 10, Easy 20, Medium 30, Hall of Famers 50), with no limit. Losses pay nothing${SEA() ? `, but every game earns XP (${UT.SEASON.xp.botWin} a win, ${UT.SEASON.xp.botLoss} a loss; games against players earn more)` : ''}. Bot games don't count toward your record or the ${SEA() ? 'season standings' : 'leaderboards'}.${me.bot.cap ? ` This season only your first ${me.bot.cap} bot wins a day pay coins (every game still earns XP).` : ''}</p>`;
   if ($('resumeLive')) $('resumeLive').onclick = () => showLive(S.me.live);
   $('bots').querySelectorAll('[data-live]').forEach(b => (b.onclick = async () => {
     const tactics = await pickPlan(`Game plan vs the ${UT.BOTS[b.dataset.live].name} bot (🎮 live)`, '🎮 Kick off'); if (!tactics) return;
@@ -822,7 +823,7 @@ function seasonHtml(s, upTo = Infinity) { // upTo: how many games are shown so f
   const shownN = Math.min(upTo, all.length), done = shownN >= all.length, [t, sub] = seasonHeadline(s);
   const reg = all.slice(0, Math.min(shownN, s.games.length)), post = all.slice(s.games.length, shownN);
   const w = reg.filter(([g]) => g.w).length, l = reg.filter(([g]) => !g.w && !g.tie).length, ti = reg.filter(([g]) => g.tie).length;
-  return `<div class="sbanner ${done && s.perfect ? 'perfect' : ''}">${done ? `<div class="t">${t}</div><div class="s">${sub}</div><div class="s" style="font-weight:700;color:var(--gold);margin-top:4px">+${s.reward.toLocaleString()} points</div>`
+  return `<div class="sbanner ${done && s.perfect ? 'perfect' : ''}">${done ? `<div class="t">${t}</div><div class="s">${sub}</div><div class="s" style="font-weight:700;color:var(--gold);margin-top:4px">+${s.coins != null ? `${s.coins.toLocaleString()} coins` : `${s.reward.toLocaleString()} points`}</div>`
       : `<div class="t">${w}-${l}${ti ? '-' + ti : ''}</div><div class="s">${shownN < s.games.length ? 'Playing the regular season…' : 'Playoffs…'}</div>`}</div>
     <div class="weeks">${reg.map(([g, k], i) => wkTile(g, k, i === shownN - 1 && !done ? 'new' : '')).join('')}</div>
     ${post.length ? `<h3 class="boxh" style="margin-top:12px">Playoffs</h3><div class="weeks">${post.map(([g, k], i) => wkTile(g, k, s.games.length + i === shownN - 1 && !done ? 'new' : '')).join('')}</div>` : ''}`;
@@ -833,9 +834,10 @@ function drawSeason() {
   if (HOLD === 'season') return; // a season is being revealed
   const fav = (() => { try { return localStorage.getItem('vm.utSched') || VM.pref('fav') || ''; } catch { return ''; } })();
   const R = UT.SEASON_REWARD, last = me.seasons[0], today = last && new Date(last.at).toDateString() === new Date().toDateString();
-  $('season').innerHTML = `<h2>📅 Season mode</h2>
-    <p class="muted" style="text-align:center;margin:0 0 12px;font-size:13px">One season a day: your lineup takes over a real team's schedule this season, like the 17-0 page. Make the playoffs with 10+ wins (13+ earns a bye).<br>
-      <b style="color:var(--gold)">${R.played} points</b> for playing, <b style="color:var(--gold)">${R.playoffs}</b> for making the playoffs, <b style="color:var(--gold)">${R.champ}</b> for winning the Super Bowl… and something special if you never lose. 🤫</p>
+  const pay = x => (SEA() ? `${Math.round(x / 2)} coins + ${Math.round(x / 4)} XP` : `${x} points`);
+  $('season').innerHTML = `<h2>📅 Schedule${SEA() ? ` · ${esc(me.season.plan.name)}` : ''}</h2>
+    <p class="muted" style="text-align:center;margin:0 0 12px;font-size:13px">One run a day: your lineup takes over a real team's schedule this season, like the 17-0 page. Make the playoffs with 10+ wins (13+ earns a bye).<br>
+      <b style="color:var(--gold)">${pay(R.played)}</b> for playing, <b style="color:var(--gold)">${pay(R.playoffs)}</b> for making the playoffs, <b style="color:var(--gold)">${pay(R.champ)}</b> for winning the Super Bowl… and something special if you never lose. 🤫</p>
     <div class="bar2" style="margin:0 0 6px"><label>Schedule <select id="sched">${(S.teams || []).map(t => `<option value="${t.t}" ${t.t === fav ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
       ${me.seasonReady ? `<button class="btn go" id="playSeason" ${isFull(me) ? '' : 'disabled'}>▶ Play today's season</button>` : '<button class="btn" disabled>✓ Played today. Next season tomorrow.</button>'}</div>
     <div class="err" id="seasonErr">${isFull(me) ? '' : 'Fill every spot in your lineup first.'}</div>
@@ -871,24 +873,31 @@ function drawSea() {
   const ms = M.map((m, i) => `<div class="ms ${Z.got.includes(i) ? 'got' : ''} ${m.mythic ? 'myth' : ''}"><div class="x">${m.xp.toLocaleString()} XP</div><div class="g">${m.pts ? '💰' : m.pack ? UT.PACKS[m.pack].icon : m.title ? '🎖️' : '🌈'} ${esc(UT.milestoneText(m, Z.n))}</div></div>`).join('');
   const rows = Z.board.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td><b>${esc(r.abbr)}</b> ${esc(r.team)} <span class="muted">· <a href="profiles.html?id=${encodeURIComponent(r.pid)}" data-vmuser="${esc(r.pid)}" style="color:inherit">${esc(r.name)}</a></span></td><td class="num">${r.w}-${r.l}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td><td class="num">${r.xp.toLocaleString()}</td></tr>`).join('');
   const L = Z.last;
-  $('sea').innerHTML = `<h2>🗓️ Season ${Z.n} · ends in ${daysLeft(Z.ends)}</h2>
+  const PL = Z.plan, rules = [
+    PL.mods.allMythic && '🌈 Every pack card is a Mythic 99', PL.mods.compOnly && '⚔ Competitive lineups only (budget 24, one Mythic, no coach or stadium)',
+    PL.mods.era && (PL.mods.era === 'current' ? "📺 Only the newest season's cards" : `📼 Only ${PL.mods.era[0]}–${PL.mods.era[1]} cards`), PL.mods.superBowl && '🏆 Super Bowl teams come out of packs twice as often',
+    PL.botCap && `🤖 ${PL.botCap} paid bot wins a day`, PL.schedule && '📅 A schedule run a day'].filter(Boolean);
+  $('sea').innerHTML = `<div style="text-align:center"><div class="muted" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase">Season ${Z.n} · ends in ${daysLeft(Z.ends)}</div>
+    <div style="font-size:26px;font-weight:900;margin:2px 0">${PL.icon} ${esc(PL.name)}</div><div style="font-size:14px;margin-bottom:6px">${esc(PL.desc)}</div>
+    ${rules.length ? `<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px">${rules.map(r => `<span class="balbadge">${esc(r)}</span>`).join('')}</div>` : ''}</div>
     <p class="muted" style="text-align:center;margin:0 0 10px;font-size:13px">Everyone started this season from nothing. Every game earns ✨ XP (${UT.SEASON.xp.win} a win, ${UT.SEASON.xp.loss} a loss against players; ${UT.SEASON.xp.botWin} / ${UT.SEASON.xp.botLoss} against bots), and your first ${UT.SEASON.doubleXp} games each day count double.
       The milestone rewards are <b>permanent</b>: they go to your main collection and points. Ends ${new Date(Z.ends).toLocaleString(undefined, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.</p>
     <div class="xpbar"><div style="width:${Math.min(100, 100 * Z.xp / top)}%"></div></div>
     <div class="s muted" style="font-size:12.5px;text-align:center;margin-top:5px">✨ ${Z.xp.toLocaleString()} XP${next ? ` · ${(next.xp - Z.xp).toLocaleString()} to the next reward` : ' · track complete! 🎉'} · ${Z.doubleLeft ? `⚡ ${Z.doubleLeft} double-XP game${Z.doubleLeft === 1 ? '' : 's'} left today` : 'Double XP is used up for today'}</div>
     <div class="track">${ms}</div>
     <div class="seamyth"><div><div class="boxh">🌈 Finish the track</div>${cardHtml(Z.cards.track, { cls: Z.got.includes(M.length - 1) ? '' : 'missing' })}</div><div><div class="boxh">🏆 The champion's</div>${cardHtml(Z.cards.champ, { cls: 'missing' })}</div></div>
-    <p class="note">The best record against players when the season ends wins it (then point differential), with a 🏆 Season ${Z.n} Champion title and the champion's Mythic. Everyone who plays gets their final rank on their profile.</p>
+    ${Z.cards.tbd ? '<p class="note">🏆 The real Mythics are the two Super Bowl QBs, set once the conference championships are in the data (these are stand-ins).</p>' : ''}
+    <p class="note">The best record against players when the season ends wins it (then point differential), with a 🏆 ${esc(PL.name)} Champion title and the champion's Mythic. Everyone who plays gets their final rank on their profile.</p>
     <h2 style="margin-top:18px">📊 Standings</h2>
     ${rows ? `<table class="board"><tr><th>#</th><th>Team</th><th class="num">W-L</th><th class="num">Diff</th><th class="num">XP</th></tr>${rows}</table>` : '<p class="empty">Nobody has played yet this season. Queue up a team!</p>'}
-    ${L ? `<h2 style="margin-top:18px">⏮ Season ${L.n} final</h2>${L.champion ? `<p style="text-align:center;margin:0 0 8px">🏆 Champion: <b>${esc(L.champion.team)}</b> · <a href="profiles.html?id=${encodeURIComponent(L.champion.pid)}" data-vmuser="${esc(L.champion.pid)}" style="color:inherit">${esc(L.champion.name)}</a> (${L.champion.w}-${L.champion.l})</p>` : ''}
+    ${L ? `<h2 style="margin-top:18px">⏮ ${esc(L.name || `Season ${L.n}`)} final</h2>${L.champion ? `<p style="text-align:center;margin:0 0 8px">🏆 Champion: <b>${esc(L.champion.team)}</b> · <a href="profiles.html?id=${encodeURIComponent(L.champion.pid)}" data-vmuser="${esc(L.champion.pid)}" style="color:inherit">${esc(L.champion.name)}</a> (${L.champion.w}-${L.champion.l})</p>` : ''}
       <table class="board"><tr><th>#</th><th>Team</th><th class="num">W-L</th><th class="num">XP</th></tr>${L.top.map((r, i) => `<tr class="${r.pid === myId ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r.team)} <span class="muted">· ${esc(r.name)}</span></td><td class="num">${r.w}-${r.l}</td><td class="num">${r.xp.toLocaleString()}</td></tr>`).join('')}</table>` : ''}`;
 }
 
 // ---------- 🤝 trade offers and 🏪 the marketplace (the permanent collection only) ----------
 const mini = c => `<div class="mini">${cardHtml(c)}</div>`;
 const whoLink = (pid, name) => `<a href="profiles.html?id=${encodeURIComponent(pid)}" data-vmuser="${esc(pid)}" style="color:inherit"><b>${esc(name)}</b></a>`;
-const ptsB = n => `<b style="color:var(--gold)">${n.toLocaleString()} points</b>`;
+const ptsB = n => `<b style="color:var(--gold)">${n.toLocaleString()} ${unit()}</b>`;
 // trades waiting on you: requests for your cards, and answers to your requests
 const tradeTodo = () => { const id = VM.profile(); return (S.trades || []).filter(t => (t.to.pid === id && t.status === 'open') || (t.from.pid === id && t.status === 'countered')).length; };
 function drawMarket() {
@@ -904,23 +913,23 @@ function drawMarket() {
   const waiting = T.filter(t => (t.from.pid === myId && t.status === 'open') || (t.to.pid === myId && t.status === 'countered')).map(t => t.from.pid === myId
     ? row(t, `You asked ${whoLink(t.to.pid, t.to.name)} for <b>${esc(t.wantCard.n)}</b>${t.offer ? `, offering ${ptsB(t.offer)}` : ''}. Waiting on them.`, Bt('cancel', t.id, 'Withdraw'))
     : row(t, `You asked ${whoLink(t.from.pid, t.from.name)} for ${gets(t)} for your <b>${esc(t.wantCard.n)}</b>. Waiting on them.`, Bt('decline', t.id, 'Withdraw')));
-  const past = T.filter(t => !['open', 'countered'].includes(t.status)).slice(0, 8).map(t => `<div class="row"><div><div class="t">${{ done: '✅ Traded', declined: '✕ Declined', cancelled: '✕ Withdrawn' }[t.status]}: ${esc(t.wantCard.n)} from ${esc(t.to.name)} to ${esc(t.from.name)}${t.status === 'done' ? ` for ${[...(t.got?.cards || []).map(c => esc(c.n)), t.got?.pts ? `${t.got.pts.toLocaleString()} points` : ''].filter(Boolean).join(' + ')}` : ''}</div><div class="s">${ago(t.upd || t.at)}</div></div></div>`);
-  const lst = x => `<div class="lst">${cardHtml(x.card)}<div class="lp">${x.price.toLocaleString()} pts</div><div class="s">${whoLink(x.pid, x.name)} · ${ago(x.at)}</div>${x.pid === myId ? `<button class="btn sm" data-unlist="${x.id}">Take it back</button>` : `<button class="btn sm ${me.balance >= x.price ? 'go' : ''}" data-buy="${x.id}" ${me.balance >= x.price ? '' : 'disabled'}>Buy</button>`}</div>`;
-  $('market').innerHTML = `<h2>🤝 Trades</h2>
-    <p class="muted" style="text-align:center;margin:0 0 8px;font-size:13px">Ask for someone's card from 🏆 Collections ("🤝 … has it") or their profile's collection, with points if you like. They can take the points, or pick the cards (and points) they want from your collection for it, and you accept or not. Cards in a lineup can't change hands.</p>
+  const past = T.filter(t => !['open', 'countered'].includes(t.status)).slice(0, 8).map(t => `<div class="row"><div><div class="t">${{ done: '✅ Traded', declined: '✕ Declined', cancelled: '✕ Withdrawn', expired: '⌛ Season over' }[t.status]}: ${esc(t.wantCard.n)} from ${esc(t.to.name)} to ${esc(t.from.name)}${t.status === 'done' ? ` for ${[...(t.got?.cards || []).map(c => esc(c.n)), t.got?.pts ? `${t.got.pts.toLocaleString()} ${unit()}` : ''].filter(Boolean).join(' + ')}` : ''}</div><div class="s">${ago(t.upd || t.at)}</div></div></div>`);
+  const lst = x => `<div class="lst">${cardHtml(x.card)}<div class="lp">${x.price.toLocaleString()} ${SEA() ? 'coins' : 'pts'}</div><div class="s">${whoLink(x.pid, x.name)} · ${ago(x.at)}</div>${x.pid === myId ? `<button class="btn sm" data-unlist="${x.id}">Take it back</button>` : `<button class="btn sm ${me.balance >= x.price ? 'go' : ''}" data-buy="${x.id}" ${me.balance >= x.price ? '' : 'disabled'}>Buy</button>`}</div>`;
+  $('market').innerHTML = `<h2>🤝 Trades${SEA() ? ` · ${esc(me.season.plan.name)}` : ''}</h2>
+    <p class="muted" style="text-align:center;margin:0 0 8px;font-size:13px">${SEA() ? "Ask for someone's season card from their profile (the 🗓️ tab of their collection), with coins if you like." : 'Ask for someone\'s card from 🏆 Collections ("🤝 … has it") or their profile\'s collection, with points if you like.'} They can take the points, or pick the cards (and points) they want from your collection for it, and you accept or not. Cards in a lineup can't change hands.</p>
     ${inbox.length || answers.length ? `<h3 class="boxh" style="text-align:left">Waiting on you</h3>${answers.join('')}${inbox.join('')}` : '<p class="empty">No trades waiting on you.</p>'}
     ${waiting.length ? `<h3 class="boxh" style="text-align:left;margin-top:12px">Waiting on them</h3>${waiting.join('')}` : ''}
     ${past.length ? `<h3 class="boxh" style="text-align:left;margin-top:12px">Recent</h3>${past.join('')}` : ''}
     <div class="err" id="tradeErr"></div>
     <h2 style="margin-top:20px">🏪 Marketplace</h2>
-    <p class="muted" style="text-align:center;margin:0 0 8px;font-size:13px">Legendary and Mythic cards for points. A listed card leaves your collection until it sells or you take it back. You have ${ptsB(me.balance)}.</p>
+    <p class="muted" style="text-align:center;margin:0 0 8px;font-size:13px">${SEA() ? "Epic, Legendary and Mythic season cards for coins (they're gone when the season ends)" : 'Legendary and Mythic cards for points'}. A listed card leaves your collection until it sells or you take it back. You have ${ptsB(me.balance)}.</p>
     <div class="bar2" style="margin:0 0 10px"><button class="btn go" id="listCard">➕ List a card</button></div>
     ${M.length ? `<div class="cards">${[...M.filter(x => x.pid !== myId), ...M.filter(x => x.pid === myId)].map(lst).join('')}</div>` : '<p class="empty">Nothing on the market yet.</p>'}
     <div class="err" id="mktErr"></div>
     ${S.news?.length ? `<h3 class="boxh" style="text-align:left;margin-top:16px">📰 Your news</h3>${S.news.slice(0, 8).map(n => `<div class="row"><div><div>${esc(n.text)}</div><div class="s">${ago(n.at)}</div></div></div>`).join('')}` : ''}`;
   $('market').querySelectorAll('[data-tact]').forEach(b => (b.onclick = async () => {
     const t = T.find(x => x.id === b.dataset.tid);
-    if (b.dataset.tact === 'accept' && !confirm(t.from.pid === myId ? `Trade ${[...(t.askCards || []).map(c => c.n), t.ask?.pts ? `${t.ask.pts} points` : ''].filter(Boolean).join(' + ')} for ${t.wantCard.n}?` : `Sell ${t.wantCard.n} to ${t.from.name} for ${t.offer} points?`)) return;
+    if (b.dataset.tact === 'accept' && !confirm(t.from.pid === myId ? `Trade ${[...(t.askCards || []).map(c => c.n), t.ask?.pts ? `${t.ask.pts} ${unit()}` : ''].filter(Boolean).join(' + ')} for ${t.wantCard.n}?` : `Sell ${t.wantCard.n} to ${t.from.name} for ${t.offer} ${unit()}?`)) return;
     b.disabled = true;
     const r = await act('tradeact', { id: b.dataset.tid, act: b.dataset.tact }, $('tradeErr'));
     if (r) load(); else b.disabled = false;
@@ -928,7 +937,7 @@ function drawMarket() {
   $('market').querySelectorAll('[data-counter]').forEach(b => (b.onclick = () => counterTrade(T.find(x => x.id === b.dataset.counter))));
   $('market').querySelectorAll('[data-buy]').forEach(b => (b.onclick = async () => {
     const x = M.find(l => l.id === b.dataset.buy);
-    if (!confirm(`Buy ${x.card.n} (${x.card.s}, ${x.card.gr}) from ${x.name} for ${x.price.toLocaleString()} points?`)) return;
+    if (!confirm(`Buy ${x.card.n} (${x.card.s}, ${x.card.gr}) from ${x.name} for ${x.price.toLocaleString()} ${unit()}?`)) return;
     const r = await act('buy', { id: x.id }, $('mktErr')); if (r) { revealCards({ icon: '🏪', name: `Bought from ${x.name}` }, r.cards); load(); }
   }));
   $('market').querySelectorAll('[data-unlist]').forEach(b => (b.onclick = async () => { if (await act('unlist', { id: b.dataset.unlist }, $('mktErr'))) load(); }));
@@ -936,10 +945,10 @@ function drawMarket() {
 }
 // 🏪 pick a Legendary or Mythic (not in a lineup) and a price
 function listCard() {
-  const me = S.me, held = heldIds(me), ok = me.cards.filter(c => UT.rarityOf(c.gr).min >= 90 && !held.has(c.u)).sort((a, b) => b.gr - a.gr);
-  $('mbody').innerHTML = `<h2 style="margin:0 0 4px">➕ List a card</h2><p class="muted" style="font-size:13px;margin:0 0 10px">Legendary and Mythic cards that aren't in a lineup. Click one, then set the price.</p>
-    ${ok.length ? `<div class="cards" style="text-align:left">${ok.map(c => cardHtml(c, { cls: 'pickable', extra: `data-lc="${c.u}"` })).join('')}</div>` : '<p class="empty">No Legendary or Mythic cards free to list.</p>'}
-    <div class="bar2" id="lprice" hidden><label>Price <input id="lpts" type="number" min="1" step="10" style="width:120px"> points</label><button class="btn go" id="lgo">🏪 List it</button></div><div class="err" id="lerr"></div>`;
+  const me = S.me, held = heldIds(me), ok = me.cards.filter(c => UT.rarityOf(c.gr).min >= (SEA() ? 80 : 90) && !held.has(c.u)).sort((a, b) => b.gr - a.gr);
+  $('mbody').innerHTML = `<h2 style="margin:0 0 4px">➕ List a card</h2><p class="muted" style="font-size:13px;margin:0 0 10px">${SEA() ? 'Epic, Legendary and Mythic' : 'Legendary and Mythic'} cards that aren't in a lineup. Click one, then set the price.</p>
+    ${ok.length ? `<div class="cards" style="text-align:left">${ok.map(c => cardHtml(c, { cls: 'pickable', extra: `data-lc="${c.u}"` })).join('')}</div>` : '<p class="empty">No cards free to list.</p>'}
+    <div class="bar2" id="lprice" hidden><label>Price <input id="lpts" type="number" min="1" step="10" style="width:120px"> ${unit()}</label><button class="btn go" id="lgo">🏪 List it</button></div><div class="err" id="lerr"></div>`;
   $('modal').hidden = false;
   let pick = null;
   $('mbody').querySelectorAll('[data-lc]').forEach(el => (el.onclick = () => {
@@ -953,7 +962,7 @@ function listCard() {
 function askTrade(card, owners) {
   $('mbody').innerHTML = `<h2 style="margin:0 0 4px">🤝 Ask for ${esc(card.n)}</h2><p class="muted" style="font-size:13px;margin:0 0 10px">They'll see your request and can take your points offer, or pick cards and points they want from your collection instead.</p>
     ${owners.map((o, i) => `<label class="pickrow"><input type="radio" name="own" value="${i}" ${o.held ? 'disabled' : ''} ${i === owners.findIndex(x => !x.held) ? 'checked' : ''}> <span><b>${esc(o.name)}</b>'s copy · grade ${o.gr}${o.held ? ' · <span class="muted">in their lineup, not tradeable now</span>' : ''}</span></label>`).join('')}
-    <div class="bar2" style="margin-top:12px"><label>Offer <input id="apts" type="number" min="0" step="10" placeholder="0" style="width:110px"> points (optional)</label><button class="btn go" id="ago">🤝 Send request</button></div><div class="err" id="aerr"></div>`;
+    <div class="bar2" style="margin-top:12px"><label>Offer <input id="apts" type="number" min="0" step="10" placeholder="0" style="width:110px"> ${unit()} (optional)</label><button class="btn go" id="ago">🤝 Send request</button></div><div class="err" id="aerr"></div>`;
   $('modal').hidden = false;
   $('ago').onclick = async () => {
     const i = $('mbody').querySelector('input[name=own]:checked')?.value; if (i == null) { $('aerr').textContent = 'Nobody can trade it right now.'; return; }
@@ -965,10 +974,10 @@ function askTrade(card, owners) {
 async function counterTrade(t) {
   const r = await fetch('/api/profiles/' + encodeURIComponent(t.from.pid)).then(r => r.json()).catch(() => null);
   if (!r?.ok) return alert("Couldn't load their collection.");
-  const ut = r.profile.ut || {}, held = new Set([...Object.values(ut.lineup || {}), ...Object.values(ut.comp || {})]);
+  const pr = r.profile, ut = (SEA() ? (pr.sea?.n === S.seasonInfo?.n ? pr.sea : null) : pr.ut) || {}, held = new Set([...Object.values(ut.lineup || {}), ...Object.values(ut.comp || {})]);
   const cards = (ut.cards || []).filter(c => !held.has(c.u)).sort((a, b) => b.gr - a.gr), sel = new Set();
   $('mbody').innerHTML = `<h2 style="margin:0 0 4px">🃏 What do you want for ${esc(t.wantCard.n)}?</h2><p class="muted" style="font-size:13px;margin:0 0 10px">Click up to 5 of ${esc(t.from.name)}'s cards (not the ones in their lineup), add points if you like, and send it. They accept or decline.</p>
-    <div class="bar2" style="margin:0 0 10px"><label>Plus <input id="cpts" type="number" min="0" step="10" placeholder="0" style="width:110px"> points</label><button class="btn go" id="cgo">Send to ${esc(t.from.name)}</button></div><div class="err" id="cerr"></div>
+    <div class="bar2" style="margin:0 0 10px"><label>Plus <input id="cpts" type="number" min="0" step="10" placeholder="0" style="width:110px"> ${unit()}</label><button class="btn go" id="cgo">Send to ${esc(t.from.name)}</button></div><div class="err" id="cerr"></div>
     <div class="cards" style="text-align:left">${cards.map(c => cardHtml(c, { cls: 'pickable', extra: `data-cc="${c.u}"` })).join('') || '<p class="empty">They have no free cards: ask for points.</p>'}</div>`;
   $('modal').hidden = false;
   $('mbody').querySelectorAll('[data-cc]').forEach(el => (el.onclick = () => {
@@ -999,9 +1008,9 @@ function drawLeaders() {
 
 // ---------- tabs, modal, refresh ----------
 // the tabs each mode has (seasonal mode: no schedule runs, collections, trade-ups or all-time leaderboards)
-const TABS = { main: ['play', 'bots', 'season', 'lineup', 'packs', 'cols', 'coll', 'market', 'leaders'], season: ['sea', 'play', 'bots', 'lineup', 'packs', 'coll'] };
+const TABS = { main: ['play', 'bots', 'season', 'lineup', 'packs', 'cols', 'coll', 'market', 'leaders'], season: ['sea', 'play', 'bots', 'season', 'lineup', 'packs', 'coll', 'market'] };
 function setTab(t) {
-  const list = TABS[MODE] || TABS.main; if (!list.includes(t)) t = list[0];
+  const list = (TABS[MODE] || TABS.main).filter(k => k !== 'season' || !SEA() || S.me?.schedule); if (!list.includes(t)) t = list[0];
   if (!SEA()) { TAB = t; try { sessionStorage.setItem('vm.utTab', t); } catch {} }
   $('tabs').querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.t === t); b.hidden = !list.includes(b.dataset.t); });
   for (const k of [...TABS.main, 'sea']) $('t-' + k).hidden = k !== t;
@@ -1012,7 +1021,8 @@ $('mx').onclick = closeModal; $('modal').onclick = e => { if (e.target === $('mo
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 function drawAll() {
   drawModebar(); drawHero(); drawLineup(); drawPacks(); drawColl(); drawPlay(); drawBots();
-  if (SEA()) drawSea(); else { drawCols(); drawSeason(); drawLeaders(); drawMarket(); }
+  drawMarket();
+  if (SEA()) { drawSea(); if (S.me?.schedule) drawSeason(); } else { drawCols(); drawSeason(); drawLeaders(); }
 }
 async function start() {
   VM.adjust = null; // (set again for the profile that just signed in)

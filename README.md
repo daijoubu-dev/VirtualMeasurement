@@ -168,6 +168,18 @@ Collect player cards, build a team, queue it up and let someone challenge it. Ne
   - ✨ XP: 100 a win and 40 a loss against players, 40 / 15 against bots, and your first 3 games each day count double. XP fills a milestone track whose rewards are **permanent** (your points and main collection): 500 points (250 XP), a Premium pack (600), 1,000 points (1,000), a Legend pack (1,500), 2,000 points (2,100), a "Season N Veteran" title (2,800), 2 Legend packs (3,600) and that season's 🌈 Mythic (4,500), a season-stamped 99 edition of a star.
   - 🏆 The best record against players when the season ends wins it (wins minus losses, then wins, then point differential, then XP; no minimum number of games, but at least one game against a player). The champion gets a second season Mythic, a "Season N Champion" title and the Season Champion achievement. Everyone who played gets their final rank in their profile's history.
   - The 🗓️ Season tab shows the track, both Mythics (each season's two are the same for everyone, picked from 95+ stars), the standings, the time left and last season's final.
+  - 📋 **The season plan** ( in ). Every season has a name, and the seasonal tab shows its rules:
+    | # | Dates | Name | Special rule | Reward Mythics (track / champion) |
+    |---|---|---|---|---|
+    | 1 | Nov 22 – Dec 6 | 🏈 Opening Drive | none | Lamar Jackson 2019 / Marshall Faulk 2000 |
+    | 2 | Dec 6 – Dec 20 | 🌈 Mythic Madness | every pack card is a Mythic 99 | 👑 Jerry Rice 1995 / Joe Montana 1989 |
+    | 3 | Dec 20 – Jan 3 | ⚔ The Gauntlet | competitive lineups only, for every game | 👑 Reggie White 1987 / Lawrence Taylor 1986 |
+    | 4 | Jan 3 – Jan 17 | 📼 Throwback | only 1999–2009 cards in packs | 👑 Walter Payton 1977 / Dan Marino 1984 |
+    | 5 | Jan 17 – Jan 31 | 📺 Prime Time | only the newest season's cards (2025) | 👑 Barry Sanders 1997 / Deion Sanders 1994 |
+    | 6 | Jan 31 – Feb 14 | 🏆 The Big Game | Super Bowl teams' players come out of packs twice as often | the two Super Bowl QBs, as 99s |
+    Later seasons get names from a list (Two-Minute Warning, Hail Mary…) and more 👑 Legends (Emmitt Smith, Steve Young, Jim Brown, Ronnie Lott, Kellen Winslow, Shula, Lombardi, Walsh). 👑 Legends are all-time greats from before the data starts (1999), with their best season's real line, and only come as season rewards. The Super Bowl season reads the game from the schedule once it's set: the AFC/NFC champions' starting QBs (or each team's last starter until it's played) become the Mythics, and until then stand-ins are shown.
+  - From Season 2: only the first 5 bot wins a day pay coins (every game still earns XP), and 📅 Schedule runs come to seasonal mode (half the points as coins, a quarter as XP).
+  - 🏪 / 🤝 Seasonal market and trades: the same as permanent, but for this season's cards and coins (Epic and up on the market). Ask for a season card from a player's profile. Listings and open trades end with the season.
   - A season is wrapped up the first time anyone opens Ultimate Team after it ends (`finalizeSeasons`); last season's queued teams are dropped. `VM_SEASON_EPOCH` (milliseconds) moves the calendar for testing.
 - **Nothing resets:** fields added later (bots, seasons, titles, staff, collections) fill in the first time an older profile is used. Cards, lineups, records, points and history stay as they are.
 - **Box score:** built around the scoring plays (the Super Bowl sim's scoring and game-flow code) from each card's grade and season line and both game plans:

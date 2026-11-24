@@ -27,7 +27,7 @@ const KEEP_GAMES = 500; // results listed (every game file is kept)
 // 🏪 the marketplace (market.json: listings, each holding its card until it's bought or taken back) and 🤝 trade offers
 // (trades.json). Both are for the permanent collection only.
 const MARKET = path.join(UDIR, 'market.json'), TRADES = path.join(UDIR, 'trades.json');
-const MARKET_RARITIES = ['legendary', 'mythic'], MAX_LISTINGS = 10, MAX_PRICE = 1e6, MAX_OPEN = 20;
+const MARKET_RARITIES = ['legendary', 'mythic'], SEA_MARKET_RARITIES = ['epic', 'legendary', 'mythic'], MAX_LISTINGS = 10, MAX_PRICE = 1e6, MAX_OPEN = 20;
 // VM_SEASON_EPOCH (milliseconds) moves the season calendar, for testing; normally Season 1 starts on UT.SEASON.epoch
 const EPOCH = +process.env.VM_SEASON_EPOCH || UT.SEASON.epoch;
 const seasonNow = () => UT.seasonNow(Date.now(), EPOCH), span = n => UT.seasonSpan(n, EPOCH);
@@ -43,6 +43,38 @@ function pools() {
   return POOLS;
 }
 const collections = () => (pools(), COLLECTIONS);
+// 🏆 this NFL season's Super Bowl, once it's in the schedule: { teams: [away, home], qbs: [their QBs as 99 Mythic cards] }.
+// A QB is the one who started the game, or until it's played, the last one to start for that team this season.
+const { currentSeason } = require('./fetch');
+const roman = n => [[50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']].reduce((s, [v, r]) => { while (n >= v) { s += r; n -= v; } return s; }, '');
+let SB = null, sbStamp = -1;
+function superBowl() {
+  const f = path.join(__dirname, 'data', 'raw', 'games.csv'); let m = 0; try { m = fs.statSync(f).mtimeMs; } catch { return null; }
+  if (m === sbStamp) return SB;
+  sbStamp = m; SB = null; pools();
+  const lines = fs.readFileSync(f, 'utf8').trim().split('\n'), h = lines[0].split(','), ix = k => h.indexOf(k), cy = String(currentSeason());
+  const rows = lines.slice(1).map(l => l.split(',')).filter(r => r[ix('season')] === cy), sb = rows.find(r => r[ix('game_type')] === 'SB');
+  if (!sb) return null;
+  const teams = [sb[ix('away_team')], sb[ix('home_team')]];
+  const qb = (t, side) => {
+    let id = sb[ix(side + '_qb_id')], name = sb[ix(side + '_qb_name')];
+    if (!id) { const last = rows.filter(r => (r[ix('away_team')] === t && r[ix('away_qb_id')]) || (r[ix('home_team')] === t && r[ix('home_qb_id')])).pop(); if (last) { const sd = last[ix('away_team')] === t ? 'away' : 'home'; id = last[ix(sd + '_qb_id')]; name = last[ix(sd + '_qb_name')]; } }
+    return id ? { k: `${id}|${cy}`, g: 'QB', n: name, s: +cy, t, gr: 99, l: `Super Bowl ${roman(+cy - 1965)} starter`, ...(HEADS[id] ? { h: HEADS[id] } : {}) } : null;
+  };
+  const qbs = [qb(teams[0], 'away'), qb(teams[1], 'home')];
+  SB = { teams, qbs: qbs.every(Boolean) ? qbs : null };
+  return SB;
+}
+// a season's two Mythics (UT.seasonCards: Legends from Season 2, the Super Bowl QBs in the Super Bowl season)
+const sCards = n => UT.seasonCards(pools(), n, UT.seasonPlan(n).mods.superBowl ? superBowl()?.qbs || null : null);
+// the cards a season's packs and game rewards come from (its special rules: all Mythics, an era, the Super Bowl teams…)
+let SPOOL = { key: '' };
+function seaPools(n) {
+  const sb = UT.seasonPlan(n).mods.superBowl ? superBowl()?.teams || [] : [];
+  pools(); const key = `${n}|${poolStamp}|${sb}`;
+  if (SPOOL.key !== key) SPOOL = { key, pools: UT.seasonPools(pools(), n, sb) };
+  return SPOOL.pools;
+}
 const isChase = c => c.gr >= 90; // Legendary and Mythic pulls go in the log
 const today = () => new Date().toLocaleDateString('en-CA'); // the server's own date, YYYY-MM-DD
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -59,7 +91,8 @@ function utOf(p) {
 // 🗓️ this season's section of a profile (a fresh one if it's from an older season, which finalizeSeasons has wrapped up)
 function seaOf(p) {
   const n = seasonNow(); if (!n) return null;
-  if (!p.sea || p.sea.n !== n) p.sea = { n, cards: [], lineup: {}, comp: {}, starter: false, daily: '', coins: UT.SEASON.coins, rec: { w: 0, l: 0, pf: 0, pa: 0 }, unseen: [], bot: { rec: {}, day: '', pts: 0 }, xp: 0, got: [], xpDay: { day: '', games: 0 } };
+  if (!p.sea || p.sea.n !== n) p.sea = { n, cards: [], lineup: {}, comp: {}, starter: false, daily: '', coins: UT.SEASON.coins, rec: { w: 0, l: 0, pf: 0, pa: 0 }, unseen: [], bot: { rec: {}, day: '', pts: 0 }, xp: 0, got: [], xpDay: { day: '', games: 0 }, seasonDay: '', seasons: [] };
+  p.sea.seasons ||= []; p.sea.seasonDay ||= '';
   p.sea.team = utOf(p).team; // the team name is shared between the modes
   return p.sea;
 }
@@ -67,6 +100,10 @@ function seaOf(p) {
 const cardsOf = (ut, which = 'main') => Object.fromEntries(Object.entries(which === 'comp' ? ut.comp || {} : ut.lineup).map(([s, u]) => [s, ut.cards.find(c => c.u === u)]).filter(([, c]) => c));
 const held = ut => new Set([...Object.values(ut.lineup), ...Object.values(ut.comp || {})]); // cards in either lineup can't be sold, traded or turned in
 const full = ut => UT.REQUIRED.every(([s]) => cardsOf(ut)[s]); // the 11 players (coach and stadium are optional)
+// ⚔ The Gauntlet (a compOnly season): the season's one lineup is a competitive one, and every game needs it to fit
+const isComp = ut => !!(ut?.n && UT.seasonPlan(ut.n).mods.compOnly);
+const ready = ut => (isComp(ut) ? !UT.compCheck(cardsOf(ut)) : full(ut));
+const notReady = ut => (isComp(ut) ? UT.compCheck(cardsOf(ut)) : 'Fill every spot in your lineup first.');
 
 // ---------- the two modes behind one set of actions: whose cards, and what money ----------
 // ctx = { mode, ut (the cards, lineup and record being played with), unit, balance(), spend(n, why), earn(n, why, extra), add(cards, how, unlocked) }
@@ -88,11 +125,13 @@ function state(p, mode = 'main') {
     const sea = seaOf(p);
     if (!sea) return { mode, unit: 'coins', season: { n: 0, starts: EPOCH } };
     const n = sea.n, sp = span(n), last = readJson(SEASONS, { results: {} }).results[n - 1];
-    return { mode, unit: 'coins', team: sea.team, cards: sea.cards, lineup: sea.lineup, comp: {}, compErr: null, starter: sea.starter, staff: true, collected: {},
+    const plan = UT.seasonPlan(n);
+    return { mode, unit: 'coins', team: sea.team, cards: sea.cards, lineup: sea.lineup, comp: isComp(sea) ? sea.lineup : {}, compErr: isComp(sea) ? UT.compCheck(cardsOf(sea)) : null, compOnly: isComp(sea), starter: sea.starter, staff: true, collected: {},
+      seasonReady: sea.seasonDay !== today(), seasons: sea.seasons.slice(0, 10), schedule: plan.schedule,
       dailyReady: sea.daily !== today(), daily: UT.SEASON.daily, rec: sea.rec, unseen: sea.unseen, balance: sea.coins, points: p.balance, packs: ['season'],
-      bot: { rec: sea.bot.rec, ptsToday: sea.bot.day === today() ? sea.bot.pts : 0 }, live: sea.live ? livePublic(sea.live) : null, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced,
-      season: { n, starts: sp.starts, ends: sp.ends, xp: sea.xp, got: sea.got, doubleLeft: Math.max(0, UT.SEASON.doubleXp - (sea.xpDay.day === today() ? sea.xpDay.games : 0)),
-        cards: UT.seasonCards(pools(), n), board: seasonBoard(n), last: last ? { n: last.n, champion: last.standings.find(r => r.pid === last.champion) || null, top: last.standings.slice(0, 5) } : null } };
+      bot: { rec: sea.bot.rec, ptsToday: sea.bot.day === today() ? sea.bot.pts : 0, winsToday: sea.bot.day === today() ? sea.bot.wins || 0 : 0, cap: plan.botCap }, live: sea.live ? livePublic(sea.live) : null, tactics: UT.planOf(p.prefs?.tactics), balanced: !!p.prefs?.balanced,
+      season: { n, plan, starts: sp.starts, ends: sp.ends, xp: sea.xp, got: sea.got, doubleLeft: Math.max(0, UT.SEASON.doubleXp - (sea.xpDay.day === today() ? sea.xpDay.games : 0)),
+        cards: sCards(n), board: seasonBoard(n), last: last ? { n: last.n, name: UT.seasonName(last.n), champion: last.standings.find(r => r.pid === last.champion) || null, top: last.standings.slice(0, 5) } : null } };
   }
   const ut = utOf(p);
   return { mode, unit: 'points', team: ut.team, cards: ut.cards, lineup: ut.lineup, starter: ut.starter, dailyReady: ut.daily !== today(), daily: UT.DAILY, rec: ut.rec, unseen: ut.unseen, balance: p.balance,
@@ -117,11 +156,11 @@ function addXp(p, sea, base, unlocked, reached = []) {
   UT.SEASON.milestones.forEach((m, i) => {
     if (sea.got.includes(i) || sea.xp < m.xp) return;
     sea.got.push(i);
-    const why = `Season ${sea.n} milestone: ${UT.milestoneText(m, sea.n)}`;
+    const nm = UT.seasonPlan(sea.n).name, why = `${nm} milestone: ${UT.milestoneText(m, sea.n)}`;
     if (m.pts) profiles.credit(p, m.pts, why);
-    if (m.pack) for (let k = 0; k < (m.n || 1); k++) addCards(p, UT.openPack(m.pack, pools()).map(c => ({ u: uid(), ...c })), `Season ${sea.n} milestone`, unlocked);
-    if (m.title) addTitle(p, `s${sea.n}-vet`, `Season ${sea.n} Veteran`, '🗓️');
-    if (m.mythic) { addCards(p, [{ u: uid(), ...UT.seasonCards(pools(), sea.n).track }], `Season ${sea.n} milestones`, unlocked); profiles.award(p, 'sea_track', unlocked); }
+    if (m.pack) for (let k = 0; k < (m.n || 1); k++) addCards(p, UT.openPack(m.pack, pools()).map(c => ({ u: uid(), ...c })), `${nm} milestone`, unlocked);
+    if (m.title) addTitle(p, `s${sea.n}-vet`, `${nm} Veteran`, UT.seasonPlan(sea.n).icon);
+    if (m.mythic) { addCards(p, [{ u: uid(), ...sCards(sea.n).track }], `${nm} milestones`, unlocked); profiles.award(p, 'sea_track', unlocked); }
     reached.push(UT.milestoneText(m, sea.n));
   });
   return { xp, reached };
@@ -132,10 +171,10 @@ function finalize(n) {
   const rows = seasonBoard(n), champ = rows[0] && rows[0].w + rows[0].l > 0 ? rows[0] : null;
   rows.forEach((r, i) => {
     const p = profiles.load(r.pid); utOf(p);
-    (p.seasonHistory ||= []).unshift({ n, rank: i + 1, of: rows.length, w: r.w, l: r.l, xp: r.xp, champ: r === champ });
+    (p.seasonHistory ||= []).unshift({ n, name: UT.seasonName(n), rank: i + 1, of: rows.length, w: r.w, l: r.l, pf: p.sea?.rec?.pf || 0, pa: p.sea?.rec?.pa || 0, xp: r.xp, champ: r === champ });
     if (r === champ) {
-      addCards(p, [{ u: uid(), ...UT.seasonCards(pools(), n).champ }], `Season ${n} champion`, []);
-      addTitle(p, `s${n}-champ`, `Season ${n} Champion`, '🏆');
+      addCards(p, [{ u: uid(), ...sCards(n).champ }], `${UT.seasonPlan(n).name} champion`, []);
+      addTitle(p, `s${n}-champ`, `${UT.seasonPlan(n).name} Champion`, '🏆');
       profiles.award(p, 'sea_champ', []);
     }
     delete p.sea;
@@ -150,6 +189,8 @@ function finalizeSeasons() {
   for (let n = st.done + 1; n < cur; n++) { st.results[n] = finalize(n); st.done = n; }
   writeJson(SEASONS, st);
   writeJson(QUEUE, readJson(QUEUE, []).filter(e => !e.seasonal || e.seasonal >= cur)); // last season's queued teams are gone
+  writeJson(MARKET, readJson(MARKET, []).filter(x => !x.seasonal || x.seasonal >= cur)); // and its market (the cards are gone with the season)
+  const T = readJson(TRADES, []); for (const t of T) if (t.seasonal && t.seasonal < cur && liveTrade(t)) Object.assign(t, { status: 'expired', upd: new Date().toISOString() }); writeJson(TRADES, T);
 }
 
 // ---------- this season's league for 📅 schedule runs, from the Matchups data (app/data.js), like the 17-0 page ----------
@@ -237,8 +278,13 @@ function addCards(p, cards, how, out, log = true) {
     writeJson(PULLS, [...chase.map(c => ({ at, pid: p.id, name: p.name, pack: how, card: { n: c.n, s: c.s, t: c.t, g: c.g, gr: c.gr, ed: c.ed } })), ...before].slice(0, 1000));
   }
 }
-// points from one player to another (a sale: it doesn't count as "earned" for the seller)
-function pay(from, to, pts, why) {
+// whose cards a trade or sale moves (seasonal: this season's), how it's paid, and where the cards go
+const bagOf = (p, seasonal) => (seasonal ? seaOf(p) : utOf(p));
+const unitOf = seasonal => (seasonal ? 'coins' : 'points');
+const giveCards = (p, cards, how, out, seasonal) => (seasonal ? seaOf(p).cards.push(...cards) : addCards(p, cards, how, out, false));
+// points (or season coins) from one player to another (a sale: it doesn't count as "earned" for the seller)
+function pay(from, to, pts, why, seasonal = false) {
+  if (seasonal) { const a = seaOf(from), b = seaOf(to); if (pts > a.coins) throw new Error(`${from.name} doesn't have ${pts.toLocaleString()} coins.`); a.coins -= pts; b.coins += pts; return; }
   if (pts > from.balance) throw new Error(`${from.name} doesn't have ${pts.toLocaleString()} points.`);
   from.ledger.push({ at: new Date().toISOString(), pts: -pts, reason: why.slice(0, 80) }); from.balance -= pts;
   profiles.credit(to, pts, why, { sale: true });
@@ -248,22 +294,24 @@ const cardName = c => `${c.n} (${c.s} ${c.t}, ${c.gr})`;
 const liveTrade = t => t.status === 'open' || t.status === 'countered';
 // a trade going through: the asker gets the card they wanted; the owner gets the points and cards agreed on
 function execTrade(t, me, out) {
-  const A = t.from.pid === me.id ? me : need(t.from.pid), B = t.to.pid === me.id ? me : need(t.to.pid);
+  const sea = !!t.seasonal, U = unitOf(sea);
+  if (sea && t.seasonal !== seasonNow()) throw new Error('That season is over.');
+  const A = t.from.pid === me.id ? me : need(t.from.pid), B = t.to.pid === me.id ? me : need(t.to.pid), a = bagOf(A, sea), b = bagOf(B, sea);
   const ask = t.status === 'countered' ? t.ask : { uids: [], pts: t.offer };
-  const want = B.ut.cards.find(c => c.u === t.want);
+  const want = b.cards.find(c => c.u === t.want);
   if (!want) throw new Error(`${B.name} doesn't have ${t.wantCard.n} any more.`);
-  if (held(B.ut).has(want.u)) throw new Error(`${t.wantCard.n} is in ${B.name}'s lineup: it has to come out first.`);
-  const give = ask.uids.map(u => A.ut.cards.find(c => c.u === u));
+  if (held(b).has(want.u)) throw new Error(`${t.wantCard.n} is in ${B.name}'s lineup: it has to come out first.`);
+  const give = ask.uids.map(u => a.cards.find(c => c.u === u));
   if (give.some(c => !c)) throw new Error(`${A.name} doesn't have all of those cards any more.`);
-  if (give.some(c => held(A.ut).has(c.u))) throw new Error(`One of the cards is in ${A.name}'s lineup: it has to come out first.`);
-  if (ask.pts > A.balance) throw new Error(`${A.name} doesn't have ${ask.pts.toLocaleString()} points.`);
-  B.ut.cards = B.ut.cards.filter(c => c !== want); A.ut.cards = A.ut.cards.filter(c => !give.includes(c));
-  addCards(A, [want], 'Trade', A === me ? out.unlocked : [], false);
-  if (give.length) addCards(B, give, 'Trade', B === me ? out.unlocked : [], false);
-  if (ask.pts) pay(A, B, ask.pts, `Trade: ${want.n} to ${A.name}`);
+  if (give.some(c => held(a).has(c.u))) throw new Error(`One of the cards is in ${A.name}'s lineup: it has to come out first.`);
+  if (ask.pts > (sea ? a.coins : A.balance)) throw new Error(`${A.name} doesn't have ${ask.pts.toLocaleString()} ${U}.`);
+  b.cards = b.cards.filter(c => c !== want); a.cards = a.cards.filter(c => !give.includes(c));
+  giveCards(A, [want], 'Trade', A === me ? out.unlocked : [], sea);
+  if (give.length) giveCards(B, give, 'Trade', B === me ? out.unlocked : [], sea);
+  if (ask.pts) pay(A, B, ask.pts, `Trade: ${want.n} to ${A.name}`, sea);
   t.status = 'done'; t.upd = new Date().toISOString(); t.got = { pts: ask.pts, cards: give };
   const other = A === me ? B : A;
-  news(other, `🤝 Trade done: ${A.name} got ${cardName(want)}, ${B.name} got ${[...give.map(cardName), ask.pts ? `${ask.pts.toLocaleString()} points` : ''].filter(Boolean).join(' + ')}.`);
+  news(other, `🤝 ${sea ? '🗓️ Season trade' : 'Trade'} done: ${A.name} got ${cardName(want)}, ${B.name} got ${[...give.map(cardName), ask.pts ? `${ask.pts.toLocaleString()} ${U}` : ''].filter(Boolean).join(' + ')}.`);
   profiles.save(other);
 }
 const permanentOnly = ctx => { if (ctx.mode === 'season') throw new Error("That's for the permanent collection, not seasonal mode."); };
@@ -296,11 +344,14 @@ const ACTIONS = {
     }
     else if (key === 'staff') { if (ut.staff) throw new Error('The Staff pack is only once.'); ut.staff = true; }
     else ctx.spend(pack.price, `Ultimate Team: ${pack.name}`);
-    const cards = UT.openPack(key, pools()).map(c => ({ u: uid(), ...c }));
+    const cards = UT.openPack(key, ctx.mode === 'season' ? seaPools(ut.n) : pools()).map(c => ({ u: uid(), ...c }));
     ctx.add(cards, pack.name, out.unlocked);
-    // open spots in the lineup fill themselves (the whole lineup, after the starter pack)
-    const best = bestLineup(ut);
-    if (key === 'starter') ut.lineup = best; else for (const [s] of UT.SLOTS) if (!ut.lineup[s] && best[s] && !Object.values(ut.lineup).includes(best[s])) ut.lineup[s] = best[s];
+    // open spots in the lineup fill themselves (the whole lineup, after the starter pack; The Gauntlet: the best that fits the budget)
+    if (isComp(ut)) { if (key === 'starter') ut.lineup = Object.fromEntries(Object.entries(UT.compBest(ut.cards)).map(([s, c]) => [s, c.u])); }
+    else {
+      const best = bestLineup(ut);
+      if (key === 'starter') ut.lineup = best; else for (const [s] of UT.SLOTS) if (!ut.lineup[s] && best[s] && !Object.values(ut.lineup).includes(best[s])) ut.lineup[s] = best[s];
+    }
     if (ctx.mode === 'main') profiles.award(p, 'ut_pack', out.unlocked);
     out.cards = cards;
   },
@@ -354,7 +405,7 @@ const ACTIONS = {
     out.cards = [got];
   },
   lineup(p, b, out, ctx) {
-    const ut = ctx.ut, comp = b.which === 'comp' && ctx.mode === 'main'; // the ⚔ competitive lineup: just the eleven players
+    const ut = ctx.ut, compSea = isComp(ut), comp = compSea || (b.which === 'comp' && ctx.mode === 'main'); // the ⚔ competitive lineup: just the eleven players
     const want = b.lineup === 'best' ? (comp ? Object.fromEntries(Object.entries(UT.compBest(ut.cards)).map(([s, c]) => [s, c.u])) : bestLineup(ut)) : b.lineup || {}, lineup = {}, players = new Set();
     for (const [s, g] of comp ? UT.REQUIRED : UT.SLOTS) {
       const u = want[s]; if (!u) continue;
@@ -364,7 +415,7 @@ const ACTIONS = {
       if (players.has(pl)) throw new Error(`${c.n} is already in your lineup.`);
       players.add(pl); lineup[s] = u;
     }
-    if (comp) ut.comp = lineup; else ut.lineup = lineup;
+    if (comp && !compSea) ut.comp = lineup; else ut.lineup = lineup;
   },
   sell(p, b, out, ctx) {
     const ut = ctx.ut, inLineup = held(ut), uids = new Set(Array.isArray(b.uids) ? b.uids : []);
@@ -379,7 +430,7 @@ const ACTIONS = {
     if (!b.cancel) {
       const ut = ctx.ut, sn = ctx.mode === 'season' ? ut.n : 0;
       // ⚔ a competitive game: your competitive lineup, double points for both sides (permanent mode only)
-      const competitive = !sn && !!b.competitive, err = competitive ? UT.compCheck(cardsOf(ut, 'comp')) : !full(ut) && 'Fill every spot in your lineup first.';
+      const competitive = !sn && !!b.competitive, err = competitive ? UT.compCheck(cardsOf(ut, 'comp')) : !ready(ut) && notReady(ut);
       if (err) throw new Error(err);
       if (!sn) (p.prefs ||= {}).competitive = competitive;
       // ⚖️ a balanced game: no game plans for either side (marked on the queue, so the challenger skips the plan screen too)
@@ -395,14 +446,15 @@ const ACTIONS = {
     if (e.pid === p.id) throw new Error('You can\'t challenge your own team.');
     const seasonal = ctx.mode === 'season';
     if (!!e.seasonal !== seasonal || (seasonal && e.seasonal !== ctx.ut.n)) throw new Error(seasonal ? "That's a permanent-mode game." : "That's a seasonal game: switch to seasonal mode to play it.");
-    const ut = ctx.ut, err = e.competitive ? UT.compCheck(cardsOf(ut, 'comp')) : !full(ut) && 'Fill every spot in your lineup first.';
+    const ut = ctx.ut, err = e.competitive ? UT.compCheck(cardsOf(ut, 'comp')) : !ready(ut) && notReady(ut);
     if (err) throw new Error(err);
     const host = profiles.load(e.pid);
     const seed = Math.floor(Math.random() * 2 ** 31), home = { ...e }, away = { ...side(p, ut, e.competitive ? 'comp' : 'main'), tactics: e.balanced ? { ...UT.DEFAULT_PLAN } : planFrom(p, b) };
     delete home.qid;
     const sim = { ...UT.simGame(home, away, seed), ...(e.balanced ? { balanced: true } : {}), ...(e.competitive ? { competitive: true } : {}), ...(seasonal ? { seasonal: e.seasonal } : {}) };
     // 🎁 a card for each side (better odds for the winner); the host's shows up in the replay. Seasonal games give seasonal cards.
-    const reward = { home: { u: uid(), ...UT.gameCard(pools(), sim.winner === 'home') }, away: { u: uid(), ...UT.gameCard(pools(), sim.winner === 'away') } };
+    const gp = seasonal ? seaPools(e.seasonal) : pools(); // (a seasonal game's cards follow the season's rules)
+    const reward = { home: { u: uid(), ...UT.gameCard(gp, sim.winner === 'home') }, away: { u: uid(), ...UT.gameCard(gp, sim.winner === 'away') } };
     const game = { gid: uid() + uid(), at: new Date().toISOString(), seed, home, away, ...sim, reward };
     writeJson(path.join(GDIR, game.gid + '.json'), game);
     writeJson(GAMES, [summaryOf(game), ...readJson(GAMES, [])].slice(0, KEEP_GAMES));
@@ -442,7 +494,7 @@ const ACTIONS = {
   bot(p, b, out, ctx) {
     const B = UT.BOTS[b.level]; if (!B) throw new Error('No such bot.');
     const ut = ctx.ut;
-    if (!full(ut)) throw new Error('Fill every spot in your lineup first.');
+    if (!ready(ut)) throw new Error(notReady(ut));
     if (b.live && ut.live) { out.live = livePublic(ut.live); return; }
     const bot = UT.makeBot(pools(), b.level), seed = Math.floor(Math.random() * 2 ** 31);
     const home = { ...side(p, ut), tactics: planFrom(p, b) }, away = { pid: null, ...bot };
@@ -479,66 +531,67 @@ const ACTIONS = {
     delete ut.live;
     settleBot(p, ut, ctx, L.level, L.home, L.away, L.seed, sim, L.done, out);
   },
-  // 🏪 put a Legendary or Mythic card on the market ({ uid, price }): it leaves your collection until it sells or you take it back
+  // 🏪 put a card on the market ({ uid, price }): it leaves your collection until it sells or you take it back. Permanent:
+  // Legendary and Mythic, for points. Seasonal: Epic and up, for this season's coins (gone when the season ends).
   list(p, b, out, ctx) {
-    permanentOnly(ctx);
-    const ut = p.ut, c = ut.cards.find(x => x.u === b.uid), price = Math.round(Number(b.price));
+    const sea = ctx.mode === 'season', ut = ctx.ut, c = ut.cards.find(x => x.u === b.uid), price = Math.round(Number(b.price)), U = unitOf(sea);
     if (!c) throw new Error("That card isn't in your collection.");
     if (held(ut).has(c.u)) throw new Error('Take it out of your lineups first.');
-    const r = UT.rarityOf(c.gr);
-    if (!MARKET_RARITIES.includes(r.key)) throw new Error('Only Legendary and Mythic cards go on the market. Trade the rest with 🤝 trade offers.');
-    if (!(price >= r.sell && price <= MAX_PRICE)) throw new Error(`Price it between ${r.sell} and ${MAX_PRICE.toLocaleString()} points.`);
-    const m = readJson(MARKET, []);
-    if (m.filter(x => x.pid === p.id).length >= MAX_LISTINGS) throw new Error(`You can have ${MAX_LISTINGS} cards on the market at once.`);
+    const r = UT.rarityOf(c.gr), ok = sea ? SEA_MARKET_RARITIES : MARKET_RARITIES;
+    if (!ok.includes(r.key)) throw new Error(`Only ${sea ? 'Epic, Legendary and Mythic' : 'Legendary and Mythic'} cards go on the market. Trade the rest with 🤝 trade offers.`);
+    if (!(price >= r.sell && price <= MAX_PRICE)) throw new Error(`Price it between ${r.sell} and ${MAX_PRICE.toLocaleString()} ${U}.`);
+    const m = readJson(MARKET, []), mine = m.filter(x => x.pid === p.id && (sea ? x.seasonal === ut.n : !x.seasonal));
+    if (mine.length >= MAX_LISTINGS) throw new Error(`You can have ${MAX_LISTINGS} cards on the market at once.`);
     ut.cards = ut.cards.filter(x => x !== c);
-    writeJson(MARKET, [{ id: uid(), at: new Date().toISOString(), pid: p.id, name: p.name, card: c, price }, ...m]);
+    writeJson(MARKET, [{ id: uid(), at: new Date().toISOString(), pid: p.id, name: p.name, card: c, price, ...(sea ? { seasonal: ut.n } : {}) }, ...m]);
   },
   unlist(p, b, out, ctx) {
-    permanentOnly(ctx);
     const m = readJson(MARKET, []), x = m.find(l => l.id === b.id && l.pid === p.id); if (!x) throw new Error('That listing is gone.');
-    p.ut.cards.push(x.card);
+    bagOf(p, !!x.seasonal).cards.push(x.card);
     writeJson(MARKET, m.filter(l => l !== x));
   },
   buy(p, b, out, ctx) {
-    permanentOnly(ctx);
     const m = readJson(MARKET, []), x = m.find(l => l.id === b.id); if (!x) throw new Error('That card just sold (or was taken off the market).');
+    const sea = !!x.seasonal;
+    if (sea !== (ctx.mode === 'season')) throw new Error(sea ? "That's a seasonal card: buy it in seasonal mode." : "That's a permanent card: buy it in permanent mode.");
     if (x.pid === p.id) throw new Error("That's your own listing.");
     const seller = need(x.pid);
-    pay(p, seller, x.price, `Market: ${x.card.n} from ${seller.name} to ${p.name}`);
+    pay(p, seller, x.price, `Market: ${x.card.n} from ${seller.name} to ${p.name}`, sea);
     writeJson(MARKET, m.filter(l => l !== x));
-    addCards(p, [x.card], 'Market', out.unlocked, false);
-    news(seller, `🏪 ${p.name} bought your ${cardName(x.card)} for ${x.price.toLocaleString()} points.`);
+    giveCards(p, [x.card], 'Market', out.unlocked, sea);
+    news(seller, `🏪 ${p.name} bought your ${sea ? 'season card ' : ''}${cardName(x.card)} for ${x.price.toLocaleString()} ${unitOf(sea)}.`);
     profiles.save(seller);
     out.cards = [x.card];
   },
-  // 🤝 ask a player for one of their cards ({ to, uid, pts? }: an optional points offer they can just accept)
+  // 🤝 ask a player for one of their cards ({ to, uid, pts? }: an optional offer they can just accept). Seasonal mode: one of
+  // their season cards, for coins.
   trade(p, b, out, ctx) {
-    permanentOnly(ctx);
+    const sea = ctx.mode === 'season', U = unitOf(sea);
     if (b.to === p.id) throw new Error("That's your own card.");
-    const q = need(b.to), c = q.ut.cards.find(x => x.u === b.uid), pts = Math.max(0, Math.round(Number(b.pts) || 0));
+    const q = need(b.to), qb = bagOf(q, sea), c = qb.cards.find(x => x.u === b.uid), pts = Math.max(0, Math.round(Number(b.pts) || 0));
     if (!c) throw new Error(`${q.name} doesn't have that card any more.`);
-    if (held(q.ut).has(c.u)) throw new Error(`${q.name} has ${c.n} in a lineup, so it can't be traded right now.`);
-    if (pts > p.balance) throw new Error(`You only have ${p.balance.toLocaleString()} points.`);
+    if (held(qb).has(c.u)) throw new Error(`${q.name} has ${c.n} in a lineup, so it can't be traded right now.`);
+    if (pts > ctx.balance()) throw new Error(`You only have ${ctx.balance().toLocaleString()} ${U}.`);
     const T = readJson(TRADES, []);
     if (T.some(t => liveTrade(t) && t.from.pid === p.id && t.want === c.u)) throw new Error('You already asked for that card.');
     if (T.filter(t => liveTrade(t) && t.from.pid === p.id).length >= MAX_OPEN) throw new Error(`You can have ${MAX_OPEN} trade requests open at once.`);
     const at = new Date().toISOString();
-    writeJson(TRADES, [{ id: uid(), at, upd: at, from: { pid: p.id, name: p.name }, to: { pid: q.id, name: q.name }, want: c.u, wantCard: c, offer: pts, status: 'open' }, ...T].slice(0, 400));
+    writeJson(TRADES, [{ id: uid(), at, upd: at, from: { pid: p.id, name: p.name }, to: { pid: q.id, name: q.name }, want: c.u, wantCard: c, offer: pts, status: 'open', ...(sea ? { seasonal: ctx.ut.n } : {}) }, ...T].slice(0, 400));
   },
   // 🤝 answer a trade ({ id, act, uids?, pts? }). The card's owner: accept (the points offered), counter (the cards and/or
   // points they want from the asker) or decline. The asker: accept or decline a counter, or cancel.
   tradeact(p, b, out, ctx) {
-    permanentOnly(ctx);
     const T = readJson(TRADES, []), t = T.find(x => x.id === b.id);
     if (!t || !liveTrade(t)) throw new Error('That trade is closed.');
+    if (!!t.seasonal !== (ctx.mode === 'season')) throw new Error(t.seasonal ? "That's a seasonal trade: answer it in seasonal mode." : "That's a permanent trade: answer it in permanent mode.");
     const owner = t.to.pid === p.id, asker = t.from.pid === p.id, at = new Date().toISOString();
     if (!owner && !asker) throw new Error("That's not your trade.");
     if (owner && b.act === 'accept') { if (t.status !== 'open' || !t.offer) throw new Error('There are no points offered to accept: counter with what you want.'); execTrade(t, p, out); }
     else if (owner && b.act === 'counter') {
-      const A = need(t.from.pid), uids = [...new Set(Array.isArray(b.uids) ? b.uids : [])], pts = Math.max(0, Math.round(Number(b.pts) || 0));
-      const cards = uids.map(u => A.ut.cards.find(c => c.u === u));
+      const A = need(t.from.pid), ab = bagOf(A, !!t.seasonal), uids = [...new Set(Array.isArray(b.uids) ? b.uids : [])], pts = Math.max(0, Math.round(Number(b.pts) || 0));
+      const cards = uids.map(u => ab.cards.find(c => c.u === u));
       if (cards.some(c => !c)) throw new Error(`${A.name} doesn't have all of those cards.`);
-      if (cards.some(c => held(A.ut).has(c.u))) throw new Error(`Some of those cards are in ${A.name}'s lineup.`);
+      if (cards.some(c => held(ab).has(c.u))) throw new Error(`Some of those cards are in ${A.name}'s lineup.`);
       if (!cards.length && !pts) throw new Error('Ask for at least one card or some points.');
       if (cards.length > 5) throw new Error('Ask for up to 5 cards.');
       Object.assign(t, { status: 'countered', ask: { uids, pts }, askCards: cards, upd: at });
@@ -549,17 +602,20 @@ const ACTIONS = {
     writeJson(TRADES, T);
   },
   // 📅 one schedule run a day with your lineup, on a real franchise's schedule
+  // (seasonal mode from Season 2: half the points as coins, and a quarter as XP)
   season(p, b, out, ctx) {
-    permanentOnly(ctx);
-    const ut = p.ut, L = league();
+    const ut = ctx.ut, L = league(), sea = ctx.mode === 'season';
+    if (sea && !UT.seasonPlan(ut.n).schedule) throw new Error('📅 Schedule runs come to seasonal mode from Season 2.');
     if (ut.seasonDay === today()) throw new Error("You've played today's season. The next one is tomorrow.");
-    if (!full(ut)) throw new Error('Fill every spot in your lineup first.');
+    if (!ready(ut)) throw new Error(notReady(ut));
     if (!L.sched[b.team]?.length) throw new Error("Pick a team's schedule to play.");
     const s = UT.simSeason(cardsOf(ut), L, b.team, Math.floor(Math.random() * 2 ** 31));
     const lost = s.post.find(g => !g.w), recStr = `${s.wins}-${s.losses}${s.ties ? '-' + s.ties : ''}`;
     const how = s.perfect ? 'a perfect season' : s.champ ? 'Super Bowl champs' : lost ? `out in the ${lost.round}` : 'missed the playoffs';
     ut.seasonDay = today();
-    ut.seasons = [{ at: new Date().toISOString(), team: ut.team, name: L.teams.find(x => x.t === b.team)?.name, ...s }, ...ut.seasons].slice(0, 20);
+    const coins = sea ? Math.round(s.reward / 2) : undefined;
+    ut.seasons = [{ at: new Date().toISOString(), team: ut.team, name: L.teams.find(x => x.t === b.team)?.name, ...s, ...(sea ? { coins } : {}) }, ...ut.seasons].slice(0, 20);
+    if (sea) { ctx.earn(coins); out.xp = addXp(p, ut, Math.round(s.reward / 4), out.unlocked); out.season = ut.seasons[0]; return; }
     if (s.champ) ut.titles++;
     profiles.credit(p, s.reward, `Ultimate Team season: ${recStr}, ${how}`, { boost: true });
     profiles.award(p, 'ut_season', out.unlocked);
@@ -571,13 +627,19 @@ const ACTIONS = {
 // a finished bot game (moments: a 🎮 live game's calls, which pays UT.LIVE.mult × and gives that much XP)
 function settleBot(p, ut, ctx, level, home, away, seed, sim, moments, out) {
   const B = UT.BOTS[level], won = sim.winner === 'home', mult = moments ? UT.LIVE.mult : 1;
-  if (ut.bot.day !== today()) { ut.bot.day = today(); ut.bot.pts = 0; }
-  let reward = 0;
+  if (ut.bot.day !== today()) { ut.bot.day = today(); ut.bot.pts = 0; ut.bot.wins = 0; }
+  let reward = 0, capped = 0;
   const rec = (ut.bot.rec[level] ||= { w: 0, l: 0 }); rec[won ? 'w' : 'l']++;
-  if (won) { reward = ctx.earn(UT.botPay(home.cards, level) * mult, `Ultimate Team${moments ? ' 🎮' : ''}: beat the ${B.name} bot ${sim.hs}-${sim.as}`, { boost: true }); ut.bot.pts += reward; }
+  // from Season 2, only the first BOT_CAP bot wins of a day pay coins (XP always counts)
+  const cap = ctx.mode === 'season' ? UT.seasonPlan(ut.n).botCap : null;
+  if (won) {
+    ut.bot.wins = (ut.bot.wins || 0) + 1;
+    if (!cap || ut.bot.wins <= cap) { reward = ctx.earn(UT.botPay(home.cards, level) * mult, `Ultimate Team${moments ? ' 🎮' : ''}: beat the ${B.name} bot ${sim.hs}-${sim.as}`, { boost: true }); ut.bot.pts += reward; }
+    else capped = cap;
+  }
   if (ctx.mode === 'season') out.xp = addXp(p, ut, (won ? UT.SEASON.xp.botWin : UT.SEASON.xp.botLoss) * mult, out.unlocked);
   else if (won && level === 'hard') profiles.award(p, 'ut_bot_hard', out.unlocked);
-  out.game = { gid: null, at: new Date().toISOString(), seed, home, away, ...sim, bot: level, reward, ...(moments ? { live: true, moments } : {}), ...(ctx.mode === 'season' ? { seasonal: ut.n } : {}) };
+  out.game = { gid: null, at: new Date().toISOString(), seed, home, away, ...sim, bot: level, reward, ...(capped ? { capped } : {}), ...(moments ? { live: true, moments } : {}), ...(ctx.mode === 'season' ? { seasonal: ut.n } : {}) };
 }
 // 🔎 the current moment's hidden bot call and the pre-snap read of it (set once, so a refresh shows the same read)
 function prepMoment(L) { const m = L.moments[L.i]; if (m?.kind && !m.bot) Object.assign(m, UT.liveRead(m.kind, L.home.cards)); }
@@ -620,7 +682,7 @@ function handle(req, url, body) {
     const P = pulls(), who = {};
     for (const x of P) { const w = (who[x.pid] ||= { pid: x.pid, name: x.name, n: 0, best: x.card }); w.n++; if (x.card.gr > w.best.gr) w.best = x.card; }
     // (a queued team's game plan is never sent: the challenger picks theirs blind)
-    const out = { mode, seasonInfo: { n: cur, ...(cur ? span(cur) : { starts: EPOCH }) },
+    const out = { mode, seasonInfo: { n: cur, ...(cur ? { ...span(cur), name: UT.seasonPlan(cur).name, icon: UT.seasonPlan(cur).icon } : { starts: EPOCH }) },
       queue: readJson(QUEUE, []).filter(inMode).map(({ cards, tactics, ...e }) => ({ ...e, lineup: UT.SLOTS.map(([s]) => cards[s] && [s, cards[s].n, cards[s].gr]).filter(Boolean) })),
       games: readJson(GAMES, []).filter(inMode).slice(0, 60),
       // the collections, logos and team list only change with a data refresh: the page's 10-second check skips them (?lite)
@@ -628,13 +690,17 @@ function handle(req, url, body) {
       boards: boards(), pulls: P.slice(0, 40), pullers: Object.values(who).sort((a, b) => b.n - a.n || b.best.gr - a.best.gr),
       ...(lite ? {} : { teams: league().teams.map(({ t, name }) => ({ t, name })).sort((a, b) => a.name.localeCompare(b.name)) }) };
     if (a) out.me = state(need(a), mode);
-    if (a && mode === 'main') { // 🏪 the market, 🤝 your trades and your news, and (not on the quick check) who owns which card
-      out.market = readJson(MARKET, []);
-      out.trades = readJson(TRADES, []).filter(t => t.from.pid === a || t.to.pid === a).slice(0, 60);
+    if (a) { // 🏪 the market, 🤝 your trades and your news (this mode's), and (not on the quick check) who owns which card
+      out.market = readJson(MARKET, []).filter(inMode);
+      out.trades = readJson(TRADES, []).filter(t => (t.from.pid === a || t.to.pid === a) && (mode === 'season' ? t.seasonal === cur : !t.seasonal)).slice(0, 60);
       out.news = utOf(need(a)).news || [];
       if (!lite) {
         const own = {};
-        for (const q of profiles.all()) if (q.id !== a && q.ut?.cards) { const h = held(q.ut); for (const c of q.ut.cards) (own[UT.baseKey(c.k)] ||= []).push({ pid: q.id, name: q.name, u: c.u, gr: c.gr, held: h.has(c.u) }); }
+        for (const q of profiles.all()) {
+          const bag = mode === 'season' ? (q.sea?.n === cur ? q.sea : null) : q.ut;
+          if (q.id === a || !bag?.cards) continue;
+          const h = held(bag); for (const c of bag.cards) (own[UT.baseKey(c.k)] ||= []).push({ pid: q.id, name: q.name, u: c.u, gr: c.gr, held: h.has(c.u) });
+        }
         out.owners = own;
       }
     }
