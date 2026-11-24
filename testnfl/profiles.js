@@ -15,6 +15,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const ACH = require('./app/achievements.js');
+const LOOK = require('./app/look.js');
+// a hook Ultimate Team sets, to fill in fields a loaded profile is missing (like points for and against)
+let touch = p => p; const setTouch = f => (touch = f);
 
 // "testnfl profiles" beside the app folder (…\VirtualM\testnfl profiles next to …\VirtualM\testnfl); VM_PROFILES overrides
 function profilesDir() {
@@ -30,7 +33,7 @@ function load(id) {
   if (!validId(id) || !fs.existsSync(fileOf(id))) return null;
   const p = JSON.parse(fs.readFileSync(fileOf(id), 'utf8'));
   if (topUp(p)) save(p);
-  return p;
+  return touch(p);
 }
 // achievements unlocked before their points went up get the difference
 function topUp(p) {
@@ -55,7 +58,13 @@ const ROOKIE_UNTIL = 5000; // 🐣 game, daily, bot and pick'em points pay doubl
 const titleOf = (p, key) => (ACH.isTitle(key) && p.achievements[key] ? { key, name: ACH.BY_KEY[key].name, icon: ACH.BY_KEY[key].icon || '🏅' } : (p.titles || []).find(t => t.key === key) || null);
 const titleText = p => { const t = p.showcase?.title && titleOf(p, p.showcase.title); return t ? `${t.icon} ${t.name}` : ''; };
 const summary = p => ({ id: p.id, name: p.name, created: p.created, balance: p.balance, earned: earnedOf(p), unlocked: Object.keys(p.achievements).length, pin: !!p.pin,
-  title: p.showcase?.title && titleOf(p, p.showcase.title) ? p.showcase.title : '', titleText: titleText(p), lastSeason: p.seasonHistory?.[0] || null, showcase: (p.showcase?.cards || []).map(u => p.ut?.cards?.find(c => c.u === u)).filter(Boolean) });
+  title: p.showcase?.title && titleOf(p, p.showcase.title) ? p.showcase.title : '', titleText: titleText(p), lastSeason: p.seasonHistory?.[0] || null, showcase: (p.showcase?.cards || []).map(u => p.ut?.cards?.find(c => c.u === u)).filter(Boolean),
+  // ⭐ for the sidebar: level, banner and picture, the records, and this season's line
+  level: LOOK.level(earnedOf(p)), banner: bannerOf(p), avatar: avatarOf(p), team: p.ut?.team || null, rec: p.ut?.rec || null, rings: p.ut?.titles || 0,
+  sea: p.sea ? { n: p.sea.n, w: p.sea.rec.w, l: p.sea.rec.l, pf: p.sea.rec.pf || 0, pa: p.sea.rec.pa || 0, xp: p.sea.xp, team: p.sea.team } : null, seasons: (p.seasonHistory || []).length, champs: (p.seasonHistory || []).filter(h => h.champ).length });
+// the banner they chose (if it's still unlocked) and their profile picture (a Mythic or Legend they own)
+const bannerOf = p => { const b = LOOK.banner(p.showcase?.banner); return b.ok(p, earnedOf(p)) ? b.key : 'night'; };
+const avatarOf = p => { const c = (p.ut?.cards || []).find(x => x.u === p.showcase?.avatar); return LOOK.avatarOk(c) ? { n: c.n, g: c.g, t: c.t, s: c.s, gr: c.gr, h: c.h, k: c.k, legend: c.legend } : null; };
 // a profile as the pages see it: everything but the PIN hash and sign-in tokens
 const visible = p => { const { pin, tokens, ...rest } = p; return { ...rest, prefs: p.prefs || {} }; };
 
@@ -102,7 +111,7 @@ function all() {
   return fs.readdirSync(DIR).filter(f => f.endsWith('.json')).map(f => { try { return JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); } catch { return null; } }).filter(Boolean);
 }
 function list() {
-  return fs.readdirSync(DIR).filter(f => f.endsWith('.json')).map(f => { try { return summary(JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'))); } catch { return null; } })
+  return fs.readdirSync(DIR).filter(f => f.endsWith('.json')).map(f => { try { return summary(touch(JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')))); } catch { return null; } })
     .filter(Boolean).sort((a, b) => b.earned - a.earned);
 }
 function award(p, key, out) {
@@ -135,14 +144,19 @@ function create(name, pin) {
   save(p);
   return { profile: visible(p), unlocked, token };
 }
-// ⭐ the profile page's showcase: up to 5 of your own cards, and a title from a hard achievement you've unlocked
+// ⭐ the profile page's look: a showcase of up to 5 of your own cards, a title (from a hard achievement or seasonal mode),
+// a banner you've unlocked (look.js) and a profile picture (one of your Mythics or Legends)
 function setShowcase(id, token, b) {
   const p = authorize(id, token), mine = new Set((p.ut?.cards || []).map(c => c.u));
   const cards = [...new Set(Array.isArray(b.cards) ? b.cards : [])].filter(u => mine.has(u));
   if (cards.length > 5) throw new Error('A showcase holds 5 cards.');
   const title = String(b.title || '');
   if (title && !titleOf(p, title)) throw new Error('Titles come from gold, platinum and legendary achievements you\'ve unlocked, and from seasonal mode.');
-  p.showcase = { cards, title };
+  const banner = String(b.banner || 'night'), bn = LOOK.BANNERS.find(x => x.key === banner);
+  if (!bn || !bn.ok(p, earnedOf(p))) throw new Error(`That banner is locked: ${bn ? bn.need : 'no such banner'}.`);
+  const avatar = b.avatar ? String(b.avatar) : '';
+  if (avatar && !LOOK.avatarOk((p.ut?.cards || []).find(c => c.u === avatar))) throw new Error('Your picture has to be one of your Mythic or 👑 Legend cards.');
+  p.showcase = { cards, title, banner, avatar };
   save(p);
   return { showcase: p.showcase };
 }
@@ -197,4 +211,4 @@ function credit(p, pts, reason, extra = {}) {
   p.ledger.push({ at: new Date().toISOString(), pts, reason: String(reason).slice(0, 80), ...rest }); p.balance += pts;
   return pts;
 }
-module.exports = { titleOf, titleText, DIR, all, list, load, save, create, track, spend, award, checkGoals, credit, earnedOf, ROOKIE_UNTIL, setShowcase, login, logout, authorize, setPrefs, visible };
+module.exports = { setTouch, titleOf, titleText, DIR, all, list, load, save, create, track, spend, award, checkGoals, credit, earnedOf, ROOKIE_UNTIL, setShowcase, login, logout, authorize, setPrefs, visible };

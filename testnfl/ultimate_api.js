@@ -79,6 +79,20 @@ const isChase = c => c.gr >= 90; // Legendary and Mythic pulls go in the log
 const today = () => new Date().toLocaleDateString('en-CA'); // the server's own date, YYYY-MM-DD
 const uid = () => Math.random().toString(36).slice(2, 10);
 const defaultTeam = p => ({ name: `${p.name}'s Squad`.slice(0, 24), abbr: (p.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 3) || 'UT').toUpperCase() });
+// points for and against, from every saved permanent game (once; after that each game adds its own)
+let PFPA = null;
+function pfpaOf(pid) {
+  if (!PFPA) {
+    PFPA = {};
+    for (const f of fs.readdirSync(GDIR)) {
+      const g = readJson(path.join(GDIR, f), null); if (!g || g.seasonal) continue;
+      for (const [side, us, them] of [['home', g.hs, g.as], ['away', g.as, g.hs]]) { const pid = g[side]?.pid; if (pid) { const x = (PFPA[pid] ||= { pf: 0, pa: 0 }); x.pf += us; x.pa += them; } }
+    }
+  }
+  return { ...(PFPA[pid] || { pf: 0, pa: 0 }) };
+}
+// (profiles.load and the sidebar list run every profile through this)
+profiles.setTouch(p => { if (p.ut?.rec && p.ut.rec.pf == null) Object.assign(p.ut.rec, pfpaOf(p.id)); return p; });
 function utOf(p) {
   const ut = (p.ut ||= { team: defaultTeam(p), cards: [], lineup: {}, starter: false, daily: '', rec: { w: 0, l: 0 }, unseen: [] });
   // added later: filled in (never reset) for profiles made before them
@@ -470,7 +484,8 @@ const ACTIONS = {
         sea.cards.push(reward[mine]);
         return x;
       }
-      utOf(pr).rec[won ? 'w' : 'l']++;
+      const rec = utOf(pr).rec; rec[won ? 'w' : 'l']++;
+      rec.pf = (rec.pf || 0) + (mine === 'home' ? sim.hs : sim.as); rec.pa = (rec.pa || 0) + (mine === 'home' ? sim.as : sim.hs);
       profiles.credit(pr, (won ? UT.REWARD.win : UT.REWARD.loss) * (sim.competitive ? UT.COMP.mult : 1), `Ultimate Team${sim.competitive ? ' ⚔' : ''}: ${won ? 'beat' : 'lost to'} ${them.team} ${sc}`, { boost: true });
       if (won) {
         pr.counters.ut_wins = (pr.counters.ut_wins || 0) + 1;
@@ -717,4 +732,6 @@ function handle(req, url, body) {
 }
 // 🎯 season coins from outside Ultimate Team (a right pick'em pick): into this season's section, if a season is on
 function seasonCoins(p, n) { const sea = seaOf(p); if (!sea) return 0; sea.coins += n; return n; }
-module.exports = { handle, finalizeSeasons, seasonCoins };
+// the season on now, for pages outside Ultimate Team (the profiles sidebar)
+const seasonInfo = () => { const n = seasonNow(); return n ? { n, ...span(n), name: UT.seasonPlan(n).name, icon: UT.seasonPlan(n).icon } : { n: 0, starts: EPOCH }; };
+module.exports = { handle, finalizeSeasons, seasonCoins, seasonInfo };

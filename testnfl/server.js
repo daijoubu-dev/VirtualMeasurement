@@ -107,7 +107,7 @@ async function autoRefresh() {
 //   POST /api/profiles/<id>/track    {events: [...]} from the pages; answers with anything that unlocked
 //   POST /api/profiles/<id>/spend    {amount, reason} (for the Ultimate Team packs)
 //   POST /api/profiles/<id>/prefs    {fav?, stats?, tactics?, ticker?} per-profile settings
-//   POST /api/profiles/<id>/showcase {cards: [up to 5 card ids], title: an achievement key} for the profile page
+//   POST /api/profiles/<id>/showcase {cards: [up to 5 card ids], title, banner, avatar: a Mythic's card id} for the profile page
 // Everything that changes a profile needs its token, in an X-VM-Token header (or "token" in the body, for sendBeacon).
 const tokenOf = (req, body) => req.headers['x-vm-token'] || body?.token || '';
 const readBody = req => new Promise((resolve, reject) => {
@@ -119,7 +119,7 @@ async function profileApi(req, res, url) {
   const send = (code, body) => { res.writeHead(code); res.end(JSON.stringify(body)); };
   try {
     const [, , , id, action] = url.split('/'); // '', 'api', 'profiles', id, action
-    if (!id && req.method === 'GET') return send(200, { ok: true, profiles: profiles.list() });
+    if (!id && req.method === 'GET') return send(200, { ok: true, profiles: profiles.list(), season: require('./ultimate_api').seasonInfo() });
     if (!id && req.method === 'POST') { const b = await readBody(req); return send(200, { ok: true, ...profiles.create(b.name, b.pin) }); }
     if (id && !action && req.method === 'GET') { const p = profiles.load(id); return p ? send(200, { ok: true, profile: profiles.visible(p) }) : send(404, { ok: false, error: 'No such profile.' }); }
     if (req.method !== 'POST' || !id) return send(404, { ok: false, error: 'Unknown profile request.' });

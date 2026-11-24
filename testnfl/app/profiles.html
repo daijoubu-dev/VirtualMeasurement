@@ -12,23 +12,38 @@
 <script src="ticker.js" defer></script>
 <script src="ultimate.js"></script>
 <script src="cards.js"></script>
+<script src="look.js"></script>
 <style>
   [hidden] { display: none !important; }
   .empty { padding: 24px; text-align: center; color: var(--muted); }
   .btn { border: 1px solid var(--border); background: var(--soft); color: var(--text); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: 650; font-size: 13px; }
   .btn:hover { border-color: var(--accent); } .btn.go { background: var(--accent); border-color: var(--accent); color: #fff; } .btn.sm { padding: 3px 10px; font-size: 12px; }
-  /* everyone */
-  .plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 14px; }
-  .pcard { display: block; text-decoration: none; color: inherit; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
-  .pcard:hover { border-color: var(--accent); }
-  .pcard .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; } .pcard .nm { font-size: 18px; font-weight: 850; } .pcard .pts { color: var(--gold); font-weight: 800; font-variant-numeric: tabular-nums; }
-  .pcard .mini { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
-  .title { font-size: 12.5px; color: var(--muted); font-weight: 650; }
-  /* one profile */
-  .phead { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px 24px; flex-wrap: wrap; }
-  .phead h2 { font-size: 32px; line-height: 1.05; text-transform: none; color: var(--text); font-weight: 850; letter-spacing: -.01em; margin: 2px 0 4px; }
-  .phead .title { font-size: 14px; color: var(--gold); font-weight: 800; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  /* the page: a sidebar of everyone, and the profile */
+  .pwrap { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .pwrap { grid-template-columns: 1fr; } .side { position: static !important; max-height: 340px; } }
+  .side { position: sticky; top: 10px; max-height: calc(100vh - 80px); overflow: auto; padding: 10px; }
+  .side .seg { display: flex; margin-bottom: 8px; } .side .seg button { flex: 1; }
+  .prow { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px; border-radius: 10px; color: inherit; text-decoration: none; cursor: pointer; }
+  .prow:hover { background: var(--soft); } .prow.on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .prow .nm { font-weight: 800; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .prow .sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prow .rk { font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+  /* 🖼️ a picture with its level ring */
+  .av { position: relative; flex: none; border-radius: 50%; border: 3px solid var(--ring, #d97706); background: #0b0f18; overflow: hidden; display: grid; place-items: center; font-weight: 900; color: #fff; }
+  .av img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
+  .av.logo img { object-fit: contain; padding: 12%; }
+  .lvl { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); background: #0b0f18; border: 2px solid var(--ring); color: #fff; border-radius: 999px; font-size: 11px; font-weight: 900; padding: 0 7px; line-height: 16px; white-space: nowrap; }
+  .avw { position: relative; }
+  /* the header */
+  .hero { position: relative; border-radius: 16px; overflow: hidden; padding: 22px 22px 18px; color: #fff; border: 1px solid var(--border); margin-bottom: 14px; }
+  .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(0, 0, 0, .15) 70%); pointer-events: none; }
+  .hero > * { position: relative; z-index: 1; }
+  .hrow { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .hero h2 { font-size: 34px; line-height: 1.05; text-transform: none; color: #fff; font-weight: 900; letter-spacing: -.01em; margin: 2px 0 4px; text-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+  .hero .title { font-size: 14px; color: #fde68a; font-weight: 800; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+  .hero .meta { font-size: 13px; opacity: .9; } .hero .big { margin-left: auto; text-align: right; } .hero .big b { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; display: block; line-height: 1; } .hero .big span { font-size: 12.5px; opacity: .9; }
+  .lbar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .2); overflow: hidden; width: min(320px, 100%); margin-top: 6px; } .lbar div { height: 100%; background: var(--ring); }
+  .ptabs { display: flex; justify-content: center; margin: 0 0 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .tile { background: var(--soft); border-radius: 10px; padding: 9px 14px; } .tile .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); } .tile .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; } .tile .s { font-size: 12px; color: var(--muted); }
   .showcase { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; max-width: 980px; margin: 0 auto; }
   @media (max-width: 640px) { .showcase { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } }
@@ -38,7 +53,14 @@
   .pickme { cursor: pointer; } .pickme:hover { transform: translateY(-3px); } .card.chosen { outline: 3px solid var(--gold); outline-offset: 2px; }
   .filters { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .achs { display: flex; flex-wrap: wrap; gap: 6px; } .ach { border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
+  /* ✏️ editing your look */
   .editbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; margin-top: 12px; } .editbar select { max-width: 280px; }
+  .banners { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .bn { border-radius: 10px; height: 58px; border: 2px solid transparent; cursor: pointer; color: #fff; font-weight: 800; font-size: 13px; padding: 6px 9px; display: flex; flex-direction: column; justify-content: flex-end; text-shadow: 0 1px 3px #000; text-align: left; }
+  .bn.on { border-color: var(--gold); } .bn.locked { cursor: default; filter: grayscale(.85) brightness(.6); } .bn small { font-weight: 600; font-size: 10.5px; opacity: .95; }
+  .avpick { display: flex; flex-wrap: wrap; gap: 12px; } .avpick .avw { cursor: pointer; } .avpick .av.on { box-shadow: 0 0 0 3px var(--gold); }
+  table.hist { width: 100%; border-collapse: collapse; font-size: 13.5px; } table.hist th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--muted); padding: 5px 6px; border-bottom: 1px solid var(--border); }
+  table.hist td { padding: 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; } table.hist .num { text-align: right; }
 </style>
 </head>
 <body>
@@ -47,18 +69,21 @@
     <h1><img src="pylon.png" alt="">Virtual Measurement</h1>
     <nav class="navs"><span class="ngrp main"><span class="nlbl">🏈 Play</span><span class="nav"><a href="ultimate.html">Ultimate Team</a><a href="pickem.html">Pick'em</a></span></span><span class="ngrp"><span class="nlbl">📊 Stats</span><span class="nav"><a href="index.html">Matchups</a><a href="standings.html">Standings</a><a href="players.html">Players</a><a href="leaders.html">Leaders</a><a href="charts.html">Charts</a></span></span><span class="ngrp"><span class="nlbl">🎲 Mini-games</span><span class="nav"><a href="superbowl.html">Super Bowl</a><a href="perfect.html">17-0</a></span></span><span class="ngrp"><span class="nlbl">👤 You</span><span class="nav"><a href="profiles.html" class="on">⭐ My profile</a><a href="achievements.html">🏆 Achievements</a></span></span></nav>
   </header>
-  <div id="view"></div>
+  <div class="pwrap"><aside class="panel side" id="side"></aside><div id="view"></div></div>
 </main>
 
 <script>
-// ⭐ A player's page (profiles.html?id=ham; without an id, your own): their title, records, a showcase of five cards and
-// their whole collection. On your own page you choose the showcase and your title. Other players' pages open from their
-// names (queues, leaderboards), which also show a hover card (profile.js).
+// ⭐ Profiles: a sidebar of every player (by level, or this season's standings) and one player's page (profiles.html?id=ham;
+// without an id, your own): a banner with their picture, level, title and record, then tabs for the permanent game
+// (records, showcase, collection, achievements), this season (record, rank, XP and their season cards) and every season
+// they've played. On your own page you pick your picture (a Mythic or Legend), banner (look.js), title and showcase.
+// Other players' cards have "🤝 Ask for it" (a trade offer: permanent cards for points, season cards for coins).
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const UT = window.VM_UT, A = window.VM_ACHIEVEMENTS;
+const UT = window.VM_UT, A = window.VM_ACHIEVEMENTS, LOOK = window.VM_LOOK;
 let id = new URLSearchParams(location.search).get('id');
-let EDIT = null, FILTER = 'All'; // EDIT: the showcase being chosen ({ cards: [uids], title })
+let EDIT = null, FILTER = 'All', TAB = 'perm', SIDE = 'perm'; // EDIT: the look being chosen ({ cards, title, banner, avatar })
+let LIST = [], SEASON = { n: 0 };
 
 async function art() { // team logos and colors for the cards
   try { const r = await (await fetch('/api/ut/art')).json(); if (r.ok) { VMCards.logos = r.logos; VMCards.colors = r.colors; } } catch {}
@@ -66,84 +91,162 @@ async function art() { // team logos and colors for the cards
 // titles: the hard achievements, and the ones won in 🗓️ seasonal mode (CUSTOM, the profile's own list)
 let CUSTOM = [];
 const titleOf = key => { const a = A.isTitle(key) && A.BY_KEY[key], t = !a && CUSTOM.find(x => x.key === key); return a ? `${a.icon} ${a.name}` : t ? `${t.icon} ${t.name}` : ''; };
+const pct = (w, l) => (w + l ? (w / (w + l)).toFixed(3).replace(/^0/, '') : '.000');
+// 🖼️ a picture with its level ring (an initial when there's no picture)
+function avatarHtml(c, level, size, name) {
+  const t = LOOK.tier(level), pic = c ? UT.photos(c, VMCards.logos)[0] : '', logo = c && !c.h;
+  return `<span class="avw"><span class="av ${logo ? 'logo' : ''}" style="width:${size}px;height:${size}px;--ring:${t.color};font-size:${size * 0.42}px" title="Level ${level} · ${t.name}">${pic ? `<img src="${esc(pic)}" alt="" onerror="this.remove()">` : esc((name || '?')[0].toUpperCase())}</span><span class="lvl" style="--ring:${t.color}">${level}</span></span>`;
+}
+// a banner's background (team colors from the favorite team)
+const bannerCss = (key, fav) => { const b = LOOK.banner(key); if (b.key !== 'team') return b.css; const c = VMCards.colors?.[UT.teamKey(fav || '')] || '#334155'; return `linear-gradient(120deg, ${c}, ${c}cc 40%, #0b1020)`; };
+// this season's standings, from the list (the same order as the Season tab in Ultimate Team)
+const seasonRows = () => LIST.filter(x => x.sea?.n === SEASON.n && (x.sea.xp > 0 || x.sea.w + x.sea.l > 0))
+  .sort((a, b) => (b.sea.w - b.sea.l) - (a.sea.w - a.sea.l) || b.sea.w - a.sea.w || (b.sea.pf - b.sea.pa) - (a.sea.pf - a.sea.pa) || b.sea.xp - a.sea.xp);
+
+// ---------- the sidebar ----------
+function drawSide() {
+  const rows = SIDE === 'sea' ? seasonRows() : LIST.slice().sort((a, b) => b.level - a.level || b.earned - a.earned);
+  $('side').innerHTML = `<div class="seg"><button class="${SIDE === 'perm' ? 'on' : ''}" data-s="perm">🃏 Everyone</button><button class="${SIDE === 'sea' ? 'on' : ''}" data-s="sea" ${SEASON.n ? '' : 'disabled'} title="${esc(SEASON.name || '')}">${SEASON.icon || '🗓️'} Season</button></div>
+    ${rows.map((x, i) => `<a class="prow ${x.id === id ? 'on' : ''}" href="profiles.html?id=${encodeURIComponent(x.id)}" data-pid="${esc(x.id)}">${avatarHtml(x.avatar, x.level, 34, x.name)}
+      <div style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="sub">${esc(x.titleText || (x.team ? `${x.team.abbr} · ${x.team.name}` : ''))}</div></div>
+      <div class="rk">${SIDE === 'sea' ? `#${i + 1}<div class="sub">${x.sea.w}-${x.sea.l}</div>` : x.rec ? `${x.rec.w}-${x.rec.l}<div class="sub">Lv ${x.level}</div>` : `<div class="sub">Lv ${x.level}</div>`}</div></a>`).join('') || '<p class="empty">Nobody here yet.</p>'}`;
+  $('side').querySelectorAll('[data-s]').forEach(b => (b.onclick = () => { SIDE = b.dataset.s; drawSide(); }));
+  $('side').querySelectorAll('[data-pid]').forEach(a => (a.onclick = e => { e.preventDefault(); id = a.dataset.pid; EDIT = null; history.pushState(null, '', `profiles.html?id=${encodeURIComponent(id)}`); drawSide(); one(); }));
+}
+async function loadList() {
+  const r = await fetch('/api/profiles').then(r => r.json()).catch(() => null);
+  if (r?.ok) { LIST = r.profiles; SEASON = r.season || { n: 0 }; }
+  drawSide();
+}
 
 // no id: your own page, once you're signed in
 function yours() {
   id = window.VM?.profile();
-  if (id) { history.replaceState(null, '', `profiles.html?id=${encodeURIComponent(id)}`); return one(); }
-  $('view').innerHTML = '<p class="panel empty">Sign in with 👤 at the top right to see your profile.</p>';
+  if (id) { history.replaceState(null, '', `profiles.html?id=${encodeURIComponent(id)}`); drawSide(); return one(); }
+  $('view').innerHTML = '<p class="panel empty">Sign in with 👤 at the top right to see your profile, or pick a player on the left.</p>';
+}
+
+// 🤝 ask for one of their cards (with an optional offer); the answer comes in Ultimate Team's 🤝 Market tab
+async function ask(p, c, seasonal) {
+  const unit = seasonal ? 'coins' : 'points';
+  const v = prompt(`Ask ${p.name} for ${c.n} (${c.s}, ${c.gr})${seasonal ? ' (season card)' : ''}.\nOffer ${unit} with it? (optional: leave it empty and they'll pick from your cards)`, '');
+  if (v === null) return null;
+  return fetch(`/api/ut/${encodeURIComponent(window.VM.profile())}/trade`, { method: 'POST', headers: VM.headers(), body: JSON.stringify({ to: p.id, uid: c.u, pts: Math.max(0, Math.round(+v || 0)), ...(seasonal ? { mode: 'season' } : {}) }) })
+    .then(r => r.json()).catch(() => ({ ok: false, error: "The server didn't answer." }));
+}
+// a collection with filters (and Ask buttons on other players' cards)
+function collectionHtml(cards, lineup, canAsk, key) {
+  const heldU = new Set([...Object.values(lineup.lineup || {}), ...Object.values(lineup.comp || {})]);
+  const groups = new Map(); for (const c of cards) { if (!groups.has(c.k)) groups.set(c.k, []); groups.get(c.k).push(c); }
+  const list = [...groups.values()].map(cs => cs[0]).filter(c => FILTER === 'All' || (UT.RARITY.some(r => r.name === FILTER) ? UT.rarityOf(c.gr).name === FILTER : c.g === FILTER)).sort((a, b) => b.gr - a.gr);
+  return `<div class="filters"><div class="seg" data-fseg>${['All', ...UT.RARITY.slice().reverse().map(r => r.name), ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div></div>
+    ${list.length ? `<div class="cards">${list.map(c => { const free = canAsk && groups.get(c.k).find(x => !heldU.has(x.u));
+      return `<div>${VMCards.html(c, { count: groups.get(c.k).length, cls: EDIT && key === 'perm' ? `pickme ${EDIT.cards.includes(c.u) ? 'chosen' : ''}` : '', extra: EDIT && key === 'perm' ? `data-add="${c.u}"` : '' })}${free ? `<button class="btn sm" style="width:100%;margin-top:5px;font-size:12px" data-ask="${free.u}" data-askm="${key}">🤝 Ask for it</button>` : ''}</div>`; }).join('')}</div>` : '<p class="empty">No cards here.</p>'}`;
 }
 
 async function one() {
   const r = await fetch('/api/profiles/' + encodeURIComponent(id)).then(r => r.json()).catch(() => null);
   if (!r?.ok) { $('view').innerHTML = `<p class="panel empty">${esc(r?.error || "Couldn't load that profile.")}</p>`; return; }
-  const p = r.profile, ut = p.ut || {}, cards = ut.cards || [], mine = window.VM?.profile() === p.id;
+  const p = r.profile, ut = p.ut || {}, cards = ut.cards || [], me = window.VM?.profile(), mine = me === p.id, rec = ut.rec || { w: 0, l: 0 };
   document.title = `${p.name} · Virtual Measurement`;
-  const earned = p.ledger.filter(l => l.pts > 0 && !l.sale && !l.refund).reduce((s, l) => s + l.pts, 0);
+  const earned = p.ledger.filter(l => l.pts > 0 && !l.sale && !l.refund).reduce((s, l) => s + l.pts, 0), level = LOOK.level(earned), T = LOOK.tier(level);
+  const toNext = LOOK.levelAt(level + 1) - earned, span = LOOK.levelAt(level + 1) - LOOK.levelAt(level);
   const unlocked = Object.keys(p.achievements).filter(k => A.BY_KEY[k]).sort((a, b) => (p.achievements[b] > p.achievements[a] ? 1 : -1));
-  // the showcase: the five chosen cards, or the five best until they choose
-  const byU = new Map(cards.map(c => [c.u, c])), chosen = (EDIT ? EDIT.cards : p.showcase?.cards || []).map(u => byU.get(u)).filter(Boolean);
-  const show = chosen.length || EDIT ? chosen : cards.slice().sort((a, b) => b.gr - a.gr).slice(0, 5);
+  CUSTOM = p.titles || [];
+  const look = EDIT || { cards: p.showcase?.cards || [], title: p.showcase?.title || '', banner: p.showcase?.banner || 'night', avatar: p.showcase?.avatar || '' };
+  const byU = new Map(cards.map(c => [c.u, c])), avatar = byU.get(look.avatar), banner = LOOK.banner(look.banner).ok(p, earned) ? look.banner : 'night';
+  const chosen = look.cards.map(u => byU.get(u)).filter(Boolean), show = chosen.length || EDIT ? chosen : cards.slice().sort((a, b) => b.gr - a.gr).slice(0, 5);
+  const titles = [...unlocked.filter(A.isTitle), ...CUSTOM.map(t => t.key)], hist = p.seasonHistory || [];
+  const sea = p.sea?.n === SEASON.n && SEASON.n ? p.sea : null, sRows = seasonRows(), sRank = sRows.findIndex(x => x.id === p.id) + 1;
   const botW = Object.values(ut.bot?.rec || {}).reduce((s, x) => s + x.w, 0), botL = Object.values(ut.bot?.rec || {}).reduce((s, x) => s + x.l, 0);
   const picks = Object.values(p.pickem?.[Object.keys(p.pickem || {}).sort().pop()] || {}).filter(x => x.res), pw = picks.filter(x => x.res === 'W').length, pl = picks.filter(x => x.res === 'L').length;
-  const count = k => cards.filter(c => UT.rarityOf(c.gr).key === k).length;
-  CUSTOM = p.titles || [];
-  const heldU = new Set([...Object.values(ut.lineup || {}), ...Object.values(ut.comp || {})]); // cards in their lineups can't be traded
-  const title = EDIT ? EDIT.title : p.showcase?.title, titles = [...unlocked.filter(A.isTitle), ...CUSTOM.map(t => t.key)], hist = p.seasonHistory || [];
-  // the collection, one card per kind with how many copies
-  const groups = new Map(); for (const c of cards) { if (!groups.has(c.k)) groups.set(c.k, []); groups.get(c.k).push(c); }
-  const list = [...groups.values()].map(cs => cs[0]).filter(c => FILTER === 'All' || (UT.RARITY.some(r => r.name === FILTER) ? UT.rarityOf(c.gr).name === FILTER : c.g === FILTER)).sort((a, b) => b.gr - a.gr);
-  $('view').innerHTML = `
-    <div class="panel"><div class="phead"><div><div class="title">${esc(titleOf(title) || (mine && titles.length ? 'Pick a title below' : ''))}</div><h2>${esc(p.name)}</h2>
-      <div class="muted" style="font-size:13px">${ut.team ? `${esc(ut.team.abbr)} · ${esc(ut.team.name)} · ` : ''}joined ${new Date(p.created).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</div></div>
-      <div>${mine && !EDIT ? '<button class="btn go" id="edit">✏️ Edit showcase and title</button>' : ''}</div></div>
-      <div class="tiles">
-        <div class="tile"><div class="k">Points earned</div><div class="v" style="color:var(--gold)">${earned.toLocaleString()}</div><div class="s">${p.balance.toLocaleString()} to spend</div></div>
-        <div class="tile"><div class="k">vs players</div><div class="v">${ut.rec ? `${ut.rec.w}-${ut.rec.l}` : '–'}</div><div class="s">💍 ${ut.titles || 0} ring${ut.titles === 1 ? '' : 's'}</div></div>
-        <div class="tile"><div class="k">vs bots</div><div class="v">${botW}-${botL}</div></div>
-        <div class="tile"><div class="k">Pick'em</div><div class="v">${pw}-${pl}</div><div class="s">this season</div></div>
-        <div class="tile"><div class="k">Cards</div><div class="v">${cards.length}</div><div class="s">🌈 ${count('mythic')} · 👑 ${count('legendary')} · ${Object.keys(ut.collected || {}).length} sets</div></div>
-        <div class="tile"><div class="k">Achievements</div><div class="v">${unlocked.length} / ${A.LIST.length}</div></div>
-        ${hist.length ? `<div class="tile" title="${esc(hist.map(h => `Season ${h.n}: #${h.rank} of ${h.of}, ${h.w}-${h.l}`).join('\n'))}"><div class="k">🗓️ Last season</div><div class="v">${hist[0].champ ? '🏆 ' : ''}#${hist[0].rank}<span class="muted" style="font-size:13px"> of ${hist[0].of}</span></div><div class="s">Season ${hist[0].n} · ${hist[0].w}-${hist[0].l}${hist.filter(h => h.champ).length ? ` · ${hist.filter(h => h.champ).length}× champion` : ''}</div></div>` : ''}
-      </div></div>
+  const count = k => cards.filter(c => UT.rarityOf(c.gr).key === k).length, gp = rec.w + rec.l;
+  const tabs = [['perm', '🃏 Permanent'], ['sea', `${SEASON.icon || '🗓️'} ${esc(SEASON.name || 'Season')}`], ['hist', `📜 Seasons (${hist.length})`]];
+  if (TAB === 'sea' && !SEASON.n) TAB = 'perm';
+  // ---------- the tabs ----------
+  const permHtml = `<div class="panel"><div class="tiles">
+      <div class="tile"><div class="k">Record vs players</div><div class="v">${rec.w}-${rec.l}</div><div class="s">${pct(rec.w, rec.l)} · 💍 ${ut.titles || 0} ring${ut.titles === 1 ? '' : 's'}</div></div>
+      <div class="tile"><div class="k">Points for / against</div><div class="v">${rec.pf ?? 0}-${rec.pa ?? 0}</div><div class="s">${gp ? `${((rec.pf || 0) / gp).toFixed(1)} - ${((rec.pa || 0) / gp).toFixed(1)} a game` : 'no games yet'}</div></div>
+      <div class="tile"><div class="k">vs bots</div><div class="v">${botW}-${botL}</div><div class="s">${pct(botW, botL)}</div></div>
+      <div class="tile"><div class="k">Pick'em</div><div class="v">${pw}-${pl}</div><div class="s">this NFL season</div></div>
+      <div class="tile"><div class="k">Points earned</div><div class="v" style="color:var(--gold)">${earned.toLocaleString()}</div><div class="s">${p.balance.toLocaleString()} to spend</div></div>
+      <div class="tile"><div class="k">Cards</div><div class="v">${cards.length}</div><div class="s">🌈 ${count('mythic')} · 👑 ${count('legendary')} · ${Object.keys(ut.collected || {}).length} sets</div></div>
+      <div class="tile"><div class="k">Achievements</div><div class="v">${unlocked.length} / ${A.LIST.length}</div></div>
+      <div class="tile"><div class="k">Seasons</div><div class="v">${hist.length}</div><div class="s">${hist.filter(h => h.champ).length ? `🏆 ${hist.filter(h => h.champ).length}× champion` : hist[0] ? `last: #${hist[0].rank} of ${hist[0].of}` : 'none yet'}</div></div>
+    </div></div>
     <div class="panel"><h2>⭐ Showcase</h2>
-      <div class="showcase">${Array.from({ length: 5 }, (_, i) => (show[i] ? VMCards.html(show[i], { extra: EDIT ? `data-un="${show[i].u}" title="Click to take it out"` : '', cls: EDIT ? 'pickme' : '' }) : `<div class="slotx">${EDIT ? 'Click a card below to add it' : 'Empty'}</div>`)).join('')}</div>
-      ${EDIT ? `<div class="editbar"><label>Title <select id="titleSel"><option value="">No title</option>${titles.map(k => `<option value="${k}" ${k === EDIT.title ? 'selected' : ''}>${esc(titleOf(k))}</option>`).join('')}</select></label>
-        <button class="btn go" id="saveShow">Save</button><button class="btn" id="cancelShow">Cancel</button><span class="muted" style="font-size:12px">Pick up to 5 cards. Titles come from the gold, platinum and legendary achievements you've unlocked, and from seasonal mode.</span></div><div style="color:var(--loss);text-align:center;font-size:13px" id="showErr"></div>` : ''}</div>
-    <div class="panel"><h2>🗂 Collection · ${cards.length} cards, ${groups.size} different</h2>
-      <div class="filters"><div class="seg" id="fseg">${['All', ...UT.RARITY.slice().reverse().map(r => r.name), ...UT.GROUPS].map(g => `<button class="${g === FILTER ? 'on' : ''}" data-f="${g}">${g}</button>`).join('')}</div></div>
-      ${list.length ? `<div class="cards">${list.map(c => { const free = !mine && window.VM?.profile() && groups.get(c.k).find(x => !heldU.has(x.u)); return `<div>${VMCards.html(c, { count: groups.get(c.k).length, cls: EDIT ? `pickme ${EDIT.cards.includes(c.u) ? 'chosen' : ''}` : '', extra: EDIT ? `data-add="${c.u}"` : '' })}${free ? `<button class="btn sm" style="width:100%;margin-top:5px;font-size:12px" data-ask="${free.u}">🤝 Ask for it</button>` : ''}</div>`; }).join('')}</div>` : '<p class="empty">No cards here.</p>'}</div>
+      <div class="showcase">${Array.from({ length: 5 }, (_, i) => (show[i] ? VMCards.html(show[i], { extra: EDIT ? `data-un="${show[i].u}" title="Click to take it out"` : '', cls: EDIT ? 'pickme' : '' }) : `<div class="slotx">${EDIT ? 'Click a card below to add it' : 'Empty'}</div>`)).join('')}</div></div>
+    <div class="panel"><h2>🗂 Collection · ${cards.length} cards</h2>${collectionHtml(cards, ut, !mine && !!me && !EDIT, 'perm')}</div>
     <div class="panel"><h2>🏆 Achievements</h2><div class="achs">${unlocked.map(k => `<span class="ach" title="${esc(A.BY_KEY[k].desc)}">${esc(titleOf(k))}</span>`).join('') || '<span class="muted">None yet.</span>'}</div></div>`;
-  $('fseg').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { FILTER = b.dataset.f; one(); } };
-  // 🤝 ask for one of their cards (with an optional points offer); the answer comes in Ultimate Team's 🤝 Market tab
+  const M = UT.SEASON.milestones;
+  const seaHtml = !sea ? `<div class="panel"><p class="empty">${esc(p.name)} hasn't played ${esc(SEASON.name || 'this season')} yet.</p></div>` : `<div class="panel"><div class="tiles">
+      <div class="tile"><div class="k">${esc(SEASON.name)} record</div><div class="v">${sea.rec.w}-${sea.rec.l}</div><div class="s">${sRank ? `#${sRank} of ${sRows.length}` : 'not ranked yet'}</div></div>
+      <div class="tile"><div class="k">Points for / against</div><div class="v">${sea.rec.pf || 0}-${sea.rec.pa || 0}</div><div class="s">diff ${(sea.rec.pf || 0) - (sea.rec.pa || 0) >= 0 ? '+' : ''}${(sea.rec.pf || 0) - (sea.rec.pa || 0)}</div></div>
+      <div class="tile"><div class="k">✨ XP</div><div class="v">${sea.xp.toLocaleString()}</div><div class="s">${sea.got.length} of ${M.length} milestones</div></div>
+      <div class="tile"><div class="k">🪙 Coins</div><div class="v">${sea.coins.toLocaleString()}</div><div class="s">${sea.cards.length} season cards</div></div>
+      <div class="tile"><div class="k">Team</div><div class="v" style="font-size:16px">${esc(sea.team?.abbr || '')}</div><div class="s">${esc(sea.team?.name || '')}</div></div>
+    </div></div>
+    <div class="panel"><h2>🗂 ${esc(SEASON.name)} cards · ${sea.cards.length}</h2>${collectionHtml(sea.cards, sea, !mine && !!me && !EDIT, 'sea')}</div>`;
+  const histHtml = `<div class="panel"><h2>📜 Seasons</h2>${hist.length ? `<table class="hist"><tr><th>Season</th><th class="num">Rank</th><th class="num">W-L</th><th class="num">PF-PA</th><th class="num">XP</th><th></th></tr>
+      ${hist.map(h => `<tr><td>${esc(h.name || `Season ${h.n}`)} <span class="muted" style="font-size:12px">· Season ${h.n}</span></td><td class="num"><b>#${h.rank}</b> <span class="muted">of ${h.of}</span></td><td class="num">${h.w}-${h.l}</td><td class="num">${h.pf != null ? `${h.pf}-${h.pa}` : '–'}</td><td class="num">${(h.xp || 0).toLocaleString()}</td><td>${h.champ ? '🏆 Champion' : ''}</td></tr>`).join('')}</table>` : '<p class="empty">No finished seasons yet.</p>'}</div>`;
+  // ---------- ✏️ editing your look ----------
+  const mythics = cards.filter(LOOK.avatarOk).sort((a, b) => b.gr - a.gr);
+  const editHtml = !EDIT ? '' : `<div class="panel"><h2>✏️ Your look</h2>
+      <h3 class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">🖼️ Picture: one of your Mythics or 👑 Legends</h3>
+      <div class="avpick"><span data-av="" title="No picture">${avatarHtml(null, level, 58, p.name)}</span>${mythics.map(c => `<span data-av="${c.u}" title="${esc(c.n)} ${c.s}">${avatarHtml(c, level, 58, p.name).replace('class="av ', `class="av ${EDIT.avatar === c.u ? 'on ' : ''}`)}</span>`).join('') || '<span class="muted">Get a Mythic (or a 👑 Legend from a season) to use it as your picture.</span>'}</div>
+      <h3 class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-top:14px">🎨 Banner</h3>
+      <div class="banners">${LOOK.BANNERS.map(b => { const ok = b.ok(p, earned); return `<div class="bn ${b.key === EDIT.banner ? 'on' : ''} ${ok ? '' : 'locked'}" ${ok ? `data-bn="${b.key}"` : ''} style="background:${bannerCss(b.key, p.prefs?.fav)}" title="${esc(b.need)}">${ok ? '' : '🔒 '}${b.icon} ${esc(b.name)}<small>${ok ? '' : esc(b.need)}</small></div>`; }).join('')}</div>
+      <div class="editbar"><label>Title <select id="titleSel"><option value="">No title</option>${titles.map(k => `<option value="${k}" ${k === EDIT.title ? 'selected' : ''}>${esc(titleOf(k))}</option>`).join('')}</select></label>
+        <button class="btn go" id="saveShow">Save</button><button class="btn" id="cancelShow">Cancel</button></div>
+      <p class="muted" style="text-align:center;font-size:12px;margin:8px 0 0">Showcase: click cards in your collection below (up to 5); click one in the showcase to take it out. Titles come from gold, platinum and legendary achievements, and from seasonal mode.</p>
+      <div style="color:var(--loss);text-align:center;font-size:13px" id="showErr"></div></div>`;
+  $('view').innerHTML = `
+    <div class="hero" style="background:${bannerCss(banner, p.prefs?.fav)};--ring:${T.color}">
+      <div class="hrow">${avatarHtml(avatar, level, 96, p.name)}
+        <div style="min-width:0"><div class="title">${esc(titleOf(look.title) || (mine && titles.length ? 'Pick a title in ✏️ Edit' : ''))}</div><h2>${esc(p.name)}</h2>
+          <div class="meta">${ut.team ? `${esc(ut.team.abbr)} · ${esc(ut.team.name)} · ` : ''}Level ${level} ${T.name} · joined ${new Date(p.created).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</div>
+          <div class="lbar" title="${toNext.toLocaleString()} points to level ${level + 1}"><div style="width:${Math.round(100 * (1 - toNext / span))}%"></div></div></div>
+        <div class="big"><b>${rec.w}-${rec.l}</b><span>vs players · ${rec.pf ?? 0}-${rec.pa ?? 0} PF-PA</span>${sea ? `<div style="margin-top:6px"><b style="font-size:20px">${sea.rec.w}-${sea.rec.l}</b><span>${SEASON.icon} ${esc(SEASON.name)}${sRank ? ` · #${sRank}` : ''}</span></div>` : ''}</div></div>
+      ${mine && !EDIT ? '<div style="margin-top:12px"><button class="btn" id="edit" style="background:rgba(0,0,0,.35);color:#fff;border-color:rgba(255,255,255,.35)">✏️ Edit picture, banner, title and showcase</button></div>' : ''}
+    </div>
+    ${editHtml}
+    <div class="ptabs"><div class="seg">${tabs.map(([k, t]) => `<button class="${k === TAB ? 'on' : ''}" data-tab="${k}" ${k === 'sea' && !SEASON.n ? 'disabled' : ''}>${t}</button>`).join('')}</div></div>
+    ${EDIT || TAB === 'perm' ? permHtml : TAB === 'sea' ? seaHtml : histHtml}`;
+  // ---------- wiring ----------
+  $('view').querySelectorAll('[data-tab]').forEach(b => (b.onclick = () => { TAB = b.dataset.tab; one(); }));
+  $('view').querySelectorAll('[data-fseg]').forEach(g => (g.onclick = e => { const b = e.target.closest('[data-f]'); if (b) { FILTER = b.dataset.f; one(); } }));
   $('view').querySelectorAll('[data-ask]').forEach(b => (b.onclick = async () => {
-    const c = cards.find(x => x.u === b.dataset.ask), v = prompt(`Ask ${p.name} for ${c.n} (${c.s}, ${c.gr}).\nOffer points with it? (optional: leave it empty and they'll pick from your cards)`, '');
-    if (v === null) return;
+    const seasonal = b.dataset.askm === 'sea', c = (seasonal ? sea.cards : cards).find(x => x.u === b.dataset.ask);
     b.disabled = true;
-    const r = await fetch(`/api/ut/${encodeURIComponent(window.VM.profile())}/trade`, { method: 'POST', headers: VM.headers(), body: JSON.stringify({ to: p.id, uid: c.u, pts: Math.max(0, Math.round(+v || 0)) }) }).then(r => r.json()).catch(() => ({ ok: false, error: "The server didn't answer." }));
-    if (r.ok) { b.textContent = '✓ Asked: see 🤝 Market in Ultimate Team'; } else { alert(r.error); b.disabled = false; }
+    const res = await ask(p, c, seasonal);
+    if (!res) { b.disabled = false; return; }
+    if (res.ok) b.textContent = '✓ Asked: see 🤝 Market'; else { alert(res.error); b.disabled = false; }
   }));
-  if ($('edit')) $('edit').onclick = () => { EDIT = { cards: (p.showcase?.cards || show.map(c => c.u)).slice(0, 5), title: p.showcase?.title || '' }; one(); };
-  if (!EDIT) return;
+  if ($('edit')) $('edit').onclick = () => { EDIT = { ...look, cards: (look.cards.length ? look.cards : show.map(c => c.u)).slice(0, 5) }; TAB = 'perm'; one(); };
+  if (!EDIT) { $('view').onclick = null; return; }
   $('view').onclick = e => {
-    const add = e.target.closest('[data-add]'), un = e.target.closest('[data-un]');
+    const add = e.target.closest('[data-add]'), un = e.target.closest('[data-un]'), av = e.target.closest('[data-av]'), bn = e.target.closest('[data-bn]');
     if (add) { const u = add.dataset.add; EDIT.cards = EDIT.cards.includes(u) ? EDIT.cards.filter(x => x !== u) : EDIT.cards.length < 5 ? [...EDIT.cards, u] : EDIT.cards; one(); }
     else if (un) { EDIT.cards = EDIT.cards.filter(x => x !== un.dataset.un); one(); }
+    else if (av) { EDIT.avatar = av.dataset.av; one(); }
+    else if (bn) { EDIT.banner = bn.dataset.bn; one(); }
   };
   $('titleSel').onchange = () => { EDIT.title = $('titleSel').value; one(); };
-  $('cancelShow').onclick = () => { EDIT = null; $('view').onclick = null; one(); };
+  $('cancelShow').onclick = () => { EDIT = null; one(); };
   $('saveShow').onclick = async () => {
     const r2 = await fetch(`/api/profiles/${p.id}/showcase`, { method: 'POST', headers: VM.headers(), body: JSON.stringify(EDIT) }).then(r => r.json()).catch(() => ({ ok: false, error: "The server didn't answer." }));
     if (!r2.ok) { $('showErr').textContent = r2.error; return; }
-    EDIT = null; $('view').onclick = null; one();
+    EDIT = null; await loadList(); one();
   };
 }
 
 (async () => {
   if (!location.protocol.startsWith('http')) { $('view').innerHTML = '<p class="panel empty">Profiles need the server: open the site with start.bat.</p>'; return; }
   await art();
+  await loadList();
   id ? one() : yours();
   window.addEventListener('vm:profile', () => (new URLSearchParams(location.search).get('id') && id !== window.VM?.profile() ? one() : yours()));
+  window.addEventListener('popstate', () => { id = new URLSearchParams(location.search).get('id'); EDIT = null; drawSide(); id ? one() : yours(); });
 })();
 </script>
 <script src="glossary.js"></script>
