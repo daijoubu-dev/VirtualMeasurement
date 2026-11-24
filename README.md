@@ -168,7 +168,7 @@ Collect player cards, build a team, queue it up and let someone challenge it. Ne
   - ✨ XP: 100 a win and 40 a loss against players, 40 / 15 against bots, and your first 3 games each day count double. XP fills a milestone track whose rewards are **permanent** (your points and main collection): 500 points (250 XP), a Premium pack (600), 1,000 points (1,000), a Legend pack (1,500), 2,000 points (2,100), a "Season N Veteran" title (2,800), 2 Legend packs (3,600) and that season's 🌈 Mythic (4,500), a season-stamped 99 edition of a star.
   - 🏆 The best record against players when the season ends wins it (wins minus losses, then wins, then point differential, then XP; no minimum number of games, but at least one game against a player). The champion gets a second season Mythic, a "Season N Champion" title and the Season Champion achievement. Everyone who played gets their final rank in their profile's history.
   - The 🗓️ Season tab shows the track, both Mythics (each season's two are the same for everyone, picked from 95+ stars), the standings, the time left and last season's final.
-  - 📋 **The season plan** ( in ). Every season has a name, and the seasonal tab shows its rules:
+  - 📋 **The season plan** (`SEASONS` in `app/ultimate.js`). Every season has a name, and the seasonal tab shows its rules:
     | # | Dates | Name | Special rule | Reward Mythics (track / champion) |
     |---|---|---|---|---|
     | 1 | Nov 22 – Dec 6 | 🏈 Opening Drive | none | Lamar Jackson 2019 / Marshall Faulk 2000 |
